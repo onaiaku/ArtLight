@@ -847,15 +847,18 @@ end;
 procedure Dependency_AddWindowsAppRuntime23;
 begin
   // https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/downloads
-  // Windows App SDK 2.3 (2.3.1) — required by WinUI 3 unpackaged apps.
+  // The app now targets Windows App SDK 2.4.0 (upgraded from 2.3.1: the OS
+  // resolves unpackaged WinUI DDLM bindings to the HIGHEST installed runtime,
+  // so a machine with 2.4 installed crashed a 2.3-built app inside
+  // Microsoft.UI.Xaml.dll at startup). Require 2.4 at minimum.
   // The installer handles idempotency itself (exits 0 if already present),
-  // so ForceSuccess=True is safe. We ship x64 only; 2.x also has x86/arm64 builds.
+  // so ForceSuccess=True is safe. We ship x64 only.
   // Coexists side-by-side with the 1.x runtimes: nothing needs uninstalling.
-  if not Dependency_HasWindowsAppRuntime2('2.3.1.0') then begin
+  if not Dependency_HasWindowsAppRuntime2('2.4.0.0') then begin
     Dependency_Add('WindowsAppRuntimeInstall-x64.exe',
       '--quiet',
-      'Windows App Runtime 2.3',
-      'https://aka.ms/windowsappsdk/2.3/2.3.1/windowsappruntimeinstall-x64.exe',
+      'Windows App Runtime 2.4',
+      'https://aka.ms/windowsappsdk/2.4/2.4.0/windowsappruntimeinstall-x64.exe',
       '', True, False);
   end;
 end;
