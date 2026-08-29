@@ -40,7 +40,6 @@ namespace StreamTweak
         private string _adapterName = "Ethernet";
         private bool _isAutoSessionActive = false;     // session is being tracked
         private bool _sessionStartInProgress = false;
-        private bool _bridgeRetrospectiveArmed = true; // one-shot for mid-session restart
         private List<string> _appsToRelaunch = new();
 
         // ── Spatial audio ────────────────────────────────────────────────────
@@ -482,16 +481,14 @@ namespace StreamTweak
             {
                 if (SessionLogger.ActiveSessionId == null)
                 {
-                    // Move the entire one-shot logic onto the UI thread to avoid a race
-                    // where two concurrent SESSIONDATA batches both see _bridgeRetrospectiveArmed=true
-                    // before either resets it, potentially launching two parallel sessions.
+                    // No active session yet, but the client is clearly streaming — start one.
+                    // The whole decision moves onto the UI thread to avoid a race where two
+                    // concurrent SESSIONDATA batches both pass the checks and launch two
+                    // parallel sessions; _sessionStartInProgress guards re-entry inside it.
                     _dispatcher.TryEnqueue(() =>
                     {
-                        if (_bridgeRetrospectiveArmed
-                            && !_isAutoSessionActive
-                            && !_sessionStartInProgress)
+                        if (!_isAutoSessionActive && !_sessionStartInProgress)
                         {
-                            _bridgeRetrospectiveArmed = false; // one-shot, safe on UI thread
                             _dolbyMonitor.OnStreamingStarted(isRetrospective: true);
                             _ = HandleAutoStreamStart(retrospective: true);
                         }
