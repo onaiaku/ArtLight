@@ -4,7 +4,7 @@
     xmlns:converters="using:ArtLightControl.Converters">
 
     <!-- ═══════════════════════════════════════════════════════════════════════
-         STREAMTWEAK 8.0 — additive design-system layer
+         ARTLIGHT CONTROL 8.0 — additive design-system layer
          Merged AFTER ArtLightControlStyles.xaml, so it can reference every v6/v7 key
          (ST_Card, ST_SectionLabel, ST*Brush, …). Only the NEW pieces the 8.0
          master-detail IA needs live here; nothing in the 7.x sheet is touched.

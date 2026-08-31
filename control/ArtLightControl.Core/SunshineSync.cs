@@ -12,7 +12,7 @@ namespace ArtLightControl
     /// Synchronises the local game library with Sunshine's apps.json.
     ///
     /// Strategy:
-    ///   • Apps created by ArtLightControl are marked with "output": "streamtweak-managed".
+    ///   • Apps created by ArtLightControl are marked with the managed marker (see MANAGED_FIELD).
     ///   • Manual apps (any other output value) are never touched.
     ///   • On each sync: managed apps whose games are no longer installed are removed;
     ///     newly discovered games are added; existing managed apps are updated (cover art).

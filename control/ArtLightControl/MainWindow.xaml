@@ -137,7 +137,7 @@
                         VerticalAlignment="Center"
                         Spacing="8" Margin="16,0,0,0"
                         IsHitTestVisible="False">
-                <Image Source="ms-appx:///Resources/streamtweak.ico"
+                <Image Source="ms-appx:///Resources/artlightcontrol.ico"
                        Width="14" Height="14"
                        VerticalAlignment="Center"/>
                 <TextBlock Text="ArtLight Control"

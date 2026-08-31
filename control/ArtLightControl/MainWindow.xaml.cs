@@ -20,7 +20,7 @@ namespace ArtLightControl
         {
             this.InitializeComponent();
             AppWindow.SetIcon(System.IO.Path.Combine(
-                System.AppContext.BaseDirectory, "Resources", "streamtweak.ico"));
+                System.AppContext.BaseDirectory, "Resources", "artlightcontrol.ico"));
 
             var v = Assembly.GetExecutingAssembly().GetName().Version;
             SidebarVersionText.Text = v != null

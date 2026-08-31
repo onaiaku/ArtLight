@@ -15,7 +15,7 @@
     <WindowsPackageType>None</WindowsPackageType>
     <Platforms>x64</Platforms>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <ApplicationIcon>Resources\streamtweak.ico</ApplicationIcon>
+    <ApplicationIcon>Resources\artlightcontrol.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- The file name stays ArtLightControl: the LocalSystem service only accepts pipe clients
          called ArtLightControl.exe from its own install directory (§22), so renaming the binary
@@ -101,7 +101,7 @@
 
   <ItemGroup>
     <!-- ICO files: needed at runtime for tray icon and window icon -->
-    <Content Include="Resources\streamtweak.ico">
+    <Content Include="Resources\artlightcontrol.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Resources\streammodeko.ico">

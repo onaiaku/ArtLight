@@ -4,7 +4,7 @@
     xmlns:converters="using:ArtLightControl.Converters">
 
     <!-- ═══════════════════════════════════════════════════════════════════════
-         STREAMTWEAK DESIGN SYSTEM — v6.0 Redesign
+         ARTLIGHT CONTROL DESIGN SYSTEM — v6.0 Redesign
          Tutti i valori in pixel logici (device-independent).
          CharacterSpacing: unità 1/1000 em  (0.08em = 80, -0.02em = -20)
     ════════════════════════════════════════════════════════════════════════ -->

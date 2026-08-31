@@ -24,7 +24,7 @@ namespace ArtLightControl.Services
             // In dev builds this is the bin/Debug or bin/Release output folder;
             // in production it is the InnoSetup install directory.
             string iconPath = Path.Combine(
-                AppContext.BaseDirectory, "Resources", "streamtweak.ico");
+                AppContext.BaseDirectory, "Resources", "artlightcontrol.ico");
 
             ToastHelper.Initialize("ArtLight Control", iconPath);
         }
