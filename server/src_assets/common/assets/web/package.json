@@ -1,0 +1,30 @@
+{
+  "name": "vibepollo-web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "tokens": "node ./scripts/generate-tokens.mjs",
+    "build": "npm run tokens && vue-tsc --noEmit -p tsconfig.app.json && vite build",
+    "test:v2-parity": "node --experimental-strip-types scripts/v2-parity.test.ts",
+    "preview": "vite preview",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "pinia": "^2.1.8",
+    "vue": "3.5.18",
+    "vue-i18n": "11.1.11",
+    "vue-router": "4.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@vitejs/plugin-vue": "4.6.2",
+    "prettier": "^3.6.2",
+    "serve": "14.2.4",
+    "typescript": "^5.9.2",
+    "vite": "4.5.14",
+    "vue-tsc": "^3.0.6"
+  }
+}

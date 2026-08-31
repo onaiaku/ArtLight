@@ -1,0 +1,3279 @@
+/**
+ * @file src/config.cpp
+ * @brief Definitions for the configuration of Sunshine.
+ */
+// standard includes
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <cctype>
+#include <condition_variable>
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <iostream>
+#include <mutex>
+#include <set>
+#include <sstream>
+#include <stop_token>
+#include <string_view>
+#include <system_error>
+#include <thread>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+
+// lib includes
+#include <boost/asio.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/filesystem.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <nlohmann/json.hpp>
+
+// local includes
+#include "config.h"
+#include "config_key.h"
+#include "config_playnite.h"
+#include "display_device.h"
+#include "display_helper_integration.h"
+#include "entry_handler.h"
+#include "file_handler.h"
+#include "globals.h"
+#include "httpcommon.h"
+#include "logging.h"
+#include "nvhttp.h"
+#include "platform/common.h"
+#include "process.h"
+#include "rtsp.h"
+#include "session_history.h"
+#include "state_storage.h"
+#include "stream.h"
+#include "utility.h"
+#include "version_compare.h"
+#include "video.h"
+#include "webrtc_stream.h"
+
+#ifdef _WIN32
+  #include "platform/windows/utils.h"
+
+  #include <shellapi.h>
+  #include <Windows.h>
+  #include "platform/windows/hotkey_manager.h"
+  #include "platform/windows/misc.h"
+  #include "platform/windows/rtx_hdr_runtime.h"
+
+  #include <shellapi.h>
+  #include <Windows.h>
+#endif
+
+#if !defined(__ANDROID__) && !defined(__APPLE__)
+  // For NVENC legacy constants
+  #include <ffnvcodec/nvEncodeAPI.h>
+#endif
+
+#if defined(_WIN32) && !defined(DOXYGEN)
+  #ifdef _GLIBCXX_USE_C99_INTTYPES
+    #undef _GLIBCXX_USE_C99_INTTYPES
+  #endif
+  #include <AMF/components/VideoEncoderAV1.h>
+  #include <AMF/components/VideoEncoderHEVC.h>
+  #include <AMF/components/VideoEncoderVCE.h>
+#endif
+
+namespace fs = std::filesystem;
+using namespace std::literals;
+
+#ifdef _WIN32
+namespace VDISPLAY {
+  bool is_virtual_display_output(const std::string &output_identifier);
+  bool is_virtual_display_selection(const std::string &output_identifier);
+  bool has_active_physical_display();
+}  // namespace VDISPLAY
+#endif
+
+#define CA_DIR "credentials"
+#define PRIVATE_KEY_FILE CA_DIR "/cakey.pem"
+#define CERTIFICATE_FILE CA_DIR "/cacert.pem"
+
+#define APPS_JSON_PATH platf::appdata().string() + "/apps.json"
+
+namespace config {
+  namespace {
+    void update_base_adapter_config_snapshot(
+      const std::unordered_map<std::string, std::string> &vars
+    );
+  }
+
+  namespace nv {
+    constexpr std::string_view split_encode_key = "nvenc_split_encode"sv;
+    constexpr std::string_view legacy_split_encode_key = "nvenc_force_split_encode"sv;
+
+    std::string normalize_split_encode_key(std::string key) {
+      if (key == legacy_split_encode_key) {
+        return std::string(split_encode_key);
+      }
+      return key;
+    }
+
+    void normalize_split_encode_alias(std::unordered_map<std::string, std::string> &vars) {
+      auto legacy = vars.find(std::string(legacy_split_encode_key));
+      if (legacy == vars.end()) {
+        return;
+      }
+
+      if (!vars.contains(std::string(split_encode_key))) {
+        vars.emplace(std::string(split_encode_key), legacy->second);
+      }
+      vars.erase(legacy);
+    }
+
+    nvenc::nvenc_two_pass twopass_from_view(const ::std::string_view &preset) {
+      if (preset == "disabled") {
+        return nvenc::nvenc_two_pass::disabled;
+      }
+      if (preset == "quarter_res") {
+        return nvenc::nvenc_two_pass::quarter_resolution;
+      }
+      if (preset == "full_res") {
+        return nvenc::nvenc_two_pass::full_resolution;
+      }
+      BOOST_LOG(warning) << "config: unknown nvenc_twopass value: " << preset;
+      return nvenc::nvenc_two_pass::quarter_resolution;
+    }
+
+    nvenc::split_encode_mode split_encode_mode_from_view(const std::string_view &value) {
+      if (value == "auto" || value == "driver_decides") {
+        return nvenc::split_encode_mode::auto_mode;
+      }
+      if (value == "enabled") {
+        return nvenc::split_encode_mode::enabled;
+      }
+      if (value == "disabled") {
+        return nvenc::split_encode_mode::disabled;
+      }
+      BOOST_LOG(warning) << "config: unknown " << split_encode_key << " value: " << value;
+      return nvenc::split_encode_mode::auto_mode;
+    }
+
+  }  // namespace nv
+
+  namespace amd {
+#if !defined(_WIN32) || defined(DOXYGEN)
+  // values accurate as of 27/12/2022, but aren't strictly necessary for MacOS build
+  #define AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_SPEED 100
+  #define AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_QUALITY 30
+  #define AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_BALANCED 70
+  #define AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_SPEED 10
+  #define AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_QUALITY 0
+  #define AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_BALANCED 5
+  #define AMF_VIDEO_ENCODER_QUALITY_PRESET_SPEED 1
+  #define AMF_VIDEO_ENCODER_QUALITY_PRESET_QUALITY 2
+  #define AMF_VIDEO_ENCODER_QUALITY_PRESET_BALANCED 0
+  #define AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CONSTANT_QP 0
+  #define AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CBR 3
+  #define AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR 2
+  #define AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR 1
+  #define AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CONSTANT_QP 0
+  #define AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CBR 3
+  #define AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR 2
+  #define AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR 1
+  #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP 0
+  #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR 1
+  #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR 2
+  #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR 3
+  #define AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_QUALITY_VBR 4
+  #define AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_HIGH_QUALITY_VBR 5
+  #define AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_HIGH_QUALITY_CBR 6
+  #define AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_QUALITY_VBR 4
+  #define AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_HIGH_QUALITY_VBR 5
+  #define AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_HIGH_QUALITY_CBR 6
+  #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_QUALITY_VBR 4
+  #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_HIGH_QUALITY_VBR 5
+  #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_HIGH_QUALITY_CBR 6
+  #define AMF_VIDEO_ENCODER_AV1_USAGE_TRANSCODING 0
+  #define AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY 1
+  #define AMF_VIDEO_ENCODER_AV1_USAGE_ULTRA_LOW_LATENCY 2
+  #define AMF_VIDEO_ENCODER_AV1_USAGE_WEBCAM 3
+  #define AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY_HIGH_QUALITY 5
+  #define AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCODING 0
+  #define AMF_VIDEO_ENCODER_HEVC_USAGE_ULTRA_LOW_LATENCY 1
+  #define AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY 2
+  #define AMF_VIDEO_ENCODER_HEVC_USAGE_WEBCAM 3
+  #define AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY_HIGH_QUALITY 5
+  #define AMF_VIDEO_ENCODER_USAGE_TRANSCODING 0
+  #define AMF_VIDEO_ENCODER_USAGE_ULTRA_LOW_LATENCY 1
+  #define AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY 2
+  #define AMF_VIDEO_ENCODER_USAGE_WEBCAM 3
+  #define AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY_HIGH_QUALITY 5
+  #define AMF_VIDEO_ENCODER_UNDEFINED 0
+  #define AMF_VIDEO_ENCODER_CABAC 1
+  #define AMF_VIDEO_ENCODER_CALV 2
+#endif
+
+    enum class quality_av1_e : int {
+      speed = AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_SPEED,  ///< Speed preset
+      quality = AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_QUALITY,  ///< Quality preset
+      balanced = AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_BALANCED  ///< Balanced preset
+    };
+
+    enum class quality_hevc_e : int {
+      speed = AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_SPEED,  ///< Speed preset
+      quality = AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_QUALITY,  ///< Quality preset
+      balanced = AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_BALANCED  ///< Balanced preset
+    };
+
+    enum class quality_h264_e : int {
+      speed = AMF_VIDEO_ENCODER_QUALITY_PRESET_SPEED,  ///< Speed preset
+      quality = AMF_VIDEO_ENCODER_QUALITY_PRESET_QUALITY,  ///< Quality preset
+      balanced = AMF_VIDEO_ENCODER_QUALITY_PRESET_BALANCED  ///< Balanced preset
+    };
+
+    enum class rc_av1_e : int {
+      cbr = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CBR,  ///< CBR
+      cqp = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CONSTANT_QP,  ///< CQP
+      vbr_latency = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR,  ///< VBR with latency constraints
+      vbr_peak = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR,  ///< VBR with peak constraints
+      qvbr = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_QUALITY_VBR,  ///< Quality-defined VBR
+      hqvbr = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_HIGH_QUALITY_VBR,  ///< High quality VBR
+      hqcbr = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_HIGH_QUALITY_CBR  ///< High quality CBR
+    };
+
+    enum class rc_hevc_e : int {
+      cbr = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CBR,  ///< CBR
+      cqp = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CONSTANT_QP,  ///< CQP
+      vbr_latency = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR,  ///< VBR with latency constraints
+      vbr_peak = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR,  ///< VBR with peak constraints
+      qvbr = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_QUALITY_VBR,  ///< Quality-defined VBR
+      hqvbr = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_HIGH_QUALITY_VBR,  ///< High quality VBR
+      hqcbr = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_HIGH_QUALITY_CBR  ///< High quality CBR
+    };
+
+    enum class rc_h264_e : int {
+      cbr = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR,  ///< CBR
+      cqp = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP,  ///< CQP
+      vbr_latency = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR,  ///< VBR with latency constraints
+      vbr_peak = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR,  ///< VBR with peak constraints
+      qvbr = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_QUALITY_VBR,  ///< Quality-defined VBR
+      hqvbr = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_HIGH_QUALITY_VBR,  ///< High quality VBR
+      hqcbr = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_HIGH_QUALITY_CBR  ///< High quality CBR
+    };
+
+    enum class usage_av1_e : int {
+      transcoding = AMF_VIDEO_ENCODER_AV1_USAGE_TRANSCODING,  ///< Transcoding preset
+      webcam = AMF_VIDEO_ENCODER_AV1_USAGE_WEBCAM,  ///< Webcam preset
+      lowlatency_high_quality = AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY_HIGH_QUALITY,  ///< Low latency high quality preset
+      lowlatency = AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY,  ///< Low latency preset
+      ultralowlatency = AMF_VIDEO_ENCODER_AV1_USAGE_ULTRA_LOW_LATENCY  ///< Ultra low latency preset
+    };
+
+    enum class usage_hevc_e : int {
+      transcoding = AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCODING,  ///< Transcoding preset
+      webcam = AMF_VIDEO_ENCODER_HEVC_USAGE_WEBCAM,  ///< Webcam preset
+      lowlatency_high_quality = AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY_HIGH_QUALITY,  ///< Low latency high quality preset
+      lowlatency = AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY,  ///< Low latency preset
+      ultralowlatency = AMF_VIDEO_ENCODER_HEVC_USAGE_ULTRA_LOW_LATENCY  ///< Ultra low latency preset
+    };
+
+    enum class usage_h264_e : int {
+      transcoding = AMF_VIDEO_ENCODER_USAGE_TRANSCODING,  ///< Transcoding preset
+      webcam = AMF_VIDEO_ENCODER_USAGE_WEBCAM,  ///< Webcam preset
+      lowlatency_high_quality = AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY_HIGH_QUALITY,  ///< Low latency high quality preset
+      lowlatency = AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY,  ///< Low latency preset
+      ultralowlatency = AMF_VIDEO_ENCODER_USAGE_ULTRA_LOW_LATENCY  ///< Ultra low latency preset
+    };
+
+    enum coder_e : int {
+      _auto = AMF_VIDEO_ENCODER_UNDEFINED,  ///< Auto
+      cabac = AMF_VIDEO_ENCODER_CABAC,  ///< CABAC
+      cavlc = AMF_VIDEO_ENCODER_CALV  ///< CAVLC
+    };
+
+    template<class T>
+    ::std::optional<int> quality_from_view(const ::std::string_view &quality_type, const ::std::optional<int>(&original)) {
+      if (quality_type == "auto"sv) {
+        return ::std::nullopt;
+      }
+#define _CONVERT_(x) \
+  if (quality_type == #x##sv) \
+  return (int) T::x
+      _CONVERT_(balanced);
+      _CONVERT_(quality);
+      _CONVERT_(speed);
+#undef _CONVERT_
+      return original;
+    }
+
+    template<class T>
+    ::std::optional<int> rc_from_view(const ::std::string_view &rc, const ::std::optional<int>(&original)) {
+#define _CONVERT_(x) \
+  if (rc == #x##sv) \
+  return (int) T::x
+      _CONVERT_(cbr);
+      _CONVERT_(cqp);
+      _CONVERT_(vbr_latency);
+      _CONVERT_(vbr_peak);
+      _CONVERT_(qvbr);
+      _CONVERT_(hqvbr);
+      _CONVERT_(hqcbr);
+#undef _CONVERT_
+      return original;
+    }
+
+    template<class T>
+    ::std::optional<int> usage_from_view(const ::std::string_view &usage, const ::std::optional<int>(&original)) {
+#define _CONVERT_(x) \
+  if (usage == #x##sv) \
+  return (int) T::x
+      _CONVERT_(lowlatency);
+      _CONVERT_(lowlatency_high_quality);
+      _CONVERT_(transcoding);
+      _CONVERT_(ultralowlatency);
+      _CONVERT_(webcam);
+#undef _CONVERT_
+      return original;
+    }
+
+    // Tri-state knobs: explicit boolean spellings force the AMF property on/off;
+    // anything else (including "auto") returns nullopt so the usage preset's
+    // driver default is left untouched. Accept the legacy bool spellings because
+    // older configs may contain amd_vbaq=true/false rather than enabled/disabled.
+    ::std::optional<int> tristate_from_view(const ::std::string_view &value) {
+      if (value == "true"sv || value == "yes"sv || value == "enable"sv ||
+          value == "enabled"sv || value == "on"sv || value == "1"sv) {
+        return 1;
+      }
+      if (value == "false"sv || value == "no"sv || value == "disable"sv ||
+          value == "disabled"sv || value == "off"sv || value == "0"sv) {
+        return 0;
+      }
+      if (!value.empty() && value != "auto"sv) {
+        BOOST_LOG(warning) << "Unknown tri-state value ["sv << value << "], falling back to auto"sv;
+      }
+      return ::std::nullopt;
+    }
+
+    // AV1 encoding-latency mode. "auto" leaves the driver default; the rest map to
+    // AMF_VIDEO_ENCODER_AV1_ENCODING_LATENCY_MODE_ENUM values.
+    ::std::optional<int> av1_latency_from_view(const ::std::string_view &value) {
+      if (value == "none"sv) {
+        return 0;
+      }
+      if (value == "power_saving"sv) {
+        return 1;
+      }
+      if (value == "realtime"sv) {
+        return 2;
+      }
+      if (value == "lowest"sv) {
+        return 3;
+      }
+      if (!value.empty() && value != "auto"sv) {
+        BOOST_LOG(warning) << "Unknown amd_av1_latency_mode value ["sv << value << "], falling back to auto"sv;
+      }
+      return ::std::nullopt;
+    }
+
+    int coder_from_view(const ::std::string_view &coder) {
+      if (coder == "auto"sv) {
+        return _auto;
+      }
+      if (coder == "cabac"sv || coder == "ac"sv) {
+        return cabac;
+      }
+      if (coder == "cavlc"sv || coder == "vlc"sv) {
+        return cavlc;
+      }
+
+      return _auto;
+    }
+  }  // namespace amd
+
+  namespace qsv {
+    enum preset_e : int {
+      veryslow = 1,  ///< veryslow preset
+      slower = 2,  ///< slower preset
+      slow = 3,  ///< slow preset
+      medium = 4,  ///< medium preset
+      fast = 5,  ///< fast preset
+      faster = 6,  ///< faster preset
+      veryfast = 7  ///< veryfast preset
+    };
+
+    enum cavlc_e : int {
+      _auto = false,  ///< Auto
+      enabled = true,  ///< Enabled
+      disabled = false  ///< Disabled
+    };
+
+    ::std::optional<int> preset_from_view(const ::std::string_view &preset) {
+#define _CONVERT_(x) \
+  if (preset == #x##sv) \
+  return x
+      _CONVERT_(veryslow);
+      _CONVERT_(slower);
+      _CONVERT_(slow);
+      _CONVERT_(medium);
+      _CONVERT_(fast);
+      _CONVERT_(faster);
+      _CONVERT_(veryfast);
+#undef _CONVERT_
+      return std::nullopt;
+    }
+
+    ::std::optional<int> coder_from_view(const ::std::string_view &coder) {
+      if (coder == "auto"sv) {
+        return _auto;
+      }
+      if (coder == "cabac"sv || coder == "ac"sv) {
+        return disabled;
+      }
+      if (coder == "cavlc"sv || coder == "vlc"sv) {
+        return enabled;
+      }
+      return std::nullopt;
+    }
+
+  }  // namespace qsv
+
+  namespace vt {
+
+    enum coder_e : int {
+      _auto = 0,  ///< Auto
+      cabac,  ///< CABAC
+      cavlc  ///< CAVLC
+    };
+
+    int coder_from_view(const ::std::string_view &coder) {
+      if (coder == "auto"sv) {
+        return _auto;
+      }
+      if (coder == "cabac"sv || coder == "ac"sv) {
+        return cabac;
+      }
+      if (coder == "cavlc"sv || coder == "vlc"sv) {
+        return cavlc;
+      }
+
+      return -1;
+    }
+
+    int allow_software_from_view(const ::std::string_view &software) {
+      if (software == "allowed"sv || software == "forced") {
+        return 1;
+      }
+
+      return 0;
+    }
+
+    int force_software_from_view(const ::std::string_view &software) {
+      if (software == "forced") {
+        return 1;
+      }
+
+      return 0;
+    }
+
+    int rt_from_view(const ::std::string_view &rt) {
+      if (rt == "disabled" || rt == "off" || rt == "0") {
+        return 0;
+      }
+
+      return 1;
+    }
+
+  }  // namespace vt
+
+  namespace sw {
+    int svtav1_preset_from_view(const ::std::string_view &preset) {
+#define _CONVERT_(x, y) \
+  if (preset == #x##sv) \
+  return y
+      _CONVERT_(veryslow, 1);
+      _CONVERT_(slower, 2);
+      _CONVERT_(slow, 4);
+      _CONVERT_(medium, 5);
+      _CONVERT_(fast, 7);
+      _CONVERT_(faster, 9);
+      _CONVERT_(veryfast, 10);
+      _CONVERT_(superfast, 11);
+      _CONVERT_(ultrafast, 12);
+#undef _CONVERT_
+      return 11;  // Default to superfast
+    }
+  }  // namespace sw
+
+  namespace dd {
+    video_t::dd_t::config_option_e config_option_from_view(const ::std::string_view value) {
+#define _CONVERT_(x) \
+  if (value == #x##sv) \
+  return video_t::dd_t::config_option_e::x
+      _CONVERT_(disabled);
+      _CONVERT_(verify_only);
+      _CONVERT_(ensure_active);
+      _CONVERT_(ensure_primary);
+      _CONVERT_(ensure_only_display);
+#undef _CONVERT_
+      return video_t::dd_t::config_option_e::disabled;  // Default to this if value is invalid
+    }
+
+    video_t::dd_t::helper_engine_e helper_engine_from_view(const std::string_view value) {
+      if (value == "v2"sv) {
+        return video_t::dd_t::helper_engine_e::v2;
+      }
+      if (value == "legacy"sv) {
+        return video_t::dd_t::helper_engine_e::legacy;
+      }
+      return video_t::dd_t::helper_engine_e::automatic;  // "auto" / invalid
+    }
+
+    video_t::dd_t::resolution_option_e resolution_option_from_view(const std::string_view value) {
+#define _CONVERT_2_ARG_(str, val) \
+  if (value == #str##sv) \
+  return video_t::dd_t::resolution_option_e::val
+#define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
+      _CONVERT_(disabled);
+      _CONVERT_2_ARG_(auto, automatic);
+      _CONVERT_(manual);
+#undef _CONVERT_
+#undef _CONVERT_2_ARG_
+      return video_t::dd_t::resolution_option_e::disabled;  // Default to this if value is invalid
+    }
+
+    video_t::dd_t::refresh_rate_option_e refresh_rate_option_from_view(const ::std::string_view value) {
+#define _CONVERT_2_ARG_(str, val) \
+  if (value == #str##sv) \
+  return video_t::dd_t::refresh_rate_option_e::val
+#define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
+      _CONVERT_(disabled);
+      _CONVERT_2_ARG_(auto, automatic);
+      _CONVERT_(manual);
+      _CONVERT_(prefer_highest);
+#undef _CONVERT_
+#undef _CONVERT_2_ARG_
+      return video_t::dd_t::refresh_rate_option_e::disabled;  // Default to this if value is invalid
+    }
+
+    video_t::dd_t::hdr_option_e hdr_option_from_view(const ::std::string_view value) {
+#define _CONVERT_2_ARG_(str, val) \
+  if (value == #str##sv) \
+  return video_t::dd_t::hdr_option_e::val
+#define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
+      _CONVERT_(disabled);
+      _CONVERT_2_ARG_(auto, automatic);
+#undef _CONVERT_
+#undef _CONVERT_2_ARG_
+      return video_t::dd_t::hdr_option_e::disabled;  // Default to this if value is invalid
+    }
+
+    video_t::dd_t::hdr_request_override_e hdr_request_override_from_view(const std::string_view value) {
+#define _CONVERT_2_ARG_(str, val) \
+  if (value == #str##sv) \
+  return video_t::dd_t::hdr_request_override_e::val
+#define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
+      _CONVERT_2_ARG_(auto, automatic);
+      _CONVERT_(force_on);
+      _CONVERT_(force_off);
+#undef _CONVERT_
+#undef _CONVERT_2_ARG_
+      return video_t::dd_t::hdr_request_override_e::automatic;
+    }
+
+    video_t::dd_t::mode_remapping_t mode_remapping_from_view(const std::string_view value) {
+      const auto parse_entry_list {[](const auto &entry_list, auto &output_field) {
+        for (auto &[_, entry] : entry_list) {
+          auto requested_resolution = entry.template get_optional<std::string>("requested_resolution"s);
+          auto requested_fps = entry.template get_optional<std::string>("requested_fps"s);
+          auto final_resolution = entry.template get_optional<std::string>("final_resolution"s);
+          auto final_refresh_rate = entry.template get_optional<std::string>("final_refresh_rate"s);
+
+          output_field.push_back(video_t::dd_t::mode_remapping_entry_t {requested_resolution.value_or(""), requested_fps.value_or(""), final_resolution.value_or(""), final_refresh_rate.value_or("")});
+        }
+      }};
+
+      // We need to add a wrapping object to make it valid JSON, otherwise ptree cannot parse it.
+      std::stringstream json_stream;
+      json_stream << "{\"dd_mode_remapping\":" << value << "}";
+
+      boost::property_tree::ptree json_tree;
+      boost::property_tree::read_json(json_stream, json_tree);
+
+      video_t::dd_t::mode_remapping_t output;
+      parse_entry_list(json_tree.get_child("dd_mode_remapping.mixed"), output.mixed);
+      parse_entry_list(json_tree.get_child("dd_mode_remapping.resolution_only"), output.resolution_only);
+      parse_entry_list(json_tree.get_child("dd_mode_remapping.refresh_rate_only"), output.refresh_rate_only);
+
+      return output;
+    }
+
+    std::vector<std::string> snapshot_exclude_devices_from_view(const std::string_view value) {
+      std::vector<std::string> out;
+      auto add_id = [&out](std::string id) {
+        auto ltrim = [](std::string &s) {
+          s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
+                    return !std::isspace(ch);
+                  }));
+        };
+        auto rtrim = [](std::string &s) {
+          s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) {
+                    return !std::isspace(ch);
+                  }).base(),
+                  s.end());
+        };
+        ltrim(id);
+        rtrim(id);
+        if (id.size() >= 2 && id.front() == '"' && id.back() == '"') {
+          id = id.substr(1, id.size() - 2);
+        }
+        if (!id.empty()) {
+          out.push_back(std::move(id));
+        }
+      };
+
+      if (value.empty()) {
+        return out;
+      }
+
+      const std::string raw(value);
+      try {
+        auto j = nlohmann::json::parse(raw);
+        const nlohmann::json *arr = &j;
+        nlohmann::json nested;
+        if (j.is_object()) {
+          if (j.contains("exclude_devices")) {
+            nested = j["exclude_devices"];
+            arr = &nested;
+          } else if (j.contains("devices")) {
+            nested = j["devices"];
+            arr = &nested;
+          }
+        }
+        if (arr->is_array()) {
+          for (const auto &el : *arr) {
+            if (el.is_string()) {
+              add_id(el.get<std::string>());
+            } else if (el.is_object()) {
+              if (el.contains("device_id") && el["device_id"].is_string()) {
+                add_id(el["device_id"].get<std::string>());
+              } else if (el.contains("id") && el["id"].is_string()) {
+                add_id(el["id"].get<std::string>());
+              }
+            }
+          }
+        }
+        return out;
+      } catch (...) {
+      }
+
+      std::stringstream ss(raw);
+      std::string item;
+      while (std::getline(ss, item, ',')) {
+        add_id(item);
+      }
+      return out;
+    }
+
+    int snapshot_restore_hotkey_from_view(const std::string_view value) {
+      std::string raw(value);
+      auto trim = [](std::string &text) {
+        text.erase(
+          text.begin(),
+          std::find_if(text.begin(), text.end(), [](unsigned char ch) {
+            return !std::isspace(ch);
+          })
+        );
+        text.erase(
+          std::find_if(text.rbegin(), text.rend(), [](unsigned char ch) {
+            return !std::isspace(ch);
+          }).base(),
+          text.end()
+        );
+      };
+      trim(raw);
+      if (raw.empty()) {
+        return 0;
+      }
+
+      std::string lower = raw;
+      for (auto &ch : lower) {
+        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+      }
+
+      if (lower == "disabled"sv || lower == "none"sv || lower == "off"sv) {
+        return 0;
+      }
+
+      if (lower.rfind("vk_", 0) == 0) {
+        lower.erase(0, 3);
+      }
+
+      if (lower.rfind("0x", 0) == 0 && lower.size() > 2) {
+        int v = util::from_hex<int>(lower.substr(2));
+        return (v > 0 && v <= 0xFF) ? v : 0;
+      }
+
+      if (lower.size() >= 2 && lower[0] == 'f') {
+        int fkey = (int) util::from_view(std::string_view {lower}.substr(1));
+        if (fkey >= 1 && fkey <= 24) {
+          return 0x70 + (fkey - 1);
+        }
+      }
+
+      if (lower.size() == 1) {
+        unsigned char ch = static_cast<unsigned char>(lower[0]);
+        if (ch >= 'a' && ch <= 'z') {
+          return static_cast<int>(std::toupper(ch));
+        }
+        if (ch >= '0' && ch <= '9') {
+          return static_cast<int>(ch);
+        }
+      }
+
+      int v = (int) util::from_view(lower);
+      return (v > 0 && v <= 0xFF) ? v : 0;
+    }
+
+#ifdef _WIN32
+    std::uint32_t snapshot_restore_hotkey_modifiers_from_view(const std::string_view value) {
+      std::string raw(value);
+      auto trim = [](std::string &text) {
+        text.erase(
+          text.begin(),
+          std::find_if(text.begin(), text.end(), [](unsigned char ch) {
+            return !std::isspace(ch);
+          })
+        );
+        text.erase(
+          std::find_if(text.rbegin(), text.rend(), [](unsigned char ch) {
+            return !std::isspace(ch);
+          }).base(),
+          text.end()
+        );
+      };
+      trim(raw);
+      if (raw.empty()) {
+        return 0;
+      }
+
+      std::string lower = raw;
+      for (auto &ch : lower) {
+        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+      }
+
+      if (lower == "default"sv) {
+        return MOD_CONTROL | MOD_ALT | MOD_SHIFT;
+      }
+
+      if (lower == "disabled"sv || lower == "none"sv || lower == "off"sv) {
+        return 0;
+      }
+
+      for (auto &ch : lower) {
+        if (ch == '+' || ch == '|' || ch == ',' || ch == ';') {
+          ch = ' ';
+        }
+      }
+
+      std::uint32_t modifiers = 0;
+      std::stringstream ss(lower);
+      std::string token;
+      while (ss >> token) {
+        if (token == "ctrl"sv || token == "control"sv) {
+          modifiers |= MOD_CONTROL;
+          continue;
+        }
+        if (token == "alt"sv) {
+          modifiers |= MOD_ALT;
+          continue;
+        }
+        if (token == "shift"sv) {
+          modifiers |= MOD_SHIFT;
+          continue;
+        }
+        if (token == "win"sv || token == "windows"sv || token == "meta"sv) {
+          modifiers |= MOD_WIN;
+          continue;
+        }
+      }
+
+      return modifiers;
+    }
+#else
+    std::uint32_t snapshot_restore_hotkey_modifiers_from_view(const std::string_view) {
+      return 0;
+    }
+#endif
+  }  // namespace dd
+
+  video_t::virtual_display_mode_e virtual_display_mode_from_view(const ::std::string_view value) {
+#define _CONVERT_(x) \
+  if (value == #x##sv) \
+  return video_t::virtual_display_mode_e::x
+    _CONVERT_(disabled);
+    _CONVERT_(per_client);
+    _CONVERT_(shared);
+#undef _CONVERT_
+    return video_t::virtual_display_mode_e::per_client;  // Default to virtual display when unspecified
+  }
+
+  video_t::virtual_display_layout_e virtual_display_layout_from_view(const ::std::string_view value) {
+#define _CONVERT_LAYOUT_(x) \
+  if (value == #x##sv) \
+  return video_t::virtual_display_layout_e::x
+    _CONVERT_LAYOUT_(exclusive);
+    _CONVERT_LAYOUT_(extended);
+    _CONVERT_LAYOUT_(extended_primary);
+    _CONVERT_LAYOUT_(extended_isolated);
+    _CONVERT_LAYOUT_(extended_primary_isolated);
+#undef _CONVERT_LAYOUT_
+    return video_t::virtual_display_layout_e::exclusive;
+  }
+
+  video_t video {
+    true,  // limit_framerate
+    true,  // double_refreshrate
+
+    28,  // qp
+
+    0,  // hevc_mode
+    0,  // av1_mode
+
+    2,  // min_threads
+    {
+      "superfast"s,  // preset
+      "zerolatency"s,  // tune
+      11,  // superfast
+    },  // software
+
+    {},  // nv
+    true,  // nv_realtime_hags
+    true,  // nv_opengl_vulkan_on_dxgi
+    true,  // nv_sunshine_high_power_mode
+    {},  // nv_legacy
+
+    {
+      qsv::medium,  // preset
+      qsv::_auto,  // cavlc
+      false,  // slow_hevc
+    },  // qsv
+
+    {
+      (int) amd::usage_h264_e::ultralowlatency,  // usage (h264)
+      (int) amd::usage_hevc_e::ultralowlatency,  // usage (hevc)
+      (int) amd::usage_av1_e::ultralowlatency,  // usage (av1)
+      (int) amd::rc_h264_e::vbr_latency,  // rate control (h264)
+      (int) amd::rc_hevc_e::vbr_latency,  // rate control (hevc)
+      (int) amd::rc_av1_e::vbr_latency,  // rate control (av1)
+      std::nullopt,  // qvbr_quality_level (0/unset = encoder default)
+      0,  // enforce_hrd
+      (int) amd::quality_h264_e::balanced,  // quality (h264)
+      (int) amd::quality_hevc_e::balanced,  // quality (hevc)
+      (int) amd::quality_av1_e::balanced,  // quality (av1)
+      0,  // preanalysis
+      1,  // vbaq
+      (int) amd::coder_e::_auto,  // coder
+      0,  // ltr_frames (native AMF; 0 = off)
+      0,  // input_queue_size (native AMF; 0 = leave driver queue unset/auto)
+      std::nullopt,  // smart_access_video (auto)
+      std::nullopt,  // lowlatency_mode (auto)
+      std::nullopt,  // high_motion_quality_boost (auto)
+      std::nullopt,  // av1_screen_content (auto)
+      std::nullopt,  // av1_latency_mode (auto)
+    },  // amd
+
+    {
+      0,
+      0,
+      1,
+      -1,
+    },  // vt
+
+    {
+      false,  // strict_rc_buffer
+    },  // vaapi
+
+    {
+      2,  // vk.tune (default: ll - low latency)
+      2,  // vk.rc_mode (default: cbr)
+    },  // vk
+
+    {
+      false,  // rtx_hdr.enabled
+      false,  // rtx_hdr.force_sdr
+      0,  // rtx_hdr.sdr_brightness
+      0,  // rtx_hdr.contrast
+      0,  // rtx_hdr.saturation
+      50,  // rtx_hdr.middle_gray
+      1000,  // rtx_hdr.peak_brightness
+    },  // rtx_hdr
+
+    {},  // capture
+    {},  // encoder
+    {},  // adapter_name
+    {},  // adapter_pnp_id
+    {},  // output_name
+
+    video_t::virtual_display_mode_e::per_client,  // virtual_display_mode
+    video_t::virtual_display_layout_e::exclusive,  // virtual_display_layout
+
+    {
+      video_t::dd_t::config_option_e::verify_only,  // configuration_option
+      video_t::dd_t::resolution_option_e::automatic,  // resolution_option
+      {},  // manual_resolution
+      video_t::dd_t::refresh_rate_option_e::automatic,  // refresh_rate_option
+      {},  // manual_refresh_rate
+      video_t::dd_t::hdr_option_e::automatic,  // hdr_option
+      video_t::dd_t::hdr_request_override_e::automatic,  // hdr_request_override
+      3s,  // config_revert_delay
+      {},  // config_revert_on_disconnect
+      7200,  // paused_virtual_display_timeout_secs (2 hours)
+      true,  // always_restore_from_golden (uses session fallback until a golden snapshot exists)
+      video_t::dd_t::helper_engine_e::automatic,  // display_helper_engine
+      0,  // snapshot_restore_hotkey
+#ifdef _WIN32
+      MOD_CONTROL | MOD_ALT | MOD_SHIFT,  // snapshot_restore_hotkey_modifiers
+#else
+      0,  // snapshot_restore_hotkey_modifiers
+#endif
+      true,  // use_sunshine_virtual_display_driver
+      false,  // activate_virtual_display
+      -1,  // virtual_display_scale_percent
+      0,  // virtual_display_permanent_count
+      false,  // virtual_display_permanent_count_configured
+      {},  // snapshot_exclude_devices
+      {},  // mode_remapping
+      {false},  // wa
+      true  // vulkan_hdr_layer
+    },  // display_device
+
+    0,  // max_bitrate
+    20,  // minimum_fps_target (0 = framerate)
+    true,  // wgc_pacing_smoothing
+    "1920x1080x60",  // fallback_mode
+    false,  // ignore_encoder_probe_failure
+  };
+
+  audio_t audio {
+    {},  // audio_sink
+    {},  // virtual_sink
+    true,  // stream audio
+    true,  // install_steam_drivers
+    true,  // keep_sink_default
+    true,  // auto_capture
+  };
+
+  stream_t stream {
+    10s,  // ping_timeout
+
+    APPS_JSON_PATH,
+
+    20,  // fecPercentage
+    64,  // video_max_batch_size_kb
+
+    ENCRYPTION_MODE_NEVER,  // lan_encryption_mode
+    ENCRYPTION_MODE_OPPORTUNISTIC,  // wan_encryption_mode
+
+    0,  // pacing_max_bitrate_kbps (0 = legacy 1 Gbps Ethernet assumption)
+    0,  // packetsize (0 = off)
+  };
+
+  nvhttp_t nvhttp {
+    "lan",  // origin web manager
+
+    PRIVATE_KEY_FILE,
+    CERTIFICATE_FILE,
+
+    platf::get_host_name(),  // sunshine_name,
+    "sunshine_state.json"s,  // file_state
+    "vibeshine_state.json"s,  // vibeshine_file_state
+    {},  // external_ip
+  };
+
+  input_t input {
+    {
+      {0x10, 0xA0},
+      {0x11, 0xA2},
+      {0x12, 0xA4},
+    },
+    -1ms,  // back_button_timeout
+    500ms,  // key_repeat_delay
+    std::chrono::duration<double> {1 / 24.9},  // key_repeat_period
+
+    {
+      platf::supported_gamepads(nullptr).front().name.data(),
+      platf::supported_gamepads(nullptr).front().name.size(),
+    },  // Default gamepad
+    true,  // back as touchpad click enabled (manual DS4 only)
+    true,  // client gamepads with motion events are emulated as DS4
+    true,  // client gamepads with touchpads are emulated as DS4
+    true,  // ds5_inputtino_randomize_mac
+
+    true,  // keyboard enabled
+    true,  // mouse enabled
+    true,  // controller enabled
+    true,  // always send scancodes
+    true,  // high resolution scrolling
+    true,  // native pen/touch support
+    false,  // enable input only mode
+    true,  // forward_rumble
+  };
+
+  frame_limiter_t frame_limiter {
+    false,  // enable
+    "auto",  // provider
+    0,  // fps_limit
+    false,  // disable_vsync
+    frame_limiter_t::virtual_display_capture_mode_e::enabled
+  };
+
+  // Windows-only: RTSS defaults
+  rtss_t rtss {
+    {},  // install_path
+    "async"  // frame_limit_type
+  };
+
+  lossless_scaling_t lossless_scaling {
+    {},  // exe_path
+    false  // legacy_auto_detect
+  };
+
+  namespace {
+    int default_min_log_level() {
+      if (version_compare::is_prerelease_channel(PROJECT_VERSION)) {
+        return 1;
+      }
+      return 2;
+    }
+  }  // namespace
+
+  sunshine_t sunshine {
+    false,  // hide_tray_controls
+    true,  // enable_pairing
+    true,  // enable_discovery
+    false,  // envvar_compatibility_mode
+    "en",  // locale
+    default_min_log_level(),  // min_log_level
+    0,  // flags
+    {},  // User file
+    {},  // Username
+    {},  // Password
+    {},  // Password Salt
+    platf::appdata().string() + "/sunshine.conf",  // config file
+    {},  // cmd args
+    47989,  // Base port number
+    "ipv4",  // Address family
+    {},  // Bind address
+    platf::appdata().string() + "/sunshine.log",  // log file
+    false,  // notify_pre_releases
+    false,  // legacy_ordering
+    true,  // system_tray
+    {},  // prep commands
+    {},  // state commands
+    {},  // server commands
+    std::chrono::hours {2},  // session_token_ttl default 2h
+    std::chrono::hours {24 * 7},  // remember_me_refresh_token_ttl default 7d
+    86400,  // update_check_interval_seconds default 24h
+    true,  // session_history_enabled
+    0,  // session_history_ttl_days (disabled by default)
+    0  // session_history_db_size_limit_mb (disabled by default)
+  };
+
+  namespace {
+    const video_t default_video = video;
+    const audio_t default_audio = audio;
+    const stream_t default_stream = stream;
+    const input_t default_input = input;
+    const frame_limiter_t default_frame_limiter = frame_limiter;
+    const rtss_t default_rtss = rtss;
+    const lossless_scaling_t default_lossless_scaling = lossless_scaling;
+    const sunshine_t default_sunshine = sunshine;
+
+    std::unordered_map<std::string, std::string> command_line_overrides;
+
+    void reset_runtime_config_to_defaults() {
+      const auto preserved_username = sunshine.username;
+      const auto preserved_password = sunshine.password;
+      const auto preserved_salt = sunshine.salt;
+      const auto preserved_config_file = sunshine.config_file;
+      const auto preserved_cmd = sunshine.cmd;
+
+      video = default_video;
+      audio = default_audio;
+      stream = default_stream;
+      input = default_input;
+      frame_limiter = default_frame_limiter;
+      rtss = default_rtss;
+      lossless_scaling = default_lossless_scaling;
+
+      sunshine = default_sunshine;
+      sunshine.username = preserved_username;
+      sunshine.password = preserved_password;
+      sunshine.salt = preserved_salt;
+      sunshine.config_file = preserved_config_file;
+      sunshine.cmd = preserved_cmd;
+    }
+  }  // namespace
+
+  bool endline(char ch) {
+    return ch == '\r' || ch == '\n';
+  }
+
+  bool space_tab(char ch) {
+    return ch == ' ' || ch == '\t';
+  }
+
+  bool whitespace(char ch) {
+    return space_tab(ch) || endline(ch);
+  }
+
+  std::string to_string(const char *begin, const char *end) {
+    std::string result;
+
+    KITTY_WHILE_LOOP(auto pos = begin, pos != end, {
+      auto comment = std::find(pos, end, '#');
+      auto endl = std::find_if(comment, end, endline);
+
+      result.append(pos, comment);
+
+      pos = endl;
+    })
+
+    return result;
+  }
+
+  template<class It>
+  It skip_list(It skipper, It end) {
+    int stack = 1;
+    while (skipper != end && stack) {
+      if (*skipper == '[') {
+        ++stack;
+      }
+      if (*skipper == ']') {
+        --stack;
+      }
+
+      ++skipper;
+    }
+
+    return skipper;
+  }
+
+  std::pair<
+    ::std::string_view::const_iterator,
+    ::std::optional<std::pair<std::string, std::string>>>
+    parse_option(::std::string_view::const_iterator begin, ::std::string_view::const_iterator end) {
+    begin = std::find_if_not(begin, end, whitespace);
+    auto endl = std::find_if(begin, end, endline);
+    auto endc = std::find(begin, endl, '#');
+    endc = std::find_if(std::make_reverse_iterator(endc), std::make_reverse_iterator(begin), std::not_fn(whitespace)).base();
+
+    auto eq = std::find(begin, endc, '=');
+    if (eq == endc || eq == begin) {
+      return std::make_pair(endl, std::nullopt);
+    }
+
+    auto end_name = std::find_if_not(std::make_reverse_iterator(eq), std::make_reverse_iterator(begin), space_tab).base();
+    auto begin_val = std::find_if_not(eq + 1, endc, space_tab);
+
+    if (begin_val == endl) {
+      return std::make_pair(endl, std::nullopt);
+    }
+
+    // Lists might contain newlines
+    if (*begin_val == '[') {
+      endl = skip_list(begin_val + 1, end);
+
+      // Check if we reached the end of the file without finding a closing bracket
+      // We know we have a valid closing bracket if:
+      // 1. We didn't reach the end, or
+      // 2. We reached the end but the last character was the matching closing bracket
+      if (endl == end && end == begin_val + 1) {
+        BOOST_LOG(warning) << "config: Missing ']' in config option: " << to_string(begin, end_name);
+        return std::make_pair(endl, std::nullopt);
+      }
+    }
+
+    return std::make_pair(
+      endl,
+      std::make_pair(to_string(begin, end_name), to_string(begin_val, endl))
+    );
+  }
+
+  std::unordered_map<std::string, std::string> parse_config(const ::std::string_view &file_content) {
+    std::unordered_map<std::string, std::string> vars;
+
+    auto pos = std::begin(file_content);
+    auto end = std::end(file_content);
+
+    while (pos < end) {
+      // auto newline = std::find_if(pos, end, [](auto ch) { return ch == '\n' || ch == '\r'; });
+      TUPLE_2D(endl, var, parse_option(pos, end));
+
+      pos = endl;
+      if (pos != end) {
+        pos += (*pos == '\r') ? 2 : 1;
+      }
+
+      if (!var) {
+        continue;
+      }
+
+      var->first = normalize_config_key(std::move(var->first));
+      if (var->first.empty()) {
+        continue;
+      }
+
+      vars.emplace(std::move(*var));
+    }
+
+    return vars;
+  }
+
+  void string_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input) {
+    auto it = vars.find(name);
+    if (it == std::end(vars)) {
+      return;
+    }
+
+    input = std::move(it->second);
+
+    vars.erase(it);
+  }
+
+  template<typename T, typename F>
+  void generic_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, T &input, F &&f) {
+    std::string tmp;
+    string_f(vars, name, tmp);
+    if (!tmp.empty()) {
+      input = f(tmp);
+    }
+  }
+
+  void string_restricted_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input, const std::vector<::std::string_view> &allowed_vals) {
+    std::string temp;
+    string_f(vars, name, temp);
+
+    for (auto &allowed_val : allowed_vals) {
+      if (temp == allowed_val) {
+        input = std::move(temp);
+        return;
+      }
+    }
+  }
+
+  void path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, fs::path &input) {
+    // appdata needs to be retrieved once only
+    static auto appdata = platf::appdata();
+
+    std::string temp;
+    string_f(vars, name, temp);
+
+    if (!temp.empty()) {
+      input = temp;
+    }
+
+    if (input.is_relative()) {
+      input = appdata / input;
+    }
+
+    auto dir = input;
+    dir.remove_filename();
+
+    // Ensure the directories exists
+    if (!fs::exists(dir)) {
+      fs::create_directories(dir);
+    }
+  }
+
+  void path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input) {
+    fs::path temp = input;
+
+    path_f(vars, name, temp);
+
+    input = temp.string();
+  }
+
+  void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input) {
+    auto it = vars.find(name);
+
+    if (it == std::end(vars)) {
+      return;
+    }
+
+    ::std::string_view val = it->second;
+
+    // If value is something like: "756" instead of 756
+    if (val.size() >= 2 && val[0] == '"') {
+      val = val.substr(1, val.size() - 2);
+    }
+
+    // If that integer is in hexadecimal
+    if (val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
+      input = util::from_hex<int>(val.substr(2));
+    } else {
+      input = (int) util::from_view(val);
+    }
+
+    vars.erase(it);
+  }
+
+  void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, ::std::optional<int> &input) {
+    auto it = vars.find(name);
+
+    if (it == std::end(vars)) {
+      return;
+    }
+
+    ::std::string_view val = it->second;
+
+    // If value is something like: "756" instead of 756
+    if (val.size() >= 2 && val[0] == '"') {
+      val = val.substr(1, val.size() - 2);
+    }
+
+    // If that integer is in hexadecimal
+    if (val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
+      input = util::from_hex<int>(val.substr(2));
+    } else {
+      input = util::from_view(val);
+    }
+
+    vars.erase(it);
+  }
+
+  template<class F>
+  void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, F &&f) {
+    std::string tmp;
+    string_f(vars, name, tmp);
+    if (!tmp.empty()) {
+      input = f(tmp);
+    }
+  }
+
+  template<class F>
+  void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, ::std::optional<int> &input, F &&f) {
+    std::string tmp;
+    string_f(vars, name, tmp);
+    if (!tmp.empty()) {
+      input = f(tmp);
+    }
+  }
+
+  void int_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, const std::pair<int, int> &range) {
+    int temp = input;
+
+    int_f(vars, name, temp);
+
+    TUPLE_2D_REF(lower, upper, range);
+    if (temp >= lower && temp <= upper) {
+      input = temp;
+    }
+  }
+
+  bool to_bool(std::string &boolean) {
+    std::for_each(std::begin(boolean), std::end(boolean), [](char ch) {
+      return (char) std::tolower(ch);
+    });
+
+    return boolean == "true"sv ||
+           boolean == "yes"sv ||
+           boolean == "enable"sv ||
+           boolean == "enabled"sv ||
+           boolean == "on"sv ||
+           (std::find(std::begin(boolean), std::end(boolean), '1') != std::end(boolean));
+  }
+
+  void bool_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, bool &input) {
+    std::string tmp;
+    string_f(vars, name, tmp);
+
+    if (tmp.empty()) {
+      return;
+    }
+
+    input = to_bool(tmp);
+  }
+
+  void double_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, double &input) {
+    std::string tmp;
+    string_f(vars, name, tmp);
+
+    if (tmp.empty()) {
+      return;
+    }
+
+    char *c_str_p;
+    auto val = std::strtod(tmp.c_str(), &c_str_p);
+
+    if (c_str_p == tmp.c_str()) {
+      return;
+    }
+
+    input = val;
+  }
+
+  void double_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, double &input, const std::pair<double, double> &range) {
+    double temp = input;
+
+    double_f(vars, name, temp);
+
+    TUPLE_2D_REF(lower, upper, range);
+    if (temp >= lower && temp <= upper) {
+      input = temp;
+    }
+  }
+
+  void frame_limit_millihz_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::uint32_t &input) {
+    std::string value;
+    string_f(vars, name, value);
+    boost::algorithm::trim(value);
+    if (value.empty()) {
+      return;
+    }
+
+    constexpr std::uint32_t kMaxMillihz = 1'000'000;
+    const auto parse_unsigned = [](std::string_view text, std::uint32_t maximum, std::uint32_t &result) {
+      if (text.empty()) {
+        return false;
+      }
+      std::uint64_t parsed = 0;
+      for (const char ch : text) {
+        if (ch < '0' || ch > '9') {
+          return false;
+        }
+        const auto digit = static_cast<unsigned int>(ch - '0');
+        if (digit > maximum || parsed > (maximum - digit) / 10) {
+          return false;
+        }
+        parsed = parsed * 10 + digit;
+      }
+      result = static_cast<std::uint32_t>(parsed);
+      return true;
+    };
+
+    const std::string_view text {value};
+    const auto decimal_point = text.find('.');
+    std::uint32_t millihz = 0;
+    if (decimal_point == std::string_view::npos) {
+      std::uint32_t whole_hertz = 0;
+      if (!parse_unsigned(text, 1000, whole_hertz)) {
+        BOOST_LOG(warning) << "Ignoring invalid frame_limiter_fps_limit '" << value << "'; use 0 to 1000 with up to three decimal places.";
+        return;
+      }
+      millihz = whole_hertz * 1000;
+    } else {
+      if (text.find('.', decimal_point + 1) != std::string_view::npos) {
+        BOOST_LOG(warning) << "Ignoring invalid frame_limiter_fps_limit '" << value << "'; use 0 to 1000 with up to three decimal places.";
+        return;
+      }
+      std::uint32_t whole_hertz = 0;
+      std::uint32_t fractional_millihz = 0;
+      const auto fractional = text.substr(decimal_point + 1);
+      if (fractional.empty() || fractional.size() > 3 ||
+          !parse_unsigned(text.substr(0, decimal_point), 1000, whole_hertz) ||
+          !parse_unsigned(fractional, 999, fractional_millihz)) {
+        BOOST_LOG(warning) << "Ignoring invalid frame_limiter_fps_limit '" << value << "'; use 0 to 1000 with up to three decimal places.";
+        return;
+      }
+      const auto scale = fractional.size() == 1 ? 100u : fractional.size() == 2 ? 10u : 1u;
+      millihz = whole_hertz * 1000 + fractional_millihz * scale;
+    }
+
+    if (millihz > kMaxMillihz) {
+      BOOST_LOG(warning) << "Ignoring out-of-range frame_limiter_fps_limit '" << value << "'.";
+      return;
+    }
+    input = millihz;
+  }
+
+  void list_string_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<std::string> &input) {
+    std::string string;
+    string_f(vars, name, string);
+
+    if (string.empty()) {
+      return;
+    }
+
+    input.clear();
+
+    auto begin = std::cbegin(string);
+    if (*begin == '[') {
+      ++begin;
+    }
+
+    begin = std::find_if_not(begin, std::cend(string), whitespace);
+    if (begin == std::cend(string)) {
+      return;
+    }
+
+    auto pos = begin;
+    while (pos < std::cend(string)) {
+      if (*pos == '[') {
+        pos = skip_list(pos + 1, std::cend(string)) + 1;
+      } else if (*pos == ']') {
+        break;
+      } else if (*pos == ',') {
+        input.emplace_back(begin, pos);
+        pos = begin = std::find_if_not(pos + 1, std::cend(string), whitespace);
+      } else {
+        ++pos;
+      }
+    }
+
+    if (pos != begin) {
+      input.emplace_back(begin, pos);
+    }
+  }
+
+  void list_prep_cmd_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<prep_cmd_t> &input) {
+    std::string string;
+    string_f(vars, name, string);
+
+    std::stringstream jsonStream;
+
+    // check if string is empty, i.e. when the value doesn't exist in the config file
+    if (string.empty()) {
+      return;
+    }
+
+    // We need to add a wrapping object to make it valid JSON, otherwise ptree cannot parse it.
+    jsonStream << "{\"prep_cmd\":" << string << "}";
+
+    boost::property_tree::ptree jsonTree;
+    boost::property_tree::read_json(jsonStream, jsonTree);
+
+    for (auto &[_, prep_cmd] : jsonTree.get_child("prep_cmd"s)) {
+      auto do_cmd = prep_cmd.get_optional<std::string>("do"s);
+      auto undo_cmd = prep_cmd.get_optional<std::string>("undo"s);
+      auto elevated = prep_cmd.get_optional<bool>("elevated"s);
+
+      input.emplace_back(do_cmd.value_or(""), undo_cmd.value_or(""), elevated.value_or(false));
+    }
+  }
+
+  void list_server_cmd_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<server_cmd_t> &input) {
+    std::string string;
+    string_f(vars, name, string);
+
+    std::stringstream jsonStream;
+
+    // check if string is empty, i.e. when the value doesn't exist in the config file
+    if (string.empty()) {
+      return;
+    }
+
+    // We need to add a wrapping object to make it valid JSON, otherwise ptree cannot parse it.
+    jsonStream << "{\"server_cmd\":" << string << "}";
+
+    boost::property_tree::ptree jsonTree;
+    boost::property_tree::read_json(jsonStream, jsonTree);
+
+    for (auto &[_, prep_cmd] : jsonTree.get_child("server_cmd"s)) {
+      auto cmd_name = prep_cmd.get_optional<std::string>("name"s);
+      auto cmd_val = prep_cmd.get_optional<std::string>("cmd"s);
+      auto elevated = prep_cmd.get_optional<bool>("elevated"s);
+
+      input.emplace_back(cmd_name.value_or(""), cmd_val.value_or(""), elevated.value_or(false));
+    }
+  }
+
+  void list_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<int> &input) {
+    std::vector<std::string> list;
+    list_string_f(vars, name, list);
+
+    // check if list is empty, i.e. when the value doesn't exist in the config file
+    if (list.empty()) {
+      return;
+    }
+
+    // The framerate list must be cleared before adding values from the file configuration.
+    // If the list is not cleared, then the specified parameters do not affect the behavior of the sunshine server.
+    // That is, if you set only 30 fps in the configuration file, it will not work because by default, during initialization the list includes 10, 30, 60, 90 and 120 fps.
+    input.clear();
+    for (auto &el : list) {
+      ::std::string_view val = el;
+
+      // If value is something like: "756" instead of 756
+      if (val.size() >= 2 && val[0] == '"') {
+        val = val.substr(1, val.size() - 2);
+      }
+
+      int tmp;
+
+      // If the integer is a hexadecimal
+      if (val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
+        tmp = util::from_hex<int>(val.substr(2));
+      } else {
+        tmp = (int) util::from_view(val);
+      }
+      input.emplace_back(tmp);
+    }
+  }
+
+  void map_int_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::unordered_map<int, int> &input) {
+    std::vector<int> list;
+    list_int_f(vars, name, list);
+
+    // The list needs to be a multiple of 2
+    if (list.size() % 2) {
+      BOOST_LOG(warning) << "config: expected "sv << name << " to have a multiple of two elements --> not "sv << list.size();
+      return;
+    }
+
+    int x = 0;
+    while (x < list.size()) {
+      auto key = list[x++];
+      auto val = list[x++];
+
+      input.emplace(key, val);
+    }
+  }
+
+  int apply_flags(const char *line) {
+    int ret = 0;
+    while (*line != '\0') {
+      switch (*line) {
+        case '0':
+          config::sunshine.flags[config::flag::PIN_STDIN].flip();
+          break;
+        case '1':
+          config::sunshine.flags[config::flag::FRESH_STATE].flip();
+          break;
+        case '2':
+          config::sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE].flip();
+          break;
+        case 'p':
+          config::sunshine.flags[config::flag::UPNP].flip();
+          break;
+        default:
+          BOOST_LOG(warning) << "config: Unrecognized flag: ["sv << *line << ']' << std::endl;
+          ret = -1;
+      }
+
+      ++line;
+    }
+
+    return ret;
+  }
+
+  std::vector<::std::string_view> get_supported_gamepad_options() {
+    // The platform owns this static list; keep it by reference so the views remain valid.
+    const auto &options = platf::supported_gamepads(nullptr);
+    std::vector<::std::string_view> opts;
+    opts.reserve(options.size());
+    for (const auto &opt : options) {
+      opts.emplace_back(opt.name);
+    }
+    return opts;
+  }
+
+  void log_config_settings(const std::unordered_map<std::string, std::string> &vars, bool save) {
+    for (auto &[name, val] : vars) {
+      bool is_redacted = std::ranges::find(config::redacted_config, name) != config::redacted_config.end();
+#ifdef _WIN32
+      BOOST_LOG(info) << "config: '"sv << name << "' = "sv << (is_redacted ? "[redacted]" : utf8ToAcp(val));
+#else
+      BOOST_LOG(info) << "config: '"sv << name << "' = "sv << (is_redacted ? "[redacted]" : val);
+#endif
+      if (save) {
+        modified_config_settings[name] = val;
+      }
+    }
+  }
+
+  void apply_config(std::unordered_map<std::string, std::string> &&vars) {
+    reset_runtime_config_to_defaults();
+#ifndef __ANDROID__
+    // TODO: Android can possibly support this
+    if (!fs::exists(stream.file_apps.c_str())) {
+      fs::copy_file(SUNSHINE_ASSETS_DIR "/apps.json", stream.file_apps);
+    }
+#endif
+
+    nv::normalize_split_encode_alias(vars);
+    log_config_settings(vars, true);
+
+    auto drop_deprecated_option = [&](const char *name) {
+      auto it = vars.find(name);
+      if (it == vars.end()) {
+        return;
+      }
+      BOOST_LOG(warning) << "config: [" << name << "] is no longer supported and will be ignored.";
+      vars.erase(it);
+      modified_config_settings.erase(name);
+    };
+
+    drop_deprecated_option("headless_mode");
+    drop_deprecated_option("isolated_virtual_display_option");
+    drop_deprecated_option("legacy_virtual_display_mode");
+
+    auto remap_option = [&](const char *old_name, const char *new_name) {
+      auto it = vars.find(old_name);
+      if (it == vars.end()) {
+        return;
+      }
+      BOOST_LOG(info) << "config: [" << old_name << "] renamed to [" << new_name << "], applying provided value.";
+      if (!vars.count(new_name)) {
+        vars.emplace(new_name, it->second);
+      }
+      vars.erase(it);
+      modified_config_settings.erase(old_name);
+    };
+
+    remap_option("double_refreshrate", "dd_wa_virtual_double_refresh");
+
+    bool_f(vars, "limit_framerate", video.limit_framerate);
+    int_f(vars, "qp", video.qp);
+    int_between_f(vars, "hevc_mode", video.hevc_mode, {0, 3});
+    int_between_f(vars, "av1_mode", video.av1_mode, {0, 3});
+    int_f(vars, "min_threads", video.min_threads);
+    string_f(vars, "sw_preset", video.sw.sw_preset);
+    if (!video.sw.sw_preset.empty()) {
+      video.sw.svtav1_preset = sw::svtav1_preset_from_view(video.sw.sw_preset);
+    }
+    string_f(vars, "sw_tune", video.sw.sw_tune);
+
+    int_between_f(vars, "nvenc_preset", video.nv.quality_preset, {1, 7});
+    int_between_f(vars, "nvenc_vbv_increase", video.nv.vbv_percentage_increase, {0, 400});
+    bool_f(vars, "nvenc_spatial_aq", video.nv.adaptive_quantization);
+    bool_f(vars, "nvenc_temporal_aq", video.nv.temporal_aq);
+    generic_f(vars, "nvenc_split_encode", video.nv.split_encode_mode, nv::split_encode_mode_from_view);
+    generic_f(vars, "nvenc_twopass", video.nv.two_pass, nv::twopass_from_view);
+    bool_f(vars, "nvenc_h264_cavlc", video.nv.h264_cavlc);
+    bool_f(vars, "nvenc_intra_refresh", video.nv.intra_refresh);
+    bool_f(vars, "nvenc_realtime_hags", video.nv_realtime_hags);
+    bool_f(vars, "nvenc_opengl_vulkan_on_dxgi", video.nv_opengl_vulkan_on_dxgi);
+    bool_f(vars, "nvenc_latency_over_power", video.nv_sunshine_high_power_mode);
+
+#if !defined(__ANDROID__) && !defined(__APPLE__)
+    video.nv_legacy.preset = video.nv.quality_preset + 11;
+    video.nv_legacy.multipass = video.nv.two_pass == nvenc::nvenc_two_pass::quarter_resolution ? NV_ENC_TWO_PASS_QUARTER_RESOLUTION :
+                                video.nv.two_pass == nvenc::nvenc_two_pass::full_resolution    ? NV_ENC_TWO_PASS_FULL_RESOLUTION :
+                                                                                                 NV_ENC_MULTI_PASS_DISABLED;
+    video.nv_legacy.h264_coder = video.nv.h264_cavlc ? NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC : NV_ENC_H264_ENTROPY_CODING_MODE_CABAC;
+    video.nv_legacy.aq = video.nv.adaptive_quantization;
+    video.nv_legacy.vbv_percentage_increase = video.nv.vbv_percentage_increase;
+#endif
+
+    int_f(vars, "qsv_preset", video.qsv.qsv_preset, qsv::preset_from_view);
+    int_f(vars, "qsv_coder", video.qsv.qsv_cavlc, qsv::coder_from_view);
+    bool_f(vars, "qsv_slow_hevc", video.qsv.qsv_slow_hevc);
+
+    std::string quality;
+    string_f(vars, "amd_quality", quality);
+    if (!quality.empty()) {
+      video.amd.amd_quality_h264 = amd::quality_from_view<amd::quality_h264_e>(quality, video.amd.amd_quality_h264);
+      video.amd.amd_quality_hevc = amd::quality_from_view<amd::quality_hevc_e>(quality, video.amd.amd_quality_hevc);
+      video.amd.amd_quality_av1 = amd::quality_from_view<amd::quality_av1_e>(quality, video.amd.amd_quality_av1);
+    }
+
+    std::string rc;
+    string_f(vars, "amd_rc", rc);
+    int_f(vars, "amd_coder", video.amd.amd_coder, amd::coder_from_view);
+    if (!rc.empty()) {
+      video.amd.amd_rc_h264 = amd::rc_from_view<amd::rc_h264_e>(rc, video.amd.amd_rc_h264);
+      video.amd.amd_rc_hevc = amd::rc_from_view<amd::rc_hevc_e>(rc, video.amd.amd_rc_hevc);
+      video.amd.amd_rc_av1 = amd::rc_from_view<amd::rc_av1_e>(rc, video.amd.amd_rc_av1);
+    }
+
+    // Only forwarded to the encoder when the 'qvbr' rate control method is selected.
+    // 0 (or an unset value) leaves the level at the encoder default.
+    int qvbr_quality_level = 0;
+    int_f(vars, "amd_qvbr_quality_level", qvbr_quality_level);
+    if (qvbr_quality_level > 0) {
+      if (qvbr_quality_level > 51) {
+        BOOST_LOG(warning) << "config: amd_qvbr_quality_level must be between 1 and 51, ignoring value: "sv << qvbr_quality_level;
+      } else {
+        video.amd.amd_qvbr_quality_level = qvbr_quality_level;
+      }
+    } else if (qvbr_quality_level < 0) {
+      BOOST_LOG(warning) << "config: amd_qvbr_quality_level must be between 1 and 51, ignoring value: "sv << qvbr_quality_level;
+    }
+
+    std::string usage;
+    string_f(vars, "amd_usage", usage);
+    if (!usage.empty()) {
+      video.amd.amd_usage_h264 = amd::usage_from_view<amd::usage_h264_e>(usage, video.amd.amd_usage_h264);
+      video.amd.amd_usage_hevc = amd::usage_from_view<amd::usage_hevc_e>(usage, video.amd.amd_usage_hevc);
+      video.amd.amd_usage_av1 = amd::usage_from_view<amd::usage_av1_e>(usage, video.amd.amd_usage_av1);
+    }
+
+    bool_f(vars, "amd_preanalysis", (bool &) video.amd.amd_preanalysis);
+    int_f(vars, "amd_vbaq", video.amd.amd_vbaq, amd::tristate_from_view);
+    bool_f(vars, "amd_enforce_hrd", (bool &) video.amd.amd_enforce_hrd);
+
+    // Native AMF encoder (amdvce) tuning knobs.
+    int_f(vars, "amd_ltr_frames", video.amd.amd_ltr_frames);
+    if (video.amd.amd_ltr_frames < 0 || video.amd.amd_ltr_frames > 2) {
+      BOOST_LOG(warning) << "config: amd_ltr_frames must be between 0 and 2, clamping: "sv << video.amd.amd_ltr_frames;
+      video.amd.amd_ltr_frames = std::clamp(video.amd.amd_ltr_frames, 0, 2);
+    }
+    int_f(vars, "amd_input_queue_size", video.amd.amd_input_queue_size);
+    if (video.amd.amd_input_queue_size < 0 || video.amd.amd_input_queue_size > 32) {
+      BOOST_LOG(warning) << "config: amd_input_queue_size must be between 0 and 32, clamping: "sv << video.amd.amd_input_queue_size;
+      video.amd.amd_input_queue_size = std::clamp(video.amd.amd_input_queue_size, 0, 32);
+    }
+
+    // Curated opt-in native-AMF feature knobs. Default "auto" leaves the AMF
+    // driver default untouched, so none of these change behavior unless enabled.
+    int_f(vars, "amd_smart_access_video", video.amd.amd_smart_access_video, amd::tristate_from_view);
+    int_f(vars, "amd_lowlatency_mode", video.amd.amd_lowlatency_mode, amd::tristate_from_view);
+    int_f(vars, "amd_high_motion_quality_boost", video.amd.amd_high_motion_quality_boost, amd::tristate_from_view);
+    int_f(vars, "amd_av1_screen_content", video.amd.amd_av1_screen_content, amd::tristate_from_view);
+    int_f(vars, "amd_av1_latency_mode", video.amd.amd_av1_latency_mode, amd::av1_latency_from_view);
+
+    int_f(vars, "vt_coder", video.vt.vt_coder, vt::coder_from_view);
+    int_f(vars, "vt_software", video.vt.vt_allow_sw, vt::allow_software_from_view);
+    int_f(vars, "vt_software", video.vt.vt_require_sw, vt::force_software_from_view);
+    int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
+
+    bool_f(vars, "vaapi_strict_rc_buffer", video.vaapi.strict_rc_buffer);
+
+    int_f(vars, "vk_tune", video.vk.tune);
+    int_f(vars, "vk_rc_mode", video.vk.rc_mode);
+
+    bool_f(vars, "rtx_hdr", video.rtx_hdr.enabled);
+    bool_f(vars, "rtx_hdr_force_sdr", video.rtx_hdr.force_sdr);
+    int_between_f(vars, "rtx_hdr_sdr_brightness", video.rtx_hdr.sdr_brightness, {0, 100});
+    int_between_f(vars, "rtx_hdr_contrast", video.rtx_hdr.contrast, {-100, 100});
+    int_between_f(vars, "rtx_hdr_saturation", video.rtx_hdr.saturation, {-100, 100});
+    int_between_f(vars, "rtx_hdr_middle_gray", video.rtx_hdr.middle_gray, {10, 100});
+    int_between_f(vars, "rtx_hdr_peak_brightness", video.rtx_hdr.peak_brightness, {400, 2000});
+
+    string_f(vars, "capture", video.capture);
+    bool_f(vars, "wgc_pacing_smoothing", video.wgc_pacing_smoothing);
+    string_f(vars, "encoder", video.encoder);
+    string_f(vars, "adapter_name", video.adapter_name);
+    string_f(vars, "adapter_pnp_id", video.adapter_pnp_id);
+    if (!video.adapter_pnp_id.empty() && video.adapter_name.empty()) {
+      BOOST_LOG(warning) << "config: adapter_pnp_id requires adapter_name; ignoring the orphaned adapter identity.";
+      video.adapter_pnp_id.clear();
+    }
+    string_f(vars, "output_name", video.output_name);
+
+    const auto virtual_display_mode_it = vars.find("virtual_display_mode");
+    const bool virtual_display_mode_specified =
+      virtual_display_mode_it != vars.end() && !virtual_display_mode_it->second.empty();
+    generic_f(vars, "virtual_display_mode", video.virtual_display_mode, virtual_display_mode_from_view);
+#ifdef _WIN32
+    // The virtual-display pipeline is built around Windows 11 capture features (WGC
+    // frame-generation capture at 4x refresh), so unconfigured Windows 10 hosts stay on
+    // the physical display; an explicit config value always wins.
+    if (!virtual_display_mode_specified && !platf::is_windows_11_or_later()) {
+      video.virtual_display_mode = video_t::virtual_display_mode_e::disabled;
+    }
+#endif
+    generic_f(vars, "virtual_display_layout", video.virtual_display_layout, virtual_display_layout_from_view);
+
+    generic_f(vars, "dd_configuration_option", video.dd.configuration_option, dd::config_option_from_view);
+    generic_f(vars, "dd_resolution_option", video.dd.resolution_option, dd::resolution_option_from_view);
+    string_f(vars, "dd_manual_resolution", video.dd.manual_resolution);
+    generic_f(vars, "dd_refresh_rate_option", video.dd.refresh_rate_option, dd::refresh_rate_option_from_view);
+    string_f(vars, "dd_manual_refresh_rate", video.dd.manual_refresh_rate);
+    generic_f(vars, "dd_hdr_option", video.dd.hdr_option, dd::hdr_option_from_view);
+    generic_f(vars, "dd_hdr_request_override", video.dd.hdr_request_override, dd::hdr_request_override_from_view);
+    {
+      int value = -1;
+      int_between_f(vars, "dd_config_revert_delay", value, {0, std::numeric_limits<int>::max()});
+      if (value >= 0) {
+        video.dd.config_revert_delay = std::chrono::milliseconds {value};
+      }
+    }
+    bool_f(vars, "dd_config_revert_on_disconnect", video.dd.config_revert_on_disconnect);
+    {
+      int value = 0;
+      int_between_f(vars, "dd_paused_virtual_display_timeout_secs", value, {0, std::numeric_limits<int>::max()});
+      video.dd.paused_virtual_display_timeout_secs = std::max(0, value);
+    }
+    bool_f(vars, "dd_always_restore_from_golden", video.dd.always_restore_from_golden);
+    generic_f(vars, "dd_display_helper_engine", video.dd.display_helper_engine, dd::helper_engine_from_view);
+    bool_f(vars, "dd_use_sunshine_virtual_display_driver", video.dd.use_sunshine_virtual_display_driver);
+    bool_f(vars, "dd_activate_virtual_display", video.dd.activate_virtual_display);
+    {
+      int value = video.dd.virtual_display_scale_percent;
+      int_f(vars, "dd_virtual_display_scale", value);
+      constexpr std::array allowed_scales {-1, 0, 100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500};
+      if (std::ranges::find(allowed_scales, value) != allowed_scales.end()) {
+        video.dd.virtual_display_scale_percent = value;
+      } else {
+        BOOST_LOG(warning) << "Ignoring unsupported virtual display scale " << value
+                           << "%; use -1 (recommended), 0, 100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, or 500.";
+      }
+    }
+    bool_f(vars, "vulkan_hdr_layer", video.dd.vulkan_hdr_layer);
+    {
+      auto it = vars.find("dd_virtual_display_permanent_count");
+      if (it == std::end(vars)) {
+        it = vars.find("dd_vdd_static_monitor_count");
+      }
+      video.dd.virtual_display_permanent_count_configured = it != std::end(vars);
+      if (it != std::end(vars)) {
+        int value = 0;
+        int_between_f(vars, it->first, value, {0, SUNSHINE_VIRTUAL_DISPLAY_MAX_PERMANENT_COUNT});
+        video.dd.virtual_display_permanent_count = std::clamp(value, 0, SUNSHINE_VIRTUAL_DISPLAY_MAX_PERMANENT_COUNT);
+      }
+    }
+    generic_f(vars, "dd_snapshot_exclude_devices", video.dd.snapshot_exclude_devices, dd::snapshot_exclude_devices_from_view);
+    {
+      auto it = vars.find("dd_snapshot_restore_hotkey");
+      if (it != std::end(vars)) {
+        video.dd.snapshot_restore_hotkey = dd::snapshot_restore_hotkey_from_view(it->second);
+        vars.erase(it);
+      }
+    }
+    {
+      auto it = vars.find("dd_snapshot_restore_hotkey_modifiers");
+      if (it != std::end(vars)) {
+        video.dd.snapshot_restore_hotkey_modifiers = dd::snapshot_restore_hotkey_modifiers_from_view(it->second);
+        vars.erase(it);
+      }
+    }
+    generic_f(vars, "dd_mode_remapping", video.dd.mode_remapping, dd::mode_remapping_from_view);
+    // Legacy HDR workaround options (no longer supported). Consume keys to avoid unknown-option warnings.
+    {
+      bool unused_hdr_toggle = false;
+      bool_f(vars, "dd_wa_hdr_toggle", unused_hdr_toggle);
+      int unused_hdr_toggle_delay_ms = 0;
+      int_between_f(vars, "dd_wa_hdr_toggle_delay", unused_hdr_toggle_delay_ms, {0, 3000});
+      if (unused_hdr_toggle || unused_hdr_toggle_delay_ms > 0) {
+        BOOST_LOG(warning) << "config: HDR toggle workaround options are no longer supported and will be ignored.";
+      }
+    }
+    bool_f(vars, "dd_wa_dummy_plug_hdr10", video.dd.wa.dummy_plug_hdr10);
+
+    int_f(vars, "max_bitrate", video.max_bitrate);
+    double_between_f(vars, "minimum_fps_target", video.minimum_fps_target, {0.0, 1000.0});
+
+    string_f(vars, "fallback_mode", video.fallback_mode);
+    bool_f(vars, "ignore_encoder_probe_failure", video.ignore_encoder_probe_failure);
+
+    // Windows-only frame limiter options
+    bool_f(vars, "frame_limiter_enable", frame_limiter.enable);
+    string_f(vars, "frame_limiter_provider", frame_limiter.provider);
+    if (frame_limiter.provider.empty()) {
+      frame_limiter.provider = "auto";
+    }
+    frame_limit_millihz_f(vars, "frame_limiter_fps_limit", frame_limiter.fps_limit_millihz);
+    bool_f(vars, "frame_limiter_disable_vsync", frame_limiter.disable_vsync);
+    bool_f(vars, "rtss_disable_vsync_ullm", frame_limiter.disable_vsync);
+    {
+      std::string virtual_capture_mode;
+      string_f(vars, "frame_limiter_auto_virtual_framegen", virtual_capture_mode);
+      if (!virtual_capture_mode.empty()) {
+        boost::algorithm::to_lower(virtual_capture_mode);
+        boost::algorithm::trim(virtual_capture_mode);
+        using mode_e = frame_limiter_t::virtual_display_capture_mode_e;
+        if (virtual_capture_mode == "legacy" || virtual_capture_mode == "2x" ||
+            virtual_capture_mode == "fixed-2x" || virtual_capture_mode == "fixed_2x") {
+          frame_limiter.virtual_display_capture_mode = mode_e::legacy;
+        } else if (virtual_capture_mode == "false" || virtual_capture_mode == "no" ||
+                   virtual_capture_mode == "disable" || virtual_capture_mode == "disabled" ||
+                   virtual_capture_mode == "off" || virtual_capture_mode == "0") {
+          frame_limiter.virtual_display_capture_mode = mode_e::disabled;
+        } else if (virtual_capture_mode == "enabled" || virtual_capture_mode == "enable" ||
+                   virtual_capture_mode == "true" || virtual_capture_mode == "yes" ||
+                   virtual_capture_mode == "on" || virtual_capture_mode == "1" ||
+                   virtual_capture_mode == "smooth" || virtual_capture_mode == "smoother") {
+          frame_limiter.virtual_display_capture_mode = mode_e::enabled;
+        } else {
+          BOOST_LOG(warning) << "config: Unknown frame_limiter_auto_virtual_framegen mode '"
+                             << virtual_capture_mode << "'; using enabled.";
+          frame_limiter.virtual_display_capture_mode = mode_e::enabled;
+        }
+      }
+    }
+    string_f(vars, "rtss_install_path", rtss.install_path);
+    string_f(vars, "rtss_frame_limit_type", rtss.frame_limit_type);
+    if (video.dd.wa.dummy_plug_hdr10 && !frame_limiter.disable_vsync) {
+      BOOST_LOG(info) << "config: Forcing frame_limiter_disable_vsync=1 due to dummy plug HDR10 workaround (VSYNC override required).";
+      frame_limiter.disable_vsync = true;
+    }
+    string_f(vars, "lossless_scaling_path", lossless_scaling.exe_path);
+    bool_f(vars, "lossless_scaling_legacy_auto_detect", lossless_scaling.legacy_auto_detect);
+
+    path_f(vars, "pkey", nvhttp.pkey);
+    path_f(vars, "cert", nvhttp.cert);
+    string_f(vars, "sunshine_name", nvhttp.sunshine_name);
+    path_f(vars, "log_path", config::sunshine.log_file);
+    path_f(vars, "file_state", nvhttp.file_state);
+    path_f(vars, "vibeshine_file_state", nvhttp.vibeshine_file_state);
+
+    // Must be run after "file_state"
+    config::sunshine.credentials_file = config::nvhttp.file_state;
+    path_f(vars, "credentials_file", config::sunshine.credentials_file);
+
+    string_f(vars, "external_ip", nvhttp.external_ip);
+    list_prep_cmd_f(vars, "global_prep_cmd", config::sunshine.prep_cmds);
+    list_prep_cmd_f(vars, "global_state_cmd", config::sunshine.state_cmds);
+    list_server_cmd_f(vars, "server_cmd", config::sunshine.server_cmds);
+
+    int_f(vars, "update_check_interval", config::sunshine.update_check_interval_seconds);
+    bool_f(vars, "session_history_enabled", config::sunshine.session_history_enabled);
+
+    string_f(vars, "audio_sink", audio.sink);
+    string_f(vars, "virtual_sink", audio.virtual_sink);
+    bool_f(vars, "stream_audio", audio.stream);
+    bool_f(vars, "install_steam_audio_drivers", audio.install_steam_drivers);
+    bool_f(vars, "keep_sink_default", audio.keep_default);
+    bool_f(vars, "auto_capture_sink", audio.auto_capture);
+
+    string_restricted_f(vars, "origin_web_ui_allowed", nvhttp.origin_web_ui_allowed, {"pc"sv, "lan"sv, "wan"sv});
+    // reflect origin ACL update immediately in HTTP layer
+    if (modified_config_settings.contains("origin_web_ui_allowed")) {
+      http::refresh_origin_acl();
+    }
+
+    std::vector<std::string> user_csrf_origins;
+    list_string_f(vars, "csrf_allowed_origins", user_csrf_origins);
+
+    sunshine.csrf_allowed_origins = {
+      "https://localhost",
+      "https://127.0.0.1",
+      "https://[::1]"
+    };
+
+    bool csrf_invalid_config = false;
+    for (const auto &origin : user_csrf_origins) {
+      if (origin.size() > 8 && origin.starts_with("https://")) {
+        sunshine.csrf_allowed_origins.push_back(origin);
+      } else if (!origin.empty()) {
+        csrf_invalid_config = true;
+        BOOST_LOG(warning) << "Invalid 'csrf_allowed_origins' entry rejected: "sv << origin;
+      }
+    }
+    if (csrf_invalid_config) {
+      BOOST_LOG(warning) << "csrf_allowed_origins entries must be https:// origins.";
+    }
+
+    int to = -1;
+    int_between_f(vars, "ping_timeout", to, {-1, std::numeric_limits<int>::max()});
+    if (to != -1) {
+      stream.ping_timeout = std::chrono::milliseconds(to);
+    }
+
+    int_between_f(vars, "lan_encryption_mode", stream.lan_encryption_mode, {0, 2});
+    int_between_f(vars, "wan_encryption_mode", stream.wan_encryption_mode, {0, 2});
+
+    path_f(vars, "file_apps", stream.file_apps);
+#ifndef __ANDROID__
+    // TODO: Android can possibly support this
+    if (!fs::exists(stream.file_apps.c_str())) {
+      fs::copy_file(SUNSHINE_ASSETS_DIR "/apps.json", stream.file_apps);
+      fs::permissions(
+        stream.file_apps,
+        fs::perms::owner_read | fs::perms::owner_write,
+        fs::perm_options::add
+      );
+    }
+#endif
+
+    int_between_f(vars, "fec_percentage", stream.fec_percentage, {1, 255});
+    int_between_f(vars, "pacing_max_bitrate_kbps", stream.pacing_max_bitrate_kbps, {0, 10000000});
+    int_between_f(vars, "packetsize", stream.packetsize, {0, PACKETSIZE_MAX});
+    int_between_f(vars, "video_max_batch_size_kb", stream.video_max_batch_size_kb, {0, 64});
+    if (stream.video_max_batch_size_kb == 0) {
+      stream.video_max_batch_size_kb = 64;
+    } else if (stream.video_max_batch_size_kb != 16 && stream.video_max_batch_size_kb != 32 && stream.video_max_batch_size_kb != 64) {
+      BOOST_LOG(warning) << "config: unsupported video_max_batch_size_kb value: " << stream.video_max_batch_size_kb << ", using 64";
+      stream.video_max_batch_size_kb = 64;
+    }
+
+    map_int_int_f(vars, "keybindings"s, input.keybindings);
+
+    // This config option will only be used by the UI
+    // When editing in the config file itself, use "keybindings"
+    bool map_rightalt_to_win = false;
+    bool_f(vars, "key_rightalt_to_key_win", map_rightalt_to_win);
+
+    if (map_rightalt_to_win) {
+      input.keybindings.emplace(0xA5, 0x5B);
+    }
+
+    to = std::numeric_limits<int>::min();
+    int_f(vars, "back_button_timeout", to);
+
+    if (to > std::numeric_limits<int>::min()) {
+      input.back_button_timeout = std::chrono::milliseconds {to};
+    }
+
+    double repeat_frequency {0};
+    double_between_f(vars, "key_repeat_frequency", repeat_frequency, {0, std::numeric_limits<double>::max()});
+
+    if (repeat_frequency > 0) {
+      config::input.key_repeat_period = std::chrono::duration<double> {1 / repeat_frequency};
+    }
+
+    to = -1;
+    int_f(vars, "key_repeat_delay", to);
+    if (to >= 0) {
+      input.key_repeat_delay = std::chrono::milliseconds {to};
+    }
+
+    string_restricted_f(vars, "gamepad"s, input.gamepad, get_supported_gamepad_options());
+    bool_f(vars, "ds4_back_as_touchpad_click", input.ds4_back_as_touchpad_click);
+    bool_f(vars, "motion_as_ds4", input.motion_as_ds4);
+    bool_f(vars, "touchpad_as_ds4", input.touchpad_as_ds4);
+
+    bool_f(vars, "mouse", input.mouse);
+    bool_f(vars, "keyboard", input.keyboard);
+    bool_f(vars, "controller", input.controller);
+
+    bool_f(vars, "always_send_scancodes", input.always_send_scancodes);
+
+    bool_f(vars, "high_resolution_scrolling", input.high_resolution_scrolling);
+    bool_f(vars, "native_pen_touch", input.native_pen_touch);
+    bool_f(vars, "enable_input_only_mode", input.enable_input_only_mode);
+
+    bool_f(vars, "system_tray", sunshine.system_tray);
+    bool_f(vars, "hide_tray_controls", sunshine.hide_tray_controls);
+    bool_f(vars, "enable_pairing", sunshine.enable_pairing);
+    bool_f(vars, "enable_discovery", sunshine.enable_discovery);
+    bool_f(vars, "envvar_compatibility_mode", sunshine.envvar_compatibility_mode);
+    bool_f(vars, "notify_pre_releases", sunshine.notify_pre_releases);
+    bool_f(vars, "legacy_ordering", sunshine.legacy_ordering);
+    bool_f(vars, "forward_rumble", input.forward_rumble);
+
+    int port = sunshine.port;
+    int_between_f(vars, "port"s, port, {1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT});
+    sunshine.port = (std::uint16_t) port;
+
+    string_restricted_f(vars, "address_family", sunshine.address_family, {"ipv4"sv, "both"sv});
+    string_f(vars, "bind_address", sunshine.bind_address);
+
+    bool upnp = false;
+    bool_f(vars, "upnp"s, upnp);
+
+    if (upnp) {
+      config::sunshine.flags[config::flag::UPNP].flip();
+    }
+
+    string_restricted_f(vars, "locale", config::sunshine.locale, {
+                                                                   "bg"sv,  // Bulgarian
+                                                                   "cs"sv,  // Czech
+                                                                   "de"sv,  // German
+                                                                   "en"sv,  // English
+                                                                   "en_GB"sv,  // English (UK)
+                                                                   "en_US"sv,  // English (US)
+                                                                   "es"sv,  // Spanish
+                                                                   "fr"sv,  // French
+                                                                   "hu"sv,  // Hungarian
+                                                                   "it"sv,  // Italian
+                                                                   "ja"sv,  // Japanese
+                                                                   "ko"sv,  // Korean
+                                                                   "pl"sv,  // Polish
+                                                                   "pt"sv,  // Portuguese
+                                                                   "pt_BR"sv,  // Portuguese (Brazilian)
+                                                                   "ru"sv,  // Russian
+                                                                   "sv"sv,  // Swedish
+                                                                   "tr"sv,  // Turkish
+                                                                   "uk"sv,  // Ukrainian
+                                                                   "vi"sv,  // Vietnamese
+                                                                   "zh"sv,  // Chinese
+                                                                   "zh_TW"sv,  // Chinese (Traditional)
+                                                                 });
+
+    std::string log_level_string;
+    string_f(vars, "min_log_level", log_level_string);
+
+    if (!log_level_string.empty()) {
+      if (log_level_string == "verbose"sv) {
+        sunshine.min_log_level = 0;
+      } else if (log_level_string == "debug"sv) {
+        sunshine.min_log_level = 1;
+      } else if (log_level_string == "info"sv) {
+        sunshine.min_log_level = 2;
+      } else if (log_level_string == "warning"sv) {
+        sunshine.min_log_level = 3;
+      } else if (log_level_string == "error"sv) {
+        sunshine.min_log_level = 4;
+      } else if (log_level_string == "fatal"sv) {
+        sunshine.min_log_level = 5;
+      } else if (log_level_string == "none"sv) {
+        sunshine.min_log_level = 6;
+      } else {
+        // accept digit directly
+        auto val = log_level_string[0];
+        if (val >= '0' && val < '7') {
+          sunshine.min_log_level = val - '0';
+        }
+      }
+    }
+
+#ifdef _WIN32
+    // Apply Playnite-specific configuration keys
+    config::apply_playnite(vars);
+#endif
+
+    auto it = vars.find("flags"s);
+    if (it != std::end(vars)) {
+      apply_flags(it->second.c_str());
+
+      vars.erase(it);
+    }
+
+    // Parse session token TTL (seconds) if provided
+    {
+      int ttl_secs = -1;
+      int_between_f(vars, "session_token_ttl_seconds", ttl_secs, {1, std::numeric_limits<int>::max()});
+      if (ttl_secs > 0) {
+        sunshine.session_token_ttl = std::chrono::seconds {ttl_secs};
+      }
+    }
+    // Parse remember-me refresh token TTL (seconds) if provided
+    {
+      int ttl_secs = -1;
+      int_between_f(
+        vars,
+        "remember_me_refresh_token_ttl_seconds",
+        ttl_secs,
+        {1, std::numeric_limits<int>::max()}
+      );
+      if (ttl_secs > 0) {
+        sunshine.remember_me_refresh_token_ttl = std::chrono::seconds {ttl_secs};
+      }
+    }
+    {
+      int retention_days = config::sunshine.session_history_ttl_days;
+      int_between_f(vars, "session_history_ttl_days", retention_days, {0, std::numeric_limits<int>::max()});
+      if (retention_days >= 0) {
+        sunshine.session_history_ttl_days = retention_days;
+      }
+    }
+    {
+      int quota_mb = config::sunshine.session_history_db_size_limit_mb;
+      int_between_f(vars, "session_history_db_size_limit_mb", quota_mb, {0, std::numeric_limits<int>::max()});
+      if (quota_mb >= 0) {
+        sunshine.session_history_db_size_limit_mb = quota_mb;
+      }
+    }
+
+    bool_f(vars, "realtime_stats_enabled", sunshine.realtime_stats_enabled);
+    int_between_f(vars, "realtime_stats_poll_interval_ms", sunshine.realtime_stats_poll_interval_ms, {250, 60000});
+
+    // Web-UI-only realtime stats preferences; consumed here so they are not
+    // reported as unrecognized options.
+    for (const auto *ui_only_key : {
+           "realtime_stats_history_retention_seconds",
+           "realtime_stats_max_history_points",
+           "realtime_stats_pause_when_hidden",
+           "realtime_stats_show_active_sessions",
+           "realtime_stats_show_host_stats",
+           "realtime_stats_show_host_charts",
+           "realtime_stats_show_session_history",
+         }) {
+      vars.erase(ui_only_key);
+    }
+
+#ifdef _WIN32
+    platf::hotkey::update_restore_hotkey(
+      video.dd.snapshot_restore_hotkey,
+      video.dd.snapshot_restore_hotkey_modifiers
+    );
+#endif
+
+    if (sunshine.min_log_level <= 3) {
+      for (auto &[var, _] : vars) {
+        std::cout << "Warning: Unrecognized configurable option ["sv << var << ']' << std::endl;
+      }
+    }
+
+  }
+
+  int parse(int argc, char *argv[]) {
+    std::unordered_map<std::string, std::string> cmd_vars;
+#ifdef _WIN32
+    bool shortcut_launch = false;
+    bool service_admin_launch = false;
+#endif
+
+    for (auto x = 1; x < argc; ++x) {
+      auto line = argv[x];
+
+      if (line == "--help"sv) {
+        logging::print_help(*argv);
+        return 1;
+      }
+#ifdef _WIN32
+      else if (line == "--shortcut"sv) {
+        shortcut_launch = true;
+      } else if (line == "--shortcut-admin"sv) {
+        service_admin_launch = true;
+      }
+#endif
+      else if (*line == '-') {
+        if (*(line + 1) == '-') {
+          sunshine.cmd.name = line + 2;
+          sunshine.cmd.argc = argc - x - 1;
+          sunshine.cmd.argv = argv + x + 1;
+
+          break;
+        }
+        if (apply_flags(line + 1)) {
+          logging::print_help(*argv);
+          return -1;
+        }
+      } else {
+        auto line_end = line + strlen(line);
+
+        auto pos = std::find(line, line_end, '=');
+        if (pos == line_end) {
+          sunshine.config_file = line;
+        } else {
+          TUPLE_EL(var, 1, parse_option(line, line_end));
+          if (!var) {
+            logging::print_help(*argv);
+            return -1;
+          }
+
+          TUPLE_EL_REF(name, 0, *var);
+
+          auto it = cmd_vars.find(name);
+          if (it != std::end(cmd_vars)) {
+            cmd_vars.erase(it);
+          }
+
+          cmd_vars.emplace(std::move(*var));
+        }
+      }
+    }
+
+    bool config_loaded = false;
+    try {
+      // Create appdata folder if it does not exist
+      file_handler::make_directory(platf::appdata().string());
+
+      // Create empty config file if it does not exist
+      if (!fs::exists(sunshine.config_file)) {
+        auto cfg_file = std::ofstream {sunshine.config_file};
+#ifdef _WIN32
+        cfg_file << "server_cmd = [{\"name\":\"Bubbles\",\"cmd\":\"bubbles.scr\",\"elevated\":false}]\n";
+#endif
+      }
+
+      // Read config file
+      auto vars = parse_config(file_handler::read_file(sunshine.config_file.c_str()));
+
+      command_line_overrides = cmd_vars;
+
+      merge_config_overrides(vars, cmd_vars);
+      update_base_adapter_config_snapshot(vars);
+
+      // Apply the config. Note: This will try to create any paths
+      // referenced in the config, so we may receive exceptions if
+      // the path is incorrect or inaccessible.
+      apply_config(std::move(vars));
+      config_loaded = true;
+
+      // Persist snapshot exclusion devices to vibeshine_state.json on startup so the display
+      // helper can read them directly without depending on IPC from Sunshine.
+      statefile::save_snapshot_exclude_devices(video.dd.snapshot_exclude_devices);
+    } catch (const std::filesystem::filesystem_error &err) {
+      BOOST_LOG(fatal) << "Failed to apply config: "sv << err.what();
+    } catch (const boost::filesystem::filesystem_error &err) {
+      BOOST_LOG(fatal) << "Failed to apply config: "sv << err.what();
+    }
+
+#ifdef _WIN32
+    // UCRT64 raises an access denied exception if launching from the shortcut
+    // as non-admin and the config folder is not yet present; we can defer
+    // so that service instance will do the work instead.
+
+    if (!config_loaded && !shortcut_launch) {
+      BOOST_LOG(fatal) << "To relaunch Apollo successfully, use the shortcut in the Start Menu. Do not run sunshine.exe manually."sv;
+      std::this_thread::sleep_for(10s);
+#else
+    if (!config_loaded) {
+#endif
+      return -1;
+    }
+
+#ifdef _WIN32
+    // We have to wait until the config is loaded to handle these launches,
+    // because we need to have the correct base port loaded in our config.
+    // Exception: UCRT64 shortcut_launch instances may have no config loaded due to
+    // insufficient permissions to create folder; port defaults will be acceptable.
+    if (service_admin_launch) {
+      // This is a relaunch as admin to start the service
+      service_ctrl::start_service();
+
+      // Always return 1 to ensure Sunshine doesn't start normally
+      return 1;
+    }
+    if (shortcut_launch) {
+      if (!service_ctrl::is_service_running()) {
+        // If the service isn't running, relaunch ourselves as admin to start it
+        WCHAR executable[MAX_PATH];
+        GetModuleFileNameW(nullptr, executable, ARRAYSIZE(executable));
+
+        SHELLEXECUTEINFOW shell_exec_info {};
+        shell_exec_info.cbSize = sizeof(shell_exec_info);
+        shell_exec_info.fMask = SEE_MASK_NOASYNC | SEE_MASK_NO_CONSOLE | SEE_MASK_NOCLOSEPROCESS;
+        shell_exec_info.lpVerb = L"runas";
+        shell_exec_info.lpFile = executable;
+        shell_exec_info.lpParameters = L"--shortcut-admin";
+        shell_exec_info.nShow = SW_NORMAL;
+        if (!ShellExecuteExW(&shell_exec_info)) {
+          auto winerr = GetLastError();
+          BOOST_LOG(error) << "Failed executing shell command: " << winerr << std::endl;
+          return 1;
+        }
+
+        // Wait for the elevated process to finish starting the service
+        WaitForSingleObject(shell_exec_info.hProcess, INFINITE);
+        CloseHandle(shell_exec_info.hProcess);
+
+        // Wait for the UI to be ready for connections
+        service_ctrl::wait_for_ui_ready();
+      }
+
+      // Launch the web UI
+      launch_ui();
+
+      // Always return 1 to ensure Sunshine doesn't start normally
+      return 1;
+    }
+#endif
+
+    return 0;
+  }
+
+  // Hot-reload manager
+  namespace {
+    std::atomic<bool> g_deferred_reload {false};
+    std::mutex g_apply_mutex;  // serialize apply_config_now()
+    std::shared_mutex g_apply_gate;  // writers=apply; readers=session start/resume
+    std::shared_mutex g_output_override_mutex;
+    std::optional<std::string> g_runtime_output_name_override;
+#ifdef _WIN32
+    std::optional<std::string> g_deferred_virtual_output_name_override;
+    std::uint64_t g_next_runtime_output_override_lease {0};
+    std::uint64_t g_runtime_output_override_lease {0};
+    std::uint64_t g_deferred_virtual_output_override_lease {0};
+#endif
+
+    // Runtime config override map applied on top of config file values (not persisted).
+    // Used for per-application overrides so we can keep the effective config consistent
+    // across hot-apply and deferred reloads while an app is running.
+    std::mutex g_runtime_overrides_mutex;
+    std::unordered_map<std::string, std::string> g_runtime_config_overrides;
+
+    struct adapter_config_pair_t {
+      std::string name;
+      std::string pnp_id;
+    };
+
+    // Keep the global/base pair and the exact pair captured by the first active
+    // stream independent from the mutable runtime override map. Application
+    // termination may clear that map while an RTSP session is still draining,
+    // but a shared-session compatibility decision must continue to compare
+    // against the adapter that owns the active capture.
+    std::mutex g_adapter_config_snapshot_mutex;
+    adapter_config_pair_t g_base_adapter_config;
+    adapter_config_pair_t g_active_adapter_config;
+    bool g_base_adapter_config_valid = false;
+    bool g_active_adapter_config_valid = false;
+
+    adapter_config_pair_t adapter_config_from_vars(
+      const std::unordered_map<std::string, std::string> &vars
+    ) {
+      adapter_config_pair_t result;
+      if (const auto name = vars.find("adapter_name"); name != vars.end()) {
+        result.name = name->second;
+      }
+      if (!result.name.empty()) {
+        if (const auto pnp_id = vars.find("adapter_pnp_id"); pnp_id != vars.end()) {
+          result.pnp_id = pnp_id->second;
+        }
+      }
+      return result;
+    }
+
+    void update_base_adapter_config_snapshot(
+      const std::unordered_map<std::string, std::string> &vars
+    ) {
+      std::lock_guard<std::mutex> lock(g_adapter_config_snapshot_mutex);
+      g_base_adapter_config = adapter_config_from_vars(vars);
+      g_base_adapter_config_valid = true;
+    }
+
+    bool is_rtx_hdr_live_key(std::string_view key) {
+      return key == "rtx_hdr" ||
+             key == "rtx_hdr_sdr_brightness" ||
+             key == "rtx_hdr_contrast" ||
+             key == "rtx_hdr_saturation" ||
+             key == "rtx_hdr_middle_gray" ||
+             key == "rtx_hdr_peak_brightness";
+    }
+
+    bool rtx_hdr_live_overrides_changed(
+      const std::unordered_map<std::string, std::string> &before,
+      const std::unordered_map<std::string, std::string> &after
+    ) {
+      for (const auto key : {"rtx_hdr"sv, "rtx_hdr_sdr_brightness"sv, "rtx_hdr_contrast"sv, "rtx_hdr_saturation"sv, "rtx_hdr_middle_gray"sv, "rtx_hdr_peak_brightness"sv}) {
+        const auto before_it = before.find(std::string(key));
+        const auto after_it = after.find(std::string(key));
+        if (before_it == before.end() && after_it == after.end()) {
+          continue;
+        }
+        if (before_it == before.end() || after_it == after.end() || before_it->second != after_it->second) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    bool is_valid_override_key(const std::string_view key) {
+      if (key.empty() || key.size() > 128) {
+        return false;
+      }
+      for (const char c : key) {
+        const unsigned char uc = static_cast<unsigned char>(c);
+        if (!(std::isalnum(uc) || c == '_')) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    bool is_allowed_override_key(const std::string_view key) {
+      // Per-app and per-client overrides are intentionally limited to stream/session behavior.
+      // Global identity, network, filesystem, updater, launcher-sync, and install-path settings
+      // are excluded to avoid softlocks and other surprising side effects.
+      static const std::unordered_set<std::string_view> kAllowed = {
+        // Input behavior
+        "controller",
+        "gamepad",
+        "ds4_back_as_touchpad_click",
+        "motion_as_ds4",
+        "touchpad_as_ds4",
+        "back_button_timeout",
+        "keyboard",
+        "key_repeat_delay",
+        "key_repeat_frequency",
+        "always_send_scancodes",
+        "key_rightalt_to_key_win",
+        "mouse",
+        "high_resolution_scrolling",
+        "native_pen_touch",
+        "keybindings",
+        "ds5_inputtino_randomize_mac",
+
+        // Stream audio/video and display automation
+        "audio_sink",
+        "virtual_sink",
+        "stream_audio",
+        "adapter_name",
+        "adapter_pnp_id",
+        "dd_configuration_option",
+        "dd_resolution_option",
+        "dd_manual_resolution",
+        "dd_refresh_rate_option",
+        "dd_manual_refresh_rate",
+        "dd_hdr_option",
+        "dd_hdr_request_override",
+        "dd_config_revert_delay",
+        "dd_config_revert_on_disconnect",
+        "dd_paused_virtual_display_timeout_secs",
+        "dd_always_restore_from_golden",
+        "dd_display_helper_engine",
+        "dd_snapshot_exclude_devices",
+        "dd_snapshot_restore_hotkey",
+        "dd_snapshot_restore_hotkey_modifiers",
+        "dd_use_sunshine_virtual_display_driver",
+        "dd_activate_virtual_display",
+        "dd_virtual_display_scale",
+        "dd_virtual_display_permanent_count",
+        "dd_mode_remapping",
+        "dd_wa_dummy_plug_hdr10",
+        "max_bitrate",
+        "minimum_fps_target",
+
+        // Codec / capture negotiation
+        "fec_percentage",
+        "video_max_batch_size_kb",
+        "qp",
+        "min_threads",
+        "hevc_mode",
+        "av1_mode",
+        "capture",
+        "encoder",
+
+        // Playnite per-app focus behavior
+        "playnite_focus_attempts",
+        "playnite_focus_timeout_secs",
+        "playnite_focus_exit_on_first",
+
+        // Frame limiter behavior
+        "frame_limiter_enable",
+        "frame_limiter_provider",
+        "frame_limiter_fps_limit",
+        "frame_limiter_auto_virtual_framegen",
+        "rtss_frame_limit_type",
+        "frame_limiter_disable_vsync",
+
+        // Encoder tuning
+        "nvenc_preset",
+        "nvenc_twopass",
+        "nvenc_spatial_aq",
+        "nvenc_temporal_aq",
+        "nvenc_split_encode",
+        "nvenc_vbv_increase",
+        "nvenc_realtime_hags",
+        "nvenc_latency_over_power",
+        "nvenc_opengl_vulkan_on_dxgi",
+        "nvenc_h264_cavlc",
+        "qsv_preset",
+        "qsv_coder",
+        "qsv_slow_hevc",
+        "amd_usage",
+        "amd_rc",
+        "amd_qvbr_quality_level",
+        "amd_enforce_hrd",
+        "amd_quality",
+        "amd_preanalysis",
+        "amd_vbaq",
+        "amd_coder",
+        "amd_ltr_frames",
+        "amd_input_queue_size",
+        "amd_smart_access_video",
+        "amd_lowlatency_mode",
+        "amd_high_motion_quality_boost",
+        "amd_av1_screen_content",
+        "amd_av1_latency_mode",
+        "vt_coder",
+        "vt_software",
+        "vt_realtime",
+        "vaapi_strict_rc_buffer",
+        "vk_tune",
+        "vk_rc_mode",
+        "rtx_hdr",
+        "rtx_hdr_force_sdr",
+        "rtx_hdr_sdr_brightness",
+        "rtx_hdr_contrast",
+        "rtx_hdr_saturation",
+        "rtx_hdr_middle_gray",
+        "rtx_hdr_peak_brightness",
+        "sw_preset",
+        "sw_tune",
+      };
+
+      return kAllowed.contains(key);
+    }
+
+    std::unordered_map<std::string, std::string> runtime_overrides_snapshot() {
+      std::scoped_lock lk(g_runtime_overrides_mutex);
+      return g_runtime_config_overrides;
+    }
+
+    bool has_active_stream_sessions() {
+      // This runs while apply_config_now() owns the configuration write gate,
+      // so it must remain side-effect-free and must not take the lifecycle gate
+      // (stream startup takes lifecycle before the config read gate).
+      return rtsp_stream::has_pending_launch_or_startup() ||
+             rtsp_stream::session_count_no_cleanup() > 0 ||
+             stream::session::running_sessions.load(std::memory_order_acquire) != 0 ||
+             stream::session::teardown_sessions.load(std::memory_order_acquire) != 0 ||
+             webrtc_stream::has_active_or_pending_sessions() ||
+             webrtc_stream::has_capture_active() ||
+             webrtc_stream::has_teardown_in_progress();
+    }
+
+#ifdef _WIN32
+    bool is_virtual_output_override(const std::optional<std::string> &output_name) {
+      if (!output_name || output_name->empty()) {
+        return false;
+      }
+      if (VDISPLAY::is_virtual_display_selection(*output_name)) {
+        return true;
+      }
+      return VDISPLAY::is_virtual_display_output(*output_name);
+    }
+
+    struct deferred_virtual_output_reapply_worker_t {
+      // `worker` is declared last so its destructor requests stop and joins
+      // while the mutex/condition variable it uses are still alive.
+      std::mutex mutex;
+      std::condition_variable wake;
+      bool shutdown_requested {false};
+      std::jthread worker;
+
+      ~deferred_virtual_output_reapply_worker_t() {
+        {
+          std::lock_guard<std::mutex> lock(mutex);
+          shutdown_requested = true;
+          if (worker.joinable()) {
+            worker.request_stop();
+          }
+        }
+        wake.notify_all();
+        if (worker.joinable() && worker.get_id() != std::this_thread::get_id()) {
+          worker.join();
+        }
+      }
+    };
+
+    deferred_virtual_output_reapply_worker_t &deferred_virtual_output_reapply_worker() {
+      // Function-local lifetime ensures that the fallback destructor runs
+      // before configuration globals initialized during startup.
+      static deferred_virtual_output_reapply_worker_t worker;
+      return worker;
+    }
+
+    bool deferred_virtual_output_reapply_should_stop(
+      deferred_virtual_output_reapply_worker_t &worker,
+      std::stop_token stop_token
+    ) {
+      if (stop_token.stop_requested()) {
+        return true;
+      }
+      std::lock_guard<std::mutex> lock(worker.mutex);
+      return worker.shutdown_requested;
+    }
+
+    bool wait_for_deferred_virtual_output_reapply(
+      deferred_virtual_output_reapply_worker_t &worker,
+      std::stop_token stop_token,
+      std::chrono::steady_clock::duration delay
+    ) {
+      std::unique_lock<std::mutex> lock(worker.mutex);
+      worker.wake.wait_for(lock, delay, [&] {
+        return worker.shutdown_requested || stop_token.stop_requested();
+      });
+      return worker.shutdown_requested || stop_token.stop_requested();
+    }
+
+    void run_deferred_virtual_output_reapply_worker(
+      deferred_virtual_output_reapply_worker_t &worker,
+      std::stop_token stop_token
+    ) {
+      constexpr auto kPollInterval = std::chrono::milliseconds(250);
+      constexpr auto kIdleWakeInterval = std::chrono::hours(24);
+      // If we have any deferred display-helper APPLY work (e.g. resolution/HDR/exclusivity),
+      // ensure it runs before we force capture to reinit/retarget. Applying can itself cause
+      // a capture reinit, so order matters.
+      constexpr auto kPendingApplyMaxWait = std::chrono::seconds(8);
+
+      const auto cancelled = [&] {
+        return deferred_virtual_output_reapply_should_stop(worker, stop_token);
+      };
+
+      while (!cancelled()) {
+        try {
+          bool has_deferred_output = false;
+          {
+            std::shared_lock<std::shared_mutex> lock(g_output_override_mutex);
+            has_deferred_output = g_deferred_virtual_output_name_override &&
+                                  !g_deferred_virtual_output_name_override->empty();
+          }
+
+          if (!has_deferred_output) {
+            if (wait_for_deferred_virtual_output_reapply(worker, stop_token, kIdleWakeInterval)) {
+              return;
+            }
+            continue;
+          }
+
+          if (platf::is_lock_screen_active()) {
+            if (wait_for_deferred_virtual_output_reapply(worker, stop_token, kPollInterval)) {
+              return;
+            }
+            continue;
+          }
+
+          bool applied = false;
+          {
+            std::unique_lock<std::shared_mutex> lock(g_output_override_mutex);
+            if (!g_deferred_virtual_output_name_override || g_deferred_virtual_output_name_override->empty()) {
+              continue;
+            }
+            if (!platf::is_lock_screen_active()) {
+              g_runtime_output_name_override = g_deferred_virtual_output_name_override;
+              g_runtime_output_override_lease = g_deferred_virtual_output_override_lease;
+              g_deferred_virtual_output_name_override.reset();
+              g_deferred_virtual_output_override_lease = 0;
+              applied = true;
+            }
+          }
+
+          if (!applied) {
+            continue;
+          }
+
+          if (cancelled()) {
+            return;
+          }
+          BOOST_LOG(info) << "Lock screen cleared; applied deferred virtual output override.";
+
+          // Ensure any queued helper APPLY runs before we request capture reinit, otherwise
+          // we can retarget capture first and then deadlock when APPLY triggers a reinit.
+          if (display_helper_integration::has_pending_apply()) {
+            const auto deadline = std::chrono::steady_clock::now() + kPendingApplyMaxWait;
+            while (!cancelled() && display_helper_integration::has_pending_apply() &&
+                   std::chrono::steady_clock::now() < deadline) {
+              (void) display_helper_integration::apply_pending_if_ready(cancelled);
+              if (wait_for_deferred_virtual_output_reapply(worker, stop_token, kPollInterval)) {
+                return;
+              }
+            }
+            if (!cancelled() && display_helper_integration::has_pending_apply()) {
+              BOOST_LOG(warning) << "Deferred virtual output override applied, but deferred display-helper APPLY is still pending; proceeding with capture retarget.";
+            }
+          }
+
+          if (cancelled()) {
+            return;
+          }
+          if (mail::man) {
+            // -1 means "reinit only; keep display selection logic intact".
+            mail::man->event<int>(mail::switch_display)->raise(-1);
+            BOOST_LOG(info) << "Requested capture reinit after deferred virtual output override reapply.";
+          }
+        } catch (const std::exception &e) {
+          BOOST_LOG(error) << "Deferred virtual output reapply worker failed: " << e.what();
+          if (wait_for_deferred_virtual_output_reapply(worker, stop_token, kPollInterval)) {
+            return;
+          }
+        } catch (...) {
+          BOOST_LOG(error) << "Deferred virtual output reapply worker failed with an unknown exception.";
+          if (wait_for_deferred_virtual_output_reapply(worker, stop_token, kPollInterval)) {
+            return;
+          }
+        }
+      }
+    }
+
+    void schedule_deferred_virtual_output_reapply() {
+      auto &worker = deferred_virtual_output_reapply_worker();
+      {
+        std::lock_guard<std::mutex> lock(worker.mutex);
+        if (worker.shutdown_requested) {
+          return;
+        }
+        if (!worker.worker.joinable()) {
+          try {
+            worker.worker = std::jthread([&worker](std::stop_token stop_token) {
+              run_deferred_virtual_output_reapply_worker(worker, stop_token);
+            });
+          } catch (const std::system_error &e) {
+            BOOST_LOG(error) << "Unable to create deferred virtual output reapply worker: " << e.what();
+            return;
+          }
+        }
+      }
+      worker.wake.notify_all();
+    }
+#endif
+
+    std::uint64_t set_runtime_output_name_override_impl(std::optional<std::string> output_name) {
+      bool should_schedule_deferred_reapply = false;
+      std::uint64_t lease = 0;
+
+      std::unique_lock<std::shared_mutex> lock(g_output_override_mutex);
+#ifdef _WIN32
+      // Increment for every publication or clear. A recovery rollback can
+      // therefore clear only the exact override it published, even if a
+      // newer session selects the same device id.
+      lease = ++g_next_runtime_output_override_lease;
+#endif
+      if (!output_name) {
+        g_runtime_output_name_override.reset();
+#ifdef _WIN32
+        g_runtime_output_override_lease = 0;
+        g_deferred_virtual_output_name_override.reset();
+        g_deferred_virtual_output_override_lease = 0;
+#endif
+        return lease;
+      }
+
+#ifdef _WIN32
+      // Lock screen can black out external outputs. Defer virtual override only when we
+      // have a usable physical fallback; otherwise keep virtual to avoid capture loss.
+      if (is_virtual_output_override(output_name) &&
+          platf::is_lock_screen_active() &&
+          VDISPLAY::has_active_physical_display()) {
+        if (!g_deferred_virtual_output_name_override || *g_deferred_virtual_output_name_override != *output_name) {
+          BOOST_LOG(info) << "Lock screen active; deferring virtual output override until unlock.";
+        }
+        g_deferred_virtual_output_name_override = std::move(output_name);
+        g_deferred_virtual_output_override_lease = lease;
+        g_runtime_output_name_override.reset();
+        g_runtime_output_override_lease = 0;
+        should_schedule_deferred_reapply = true;
+      } else {
+        g_runtime_output_name_override = std::move(output_name);
+        g_runtime_output_override_lease = lease;
+        g_deferred_virtual_output_name_override.reset();
+        g_deferred_virtual_output_override_lease = 0;
+      }
+#else
+      g_runtime_output_name_override = std::move(output_name);
+#endif
+
+#ifdef _WIN32
+      lock.unlock();
+      if (should_schedule_deferred_reapply) {
+        schedule_deferred_virtual_output_reapply();
+      }
+#endif
+      return lease;
+    }
+  }  // namespace
+
+  // Acquire a shared lock while preparing/starting sessions.
+  std::shared_lock<std::shared_mutex> acquire_apply_read_gate() {
+    return std::shared_lock<std::shared_mutex>(g_apply_gate);
+  }
+
+  void record_active_adapter_config() {
+    // Session start/resume calls this while holding acquire_apply_read_gate(),
+    // so video's two strings are copied from one effective config generation.
+    std::lock_guard<std::mutex> lock(g_adapter_config_snapshot_mutex);
+    g_active_adapter_config = adapter_config_pair_t {
+      .name = video.adapter_name,
+      .pnp_id = video.adapter_pnp_id,
+    };
+    g_active_adapter_config_valid = true;
+  }
+
+  void merge_config_overrides(
+    std::unordered_map<std::string, std::string> &base,
+    const std::unordered_map<std::string, std::string> &overrides
+  ) {
+    constexpr std::string_view adapter_name_key = "adapter_name";
+    constexpr std::string_view adapter_pnp_id_key = "adapter_pnp_id";
+
+    for (const auto &[name, value] : overrides) {
+      if (name == adapter_pnp_id_key) {
+        continue;
+      }
+      base.insert_or_assign(name, value);
+    }
+
+    const auto adapter_name = overrides.find(std::string(adapter_name_key));
+    if (adapter_name == overrides.end()) {
+      // A PnP identity has no independent meaning. In particular, it must not
+      // replace the identity paired with an inherited adapter name.
+      return;
+    }
+
+    if (adapter_name->second.empty()) {
+      base.erase(std::string(adapter_pnp_id_key));
+      return;
+    }
+
+    const auto adapter_pnp_id = overrides.find(std::string(adapter_pnp_id_key));
+    if (adapter_pnp_id == overrides.end() || adapter_pnp_id->second.empty()) {
+      // Supplying a name alone is an explicit request for the historical
+      // first-description-match behavior.
+      base.erase(std::string(adapter_pnp_id_key));
+      return;
+    }
+
+    base.insert_or_assign(std::string(adapter_pnp_id_key), adapter_pnp_id->second);
+  }
+
+  bool adapter_config_overrides_compatible_with_active(
+    const std::unordered_map<std::string, std::string> &requested_overrides
+  ) {
+    std::lock_guard<std::mutex> lock(g_adapter_config_snapshot_mutex);
+    if (!g_active_adapter_config_valid || !g_base_adapter_config_valid) {
+      return false;
+    }
+
+    const auto requested_name = requested_overrides.find("adapter_name");
+    adapter_config_pair_t requested_adapter;
+    if (requested_name != requested_overrides.end()) {
+      requested_adapter.name = requested_name->second;
+      if (!requested_adapter.name.empty()) {
+        if (const auto requested_pnp_id = requested_overrides.find("adapter_pnp_id");
+            requested_pnp_id != requested_overrides.end()) {
+          requested_adapter.pnp_id = requested_pnp_id->second;
+        }
+      }
+    } else {
+      requested_adapter = g_base_adapter_config;
+    }
+
+    return requested_adapter.name == g_active_adapter_config.name &&
+           boost::iequals(requested_adapter.pnp_id, g_active_adapter_config.pnp_id);
+  }
+
+  void set_runtime_output_name_override(std::optional<std::string> output_name) {
+    (void) set_runtime_output_name_override_impl(std::move(output_name));
+  }
+
+#ifdef _WIN32
+  runtime_output_override_lease_t set_runtime_output_name_override_with_lease(std::string output_name) {
+    return set_runtime_output_name_override_impl(std::move(output_name));
+  }
+
+  bool clear_runtime_output_name_override_if_lease(runtime_output_override_lease_t lease) {
+    if (lease == 0) {
+      return false;
+    }
+
+    std::unique_lock<std::shared_mutex> lock(g_output_override_mutex);
+    bool cleared = false;
+    if (g_runtime_output_override_lease == lease) {
+      g_runtime_output_name_override.reset();
+      g_runtime_output_override_lease = 0;
+      cleared = true;
+    }
+    if (g_deferred_virtual_output_override_lease == lease) {
+      g_deferred_virtual_output_name_override.reset();
+      g_deferred_virtual_output_override_lease = 0;
+      cleared = true;
+    }
+    return cleared;
+  }
+
+  void request_deferred_virtual_output_reapply_shutdown() {
+    auto &worker = deferred_virtual_output_reapply_worker();
+    {
+      std::lock_guard<std::mutex> lock(worker.mutex);
+      worker.shutdown_requested = true;
+      if (worker.worker.joinable()) {
+        worker.worker.request_stop();
+      }
+    }
+    worker.wake.notify_all();
+  }
+
+  void join_deferred_virtual_output_reapply_worker() {
+    request_deferred_virtual_output_reapply_shutdown();
+
+    auto &worker = deferred_virtual_output_reapply_worker();
+    std::jthread worker_to_join;
+    {
+      std::lock_guard<std::mutex> lock(worker.mutex);
+      worker_to_join = std::move(worker.worker);
+    }
+    if (worker_to_join.joinable()) {
+      worker_to_join.join();
+    }
+  }
+#endif
+
+  std::optional<std::string> runtime_output_name_override() {
+    std::shared_lock<std::shared_mutex> lock(g_output_override_mutex);
+    return g_runtime_output_name_override;
+  }
+
+  std::string get_active_output_name() {
+    std::shared_lock<std::shared_mutex> lock(g_output_override_mutex);
+    if (g_runtime_output_name_override) {
+      return *g_runtime_output_name_override;
+    }
+    return video.output_name;
+  }
+
+  void apply_config_now() {
+    // Ensure only one apply runs at a time and block session start/resume while applying.
+    std::unique_lock<std::shared_mutex> write_gate(g_apply_gate);
+    std::unique_lock<std::mutex> apply_once(g_apply_mutex);
+    try {
+      // Capture previous DD configuration state to detect any changes
+      const auto prev_dd_config_opt = video.dd.configuration_option;
+      const auto prev_dd_resolution_opt = video.dd.resolution_option;
+      const auto prev_dd_refresh_rate_opt = video.dd.refresh_rate_option;
+      const auto prev_dd_hdr_opt = video.dd.hdr_option;
+      const auto prev_dd_hdr_req_override = video.dd.hdr_request_override;
+      const auto prev_dd_manual_resolution = video.dd.manual_resolution;
+      const auto prev_dd_manual_refresh_rate = video.dd.manual_refresh_rate;
+      const auto prev_dd_revert_delay = video.dd.config_revert_delay;
+      const auto prev_dd_revert_on_disconnect = video.dd.config_revert_on_disconnect;
+      const auto prev_dd_paused_virtual_display_timeout_secs = video.dd.paused_virtual_display_timeout_secs;
+      const auto prev_dd_use_sunshine_virtual_display_driver = video.dd.use_sunshine_virtual_display_driver;
+      const auto prev_dd_activate_virtual_display = video.dd.activate_virtual_display;
+      const auto prev_dd_virtual_display_scale_percent = video.dd.virtual_display_scale_percent;
+      const auto prev_dd_virtual_display_permanent_count = video.dd.virtual_display_permanent_count;
+      const auto prev_dd_virtual_display_permanent_count_configured = video.dd.virtual_display_permanent_count_configured;
+      const auto prev_dd_snapshot_exclude_devices = video.dd.snapshot_exclude_devices;
+      const auto prev_dd_dummy_plug = video.dd.wa.dummy_plug_hdr10;
+      const auto prev_rtx_hdr_enabled = video.rtx_hdr.enabled;
+      const auto prev_rtx_hdr_sdr_brightness = video.rtx_hdr.sdr_brightness;
+      const auto prev_rtx_hdr_contrast = video.rtx_hdr.contrast;
+      const auto prev_rtx_hdr_saturation = video.rtx_hdr.saturation;
+      const auto prev_rtx_hdr_middle_gray = video.rtx_hdr.middle_gray;
+      const auto prev_rtx_hdr_peak_brightness = video.rtx_hdr.peak_brightness;
+      const auto prev_session_history_enabled = sunshine.session_history_enabled;
+
+      auto vars = parse_config(file_handler::read_file(sunshine.config_file.c_str()));
+      merge_config_overrides(vars, command_line_overrides);
+      update_base_adapter_config_snapshot(vars);
+
+      // Apply runtime overrides (per-app) on top of file values so hot-apply and deferred reloads
+      // keep the effective config consistent while an app is running.
+      const auto runtime_overrides = runtime_overrides_snapshot();
+      merge_config_overrides(vars, runtime_overrides);
+      // Track old logging params to adjust sinks if needed
+      const int old_min_level = sunshine.min_log_level;
+      const std::string old_log_file = sunshine.log_file;
+
+      apply_config(std::move(vars));
+      if (sunshine.session_history_enabled != prev_session_history_enabled && has_active_stream_sessions()) {
+        BOOST_LOG(info) << "Hot-apply: deferring session history enablement change until active sessions end.";
+        sunshine.session_history_enabled = prev_session_history_enabled;
+        g_deferred_reload.store(true, std::memory_order_release);
+      }
+      session_history::reload_settings();
+
+      // If only the log level changed, we can reconfigure sinks in place.
+      if (sunshine.min_log_level != old_min_level && sunshine.log_file == old_log_file) {
+        logging::reconfigure_min_log_level(sunshine.min_log_level);
+      }
+
+#ifdef _WIN32
+      const bool rtx_hdr_live_changed =
+        prev_rtx_hdr_enabled != video.rtx_hdr.enabled ||
+        prev_rtx_hdr_sdr_brightness != video.rtx_hdr.sdr_brightness ||
+        prev_rtx_hdr_contrast != video.rtx_hdr.contrast ||
+        prev_rtx_hdr_saturation != video.rtx_hdr.saturation ||
+        prev_rtx_hdr_middle_gray != video.rtx_hdr.middle_gray ||
+        prev_rtx_hdr_peak_brightness != video.rtx_hdr.peak_brightness;
+      if (rtx_hdr_live_changed) {
+        platf::rtx_hdr::notify_live_settings_changed();
+      }
+#endif
+
+      // Persist snapshot exclusion devices to vibeshine_state.json so the display helper
+      // can read them directly without depending on IPC from Sunshine.
+      // This is done unconditionally to ensure the state file is always up-to-date.
+      statefile::save_snapshot_exclude_devices(video.dd.snapshot_exclude_devices);
+
+      // Check if any DD configuration changed and handle hot-apply when no active sessions
+      using dd_cfg_e = config::video_t::dd_t::config_option_e;
+      const bool dd_disabled_now = (video.dd.configuration_option == dd_cfg_e::disabled);
+      const bool dd_was_enabled = (prev_dd_config_opt != dd_cfg_e::disabled);
+
+      // Detect if any DD settings changed
+      const bool dd_config_changed = (prev_dd_config_opt != video.dd.configuration_option) ||
+                                     (prev_dd_resolution_opt != video.dd.resolution_option) ||
+                                     (prev_dd_refresh_rate_opt != video.dd.refresh_rate_option) ||
+                                     (prev_dd_hdr_opt != video.dd.hdr_option) ||
+                                     (prev_dd_hdr_req_override != video.dd.hdr_request_override) ||
+                                     (prev_dd_manual_resolution != video.dd.manual_resolution) ||
+                                     (prev_dd_manual_refresh_rate != video.dd.manual_refresh_rate) ||
+                                     (prev_dd_revert_delay != video.dd.config_revert_delay) ||
+                                     (prev_dd_revert_on_disconnect != video.dd.config_revert_on_disconnect) ||
+                                     (prev_dd_paused_virtual_display_timeout_secs != video.dd.paused_virtual_display_timeout_secs) ||
+                                     (prev_dd_use_sunshine_virtual_display_driver != video.dd.use_sunshine_virtual_display_driver) ||
+                                     (prev_dd_activate_virtual_display != video.dd.activate_virtual_display) ||
+                                     (prev_dd_virtual_display_scale_percent != video.dd.virtual_display_scale_percent) ||
+                                     (prev_dd_virtual_display_permanent_count != video.dd.virtual_display_permanent_count) ||
+                                     (prev_dd_virtual_display_permanent_count_configured != video.dd.virtual_display_permanent_count_configured) ||
+                                     (prev_dd_snapshot_exclude_devices != video.dd.snapshot_exclude_devices) ||
+                                     (prev_dd_dummy_plug != video.dd.wa.dummy_plug_hdr10);
+
+      // If any DD settings changed and there are no active sessions, revert to clear cached state
+      if (dd_config_changed && !has_active_stream_sessions() && runtime_overrides.empty()) {
+        stream::session::cleanup_reservation_t cleanup_reservation;
+        BOOST_LOG(info) << "Hot-apply: DD configuration changed with no active sessions; reverting cached display state.";
+        display_helper_integration::revert();
+
+        if (dd_was_enabled && dd_disabled_now) {
+          BOOST_LOG(info) << "Hot-apply: DD configuration changed to disabled.";
+        } else if (!dd_disabled_now) {
+          BOOST_LOG(info) << "Hot-apply: DD configuration updated. New settings will take effect on next stream.";
+        }
+      }
+    } catch (const std::exception &e) {
+      BOOST_LOG(warning) << "Hot apply_config_now failed: "sv << e.what();
+    }
+  }
+
+  void set_runtime_config_overrides(std::unordered_map<std::string, std::string> overrides) {
+    std::unordered_map<std::string, std::string> filtered;
+    filtered.reserve(overrides.size());
+
+    for (auto &[k, v] : overrides) {
+      auto normalized_key = nv::normalize_split_encode_key(std::move(k));
+      if (!is_valid_override_key(normalized_key) || !is_allowed_override_key(normalized_key)) {
+        continue;
+      }
+      filtered.emplace(std::move(normalized_key), std::move(v));
+    }
+
+    const auto adapter_name = filtered.find("adapter_name");
+    const auto adapter_pnp_id = filtered.find("adapter_pnp_id");
+    if (adapter_pnp_id != filtered.end() && adapter_name == filtered.end()) {
+      BOOST_LOG(warning) << "Ignoring runtime adapter_pnp_id override without its adapter_name companion.";
+      filtered.erase(adapter_pnp_id);
+    } else if (adapter_name != filtered.end() && adapter_name->second.empty()) {
+      filtered.erase("adapter_pnp_id");
+    }
+
+    bool rtx_hdr_live_changed = false;
+    {
+      std::scoped_lock lk(g_runtime_overrides_mutex);
+      rtx_hdr_live_changed = rtx_hdr_live_overrides_changed(g_runtime_config_overrides, filtered);
+      g_runtime_config_overrides = std::move(filtered);
+    }
+#ifdef _WIN32
+    if (rtx_hdr_live_changed) {
+      platf::rtx_hdr::notify_live_settings_changed();
+    }
+#endif
+  }
+
+  void clear_runtime_config_overrides() {
+    bool rtx_hdr_live_changed = false;
+    {
+      std::scoped_lock lk(g_runtime_overrides_mutex);
+      rtx_hdr_live_changed = std::ranges::any_of(g_runtime_config_overrides, [](const auto &entry) {
+        return is_rtx_hdr_live_key(entry.first);
+      });
+      g_runtime_config_overrides.clear();
+    }
+#ifdef _WIN32
+    if (rtx_hdr_live_changed) {
+      platf::rtx_hdr::notify_live_settings_changed();
+    }
+#endif
+  }
+
+  std::unordered_map<std::string, std::string> runtime_config_overrides_snapshot() {
+    std::scoped_lock lk(g_runtime_overrides_mutex);
+    return g_runtime_config_overrides;
+  }
+
+  bool has_runtime_config_override(std::string_view key) {
+    const auto normalized_key = nv::normalize_split_encode_key(std::string(key));
+    if (!is_valid_override_key(normalized_key)) {
+      return false;
+    }
+    std::scoped_lock lk(g_runtime_overrides_mutex);
+    return g_runtime_config_overrides.find(normalized_key) != g_runtime_config_overrides.end();
+  }
+
+  bool runtime_config_override_enabled(std::string_view key) {
+    const auto normalized_key = nv::normalize_split_encode_key(std::string(key));
+    if (!is_valid_override_key(normalized_key)) {
+      return false;
+    }
+    std::scoped_lock lk(g_runtime_overrides_mutex);
+    const auto it = g_runtime_config_overrides.find(normalized_key);
+    if (it == g_runtime_config_overrides.end()) {
+      return false;
+    }
+    auto value = it->second;
+    return to_bool(value);
+  }
+
+  bool has_runtime_config_overrides() {
+    std::scoped_lock lk(g_runtime_overrides_mutex);
+    return !g_runtime_config_overrides.empty();
+  }
+
+  void mark_deferred_reload() {
+    g_deferred_reload.store(true, std::memory_order_release);
+  }
+
+  void maybe_apply_deferred() {
+    // Single-shot winner clears the flag and applies atomically.
+    if (!has_active_stream_sessions() && g_deferred_reload.exchange(false, std::memory_order_acq_rel)) {
+      apply_config_now();
+    }
+  }
+}  // namespace config

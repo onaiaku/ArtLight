@@ -1,0 +1,105 @@
+#include "src/platform/windows/display_helper_watchdog.h"
+
+#ifndef SUNSHINE_TESTS
+  #include "src/logging.h"
+#endif
+
+#include <utility>
+
+using namespace std::chrono_literals;
+
+namespace display_helper_integration {
+  DisplayHelperWatchdog::DisplayHelperWatchdog(Hooks hooks):
+      hooks_(std::move(hooks)) {}
+
+  std::chrono::milliseconds DisplayHelperWatchdog::tick() {
+    const auto interval = (hooks_.session_count && hooks_.running_processes &&
+                           hooks_.session_count() == 0 && hooks_.running_processes() > 0) ?
+                            suspended_interval() :
+                            active_interval();
+
+    if (hooks_.feature_enabled && !hooks_.feature_enabled()) {
+      if (helper_ready_) {
+#ifndef SUNSHINE_TESTS
+        BOOST_LOG(info) << "Display helper watchdog: feature disabled, releasing helper connection.";
+#endif
+        if (hooks_.reset_connection) {
+          hooks_.reset_connection();
+        }
+      }
+      helper_ready_ = false;
+      return interval;
+    }
+
+    if (!helper_ready_) {
+      if (hooks_.ensure_helper_started && hooks_.ensure_helper_started()) {
+        helper_ready_ = true;
+        if (hooks_.send_ping) {
+          (void) hooks_.send_ping();
+        }
+        return interval;
+      }
+      helper_ready_ = false;
+      return interval;
+    }
+
+    if (hooks_.send_ping && !hooks_.send_ping()) {
+#ifndef SUNSHINE_TESTS
+      BOOST_LOG(warning) << "Display helper watchdog: ping failed, helper may have crashed or become unresponsive.";
+#endif
+      if (hooks_.reset_connection) {
+        hooks_.reset_connection();
+      }
+      if (hooks_.ensure_helper_started && hooks_.ensure_helper_started()) {
+        helper_ready_ = hooks_.send_ping ? hooks_.send_ping() : true;
+        if (helper_ready_) {
+#ifndef SUNSHINE_TESTS
+          BOOST_LOG(info) << "Display helper watchdog: successfully restarted helper after ping failure.";
+#endif
+        } else {
+#ifndef SUNSHINE_TESTS
+          BOOST_LOG(warning) << "Display helper watchdog: helper restarted but ping still failing.";
+#endif
+        }
+      } else {
+#ifndef SUNSHINE_TESTS
+        BOOST_LOG(error) << "Display helper watchdog: failed to restart helper after ping failure.";
+#endif
+        helper_ready_ = false;
+      }
+    }
+
+    return interval;
+  }
+
+  void DisplayHelperWatchdog::reset() {
+    helper_ready_ = false;
+  }
+
+  bool DisplayHelperWatchdog::helper_ready() const {
+    return helper_ready_;
+  }
+
+  std::chrono::milliseconds DisplayHelperWatchdog::active_interval() {
+    return 10s;
+  }
+
+  std::chrono::milliseconds DisplayHelperWatchdog::suspended_interval() {
+    return 20s;
+  }
+
+  DisplayHelperWatchdog::ThreadStopResult DisplayHelperWatchdog::stop_thread(std::jthread &thread) {
+    if (!thread.joinable()) {
+      return ThreadStopResult::NotJoinable;
+    }
+
+    thread.request_stop();
+    if (thread.get_id() == std::this_thread::get_id()) {
+      thread.detach();
+      return ThreadStopResult::DetachedSelf;
+    }
+
+    thread.join();
+    return ThreadStopResult::Joined;
+  }
+}  // namespace display_helper_integration

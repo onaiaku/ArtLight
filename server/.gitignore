@@ -1,0 +1,75 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+!src_assets/windows/drivers/sunshine/*.dll
+!src_assets/windows/drivers/sunshine/*.exe
+
+# JetBrains IDE
+.idea/
+
+# VSCode IDE
+.vscode/
+
+# build directories
+build/
+cmake-*/
+docs/doxyconfig*
+
+# Node package installs
+node_modules/
+package-lock.json
+!src_assets/common/assets/web/package-lock.json
+
+# Translations
+*.mo
+*.pot
+
+# Dummy macOS files
+.DS_Store
+
+# Python
+*.pyc
+venv/
+_codeql_detected_source_root
+
+build-msvc
+.cache/
+
+# Local-only Copilot instructions (not committed)
+AGENTS.md
+.github/copilot-instructions.md
+/build_release
+
+# Local runtime/test artifacts
+test_sunshine.log
+vibeshine_state.json
+.claude/

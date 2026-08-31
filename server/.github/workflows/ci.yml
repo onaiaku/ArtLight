@@ -1,0 +1,253 @@
+---
+name: CI
+permissions: {}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Tag to publish, for example v1.16.0-alpha.4
+        required: false
+        type: string
+  push:
+    branches:
+      - '**'
+    tags:
+      - '*'
+  pull_request:
+    branches:
+      - vibe
+      - main
+      - master
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  release-candidate:
+    name: Release candidate
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    outputs:
+      release_commit: ${{ steps.release-candidate.outputs.release_commit }}
+      release_version: ${{ steps.release-candidate.outputs.release_version }}
+      should_release: ${{ steps.release-candidate.outputs.should_release }}
+      tag_name: ${{ steps.release-candidate.outputs.tag_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release candidate
+        id: release-candidate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag || '' }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          python <<'PY'
+          import os
+          import re
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          VERSION_RE = re.compile(r"^v?([0-9]+\.[0-9]+\.[0-9]+)([-.][0-9A-Za-z.-]+)?$")
+          REPO = os.environ["GITHUB_REPOSITORY"]
+
+          def run(*args, check=True):
+            return subprocess.run(args, check=check, text=True, capture_output=True).stdout.strip()
+
+          def output(**values):
+            with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              for key, value in values.items():
+                print(f"{key}={value}", file=fh)
+
+          def skip(reason):
+            print(f"::notice::{reason}")
+            output(should_release="false", tag_name="", release_version="", release_commit="")
+            sys.exit(0)
+
+          def version_key(tag):
+            match = VERSION_RE.match(tag)
+            if not match:
+              return None
+
+            major, minor, patch = (int(part) for part in match.group(1).split("."))
+            suffix = (match.group(2) or "").lstrip("-.").lower()
+            suffix_parts = re.split(r"[-.]", suffix) if suffix else []
+            suffix_num = next((int(part) for part in suffix_parts if part.isdigit()), 0)
+
+            if not suffix or "stable" in suffix_parts:
+              suffix_rank = 40
+            elif "rc" in suffix_parts:
+              suffix_rank = 30
+            elif "beta" in suffix_parts:
+              suffix_rank = 20
+            elif "alpha" in suffix_parts:
+              suffix_rank = 10
+            else:
+              suffix_rank = 5
+
+            return (major, minor, patch, suffix_rank, suffix_num, suffix)
+
+          def is_prerelease_key(key):
+            return key[3] < 40
+
+          def release_notes_for(tag, commit):
+            match = VERSION_RE.match(tag)
+            if not match:
+              return None
+
+            release_version = tag[1:] if tag.startswith("v") else tag
+            for candidate in (
+              Path("release_notes") / f"{release_version}.md",
+              Path("release_notes") / f"{tag}.md",
+            ):
+              notes_path = candidate.as_posix()
+              if subprocess.run(
+                ["git", "cat-file", "-e", f"{commit}:{notes_path}"],
+                text=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+              ).returncode == 0:
+                return notes_path
+            return None
+
+          event_name = os.environ["EVENT_NAME"]
+          if event_name not in {"push", "workflow_dispatch"}:
+            skip("Release gate only applies to push and manual workflow_dispatch events.")
+
+          run("git", "fetch", "--force", "--tags")
+
+          release_tags = set(filter(None, run(
+            "gh", "api", "--paginate", f"repos/{REPO}/releases", "--jq", ".[].tag_name"
+          ).splitlines()))
+          release_versions = [version_key(tag) for tag in release_tags]
+          release_versions = [key for key in release_versions if key is not None]
+
+          release_tag_input = os.environ.get("RELEASE_TAG", "").strip()
+          if event_name == "workflow_dispatch":
+            if not release_tag_input:
+              skip("Manual release dispatch requires the release_tag input.")
+            candidate_tags = [release_tag_input]
+          else:
+            candidate_tags = run("git", "tag", "--points-at", "HEAD").splitlines()
+
+          valid_candidates = []
+          for tag in candidate_tags:
+            if tag.startswith("v"):
+              print(f"Skipping {tag}: release source tags must be v-less.")
+              continue
+            key = version_key(tag)
+            if key is None:
+              continue
+            legacy_tag = f"v{tag}"
+            existing_release_tag = next(
+              (candidate for candidate in (tag, legacy_tag) if candidate in release_tags),
+              None,
+            )
+            if existing_release_tag is not None:
+              print(f"Skipping {tag}: release already exists as {existing_release_tag}.")
+              continue
+            comparable_releases = [
+              release_key for release_key in release_versions
+              if is_prerelease_key(release_key) == is_prerelease_key(key)
+            ]
+            current_release_version = max(comparable_releases) if comparable_releases else None
+            if current_release_version is not None and key <= current_release_version:
+              print(f"Skipping {tag}: not newer than the current release.")
+              continue
+            release_commit = run("git", "rev-list", "-n", "1", tag)
+            if event_name == "push":
+              head_commit = run("git", "rev-parse", "HEAD")
+              if release_commit != head_commit:
+                print(f"Skipping {tag}: tag commit {release_commit} is not the pushed HEAD.")
+                continue
+            if subprocess.run(
+              ["git", "merge-base", "--is-ancestor", release_commit, "HEAD"],
+              text=True,
+              stdout=subprocess.DEVNULL,
+              stderr=subprocess.DEVNULL,
+            ).returncode != 0:
+              print(f"Skipping {tag}: tag commit {release_commit} is not reachable from this run ref.")
+              continue
+            notes_file = release_notes_for(tag, release_commit)
+            if notes_file is None:
+              print(f"Skipping {tag}: no exact matching release_notes file in the tag commit.")
+              continue
+            # Preserve the exact source tag. Release titles and artifact names may
+            # use a display-only v prefix, but the GitHub Release must stay attached
+            # to the existing tag instead of asking the API to synthesize another.
+            valid_candidates.append((key, tag, notes_file, release_commit))
+
+          if not valid_candidates:
+            skip("No unreleased newer tag with exact matching release notes was found.")
+
+          _, tag_name, notes_file, release_commit = max(valid_candidates, key=lambda item: item[0])
+          release_version = tag_name[1:] if tag_name.startswith("v") else tag_name
+
+          print(f"Release candidate: {tag_name} ({release_commit}) using {notes_file}")
+          output(
+            should_release="true",
+            tag_name=tag_name,
+            release_version=release_version,
+            release_commit=release_commit,
+          )
+          PY
+
+  build-windows:
+    name: Windows
+    needs:
+      - release-candidate
+    if: github.event_name != 'push' || needs.release-candidate.outputs.should_release == 'true'
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/ci-windows.yml
+    with:
+      build_only: ${{ needs.release-candidate.outputs.should_release == 'true' }}
+      build_tests: ${{ needs.release-candidate.outputs.should_release != 'true' }}
+      release_commit: ${{ needs.release-candidate.outputs.release_commit || github.sha }}
+      release_version: ${{ needs.release-candidate.outputs.release_version || '0.0.0' }}
+      release_tag: ${{ needs.release-candidate.outputs.tag_name }}
+      release_artifact_retention_days: ${{ needs.release-candidate.outputs.should_release == 'true' && 14 || 1 }}
+      symbol_product_name: Vibepollo
+      publish_symbols: ${{ needs.release-candidate.outputs.should_release == 'true' }}
+      symbol_release_draft: true
+      symbol_release_prefix: polo
+      require_truehdr_runtime: ${{ needs.release-candidate.outputs.should_release == 'true' }}
+    secrets:
+      symbol_token: ${{ secrets.SYMBOL_TOKEN }}
+      truehdr_runtime_token: ${{ secrets.TRUEHDR_RUNTIME_TOKEN }}
+
+  awaiting-signing:
+    name: Awaiting manual signing
+    if: needs.release-candidate.outputs.should_release == 'true'
+    needs:
+      - release-candidate
+      - build-windows
+    permissions: {}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record next release action
+        env:
+          TAG_NAME: ${{ needs.release-candidate.outputs.tag_name }}
+          BUILD_RUN_ID: ${{ github.run_id }}
+        run: |
+          {
+            echo "## Release build complete"
+            echo
+            echo "Unsigned release artifacts are retained for 14 days."
+            echo "When ready to approve SignPath, run [**Sign and publish release**](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/sign-release.yml)."
+            echo
+            echo "- \`release_tag\`: \`${TAG_NAME}\`"
+            echo "- Optional recovery \`build_run_id\`: \`${BUILD_RUN_ID}\`"
+            echo
+            echo "Leave \`build_run_id\` empty; it is an optional recovery override. The signing workflow automatically selects the newest valid successful CI tag build for this exact tag and commit, then verifies its retained artifacts before submitting either signing request."
+          } >> "${GITHUB_STEP_SUMMARY}"

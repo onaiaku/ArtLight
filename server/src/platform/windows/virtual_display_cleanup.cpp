@@ -1,0 +1,205 @@
+#include "virtual_display_cleanup.h"
+
+#ifdef _WIN32
+
+  #include "display_helper_integration.h"
+  #include "src/logging.h"
+  #include "src/platform/windows/impersonating_display_device.h"
+  #include "src/platform/windows/virtual_display.h"
+
+  #include <algorithm>
+  #include <array>
+  #include <atomic>
+  #include <chrono>
+  #include <cstring>
+  #include <display_device/windows/win_api_layer.h>
+  #include <display_device/windows/win_display_device.h>
+  #include <exception>
+  #include <memory>
+  #include <string>
+  #include <thread>
+
+namespace platf::virtual_display_cleanup {
+  namespace {
+    std::atomic_uint g_cleanup_reservations {0};
+
+    class cleanup_reservation_t {
+    public:
+      cleanup_reservation_t() {
+        g_cleanup_reservations.fetch_add(1, std::memory_order_acq_rel);
+      }
+
+      ~cleanup_reservation_t() {
+        g_cleanup_reservations.fetch_sub(1, std::memory_order_acq_rel);
+      }
+
+      cleanup_reservation_t(const cleanup_reservation_t &) = delete;
+      cleanup_reservation_t &operator=(const cleanup_reservation_t &) = delete;
+    };
+
+    bool has_active_virtual_display() {
+      const auto virtual_displays = VDISPLAY::enumerateVirtualDisplays();
+      return std::any_of(
+        virtual_displays.begin(),
+        virtual_displays.end(),
+        [](const VDISPLAY::VirtualDisplayInfo &info) {
+          return info.is_active;
+        }
+      );
+    }
+
+    std::size_t active_virtual_display_count() {
+      const auto virtual_displays = VDISPLAY::enumerateVirtualDisplays();
+      return static_cast<std::size_t>(std::count_if(
+        virtual_displays.begin(),
+        virtual_displays.end(),
+        [](const VDISPLAY::VirtualDisplayInfo &info) {
+          return info.is_active;
+        }
+      ));
+    }
+
+    bool wait_for_virtual_display_teardown(std::chrono::steady_clock::duration timeout) {
+      constexpr auto kPollInterval = std::chrono::milliseconds(100);
+
+      const auto deadline = std::chrono::steady_clock::now() + timeout;
+      while (true) {
+        const auto remaining = active_virtual_display_count();
+        if (remaining == 0) {
+          return true;
+        }
+
+        if (std::chrono::steady_clock::now() >= deadline) {
+          BOOST_LOG(warning) << "Virtual display cleanup: teardown wait expired with "
+                             << remaining << " virtual display(s) still enumerated.";
+          return false;
+        }
+
+        std::this_thread::sleep_for(kPollInterval);
+      }
+    }
+
+    bool restore_windows_display_database() {
+      try {
+        auto api = std::make_shared<display_device::WinApiLayer>();
+        auto win_dd = std::make_shared<display_device::WinDisplayDevice>(api);
+        auto impersonating_dd = std::make_shared<display_device::ImpersonatingDisplayDevice>(win_dd);
+        return impersonating_dd->restoreMonitorSettings();
+      } catch (const std::exception &e) {
+        BOOST_LOG(warning) << "Virtual display cleanup: direct database restore threw exception: " << e.what();
+      } catch (...) {
+        BOOST_LOG(warning) << "Virtual display cleanup: direct database restore threw unknown exception.";
+      }
+      return false;
+    }
+
+    bool guid_bytes_are_empty(const std::array<std::uint8_t, 16> &guid_bytes) {
+      return std::all_of(guid_bytes.begin(), guid_bytes.end(), [](std::uint8_t byte) {
+        return byte == 0;
+      });
+    }
+
+    bool remove_specific_virtual_display(const std::optional<std::array<std::uint8_t, 16>> &guid_bytes) {
+      if (!guid_bytes || guid_bytes_are_empty(*guid_bytes)) {
+        return true;
+      }
+
+      GUID guid {};
+      static_assert(sizeof(guid) == 16);
+      std::memcpy(&guid, guid_bytes->data(), sizeof(guid));
+      return VDISPLAY::removeVirtualDisplay(guid);
+    }
+  }  // namespace
+
+  cleanup_result_t run(
+    const std::string_view reason,
+    const bool enforce_db_restore,
+    const revert_order_t revert_order,
+    const bool prefer_golden_if_current_missing,
+    const std::optional<std::array<std::uint8_t, 16>> virtual_display_guid_bytes
+  ) {
+    cleanup_reservation_t cleanup_reservation;
+    cleanup_result_t result;
+
+    const std::string reason_text = reason.empty() ? "unspecified" : std::string(reason);
+    BOOST_LOG(info) << "Virtual display cleanup: begin (reason=" << reason_text
+                    << ", enforce_db_restore=" << (enforce_db_restore ? "true" : "false")
+                    << ", revert_order="
+                    << (revert_order == revert_order_t::restore_before_remove ? "restore_before_remove" : "remove_before_restore")
+                    << ", prefer_golden_if_current_missing=" << (prefer_golden_if_current_missing ? "true" : "false")
+                    << ")";
+
+    const bool had_active_virtual_display = has_active_virtual_display();
+    VDISPLAY::setWatchdogFeedingEnabled(false);
+
+    const auto try_helper_revert = [&]() {
+      if (!enforce_db_restore || result.helper_revert_dispatched) {
+        return;
+      }
+
+      result.helper_revert_dispatched = display_helper_integration::revert(prefer_golden_if_current_missing);
+      if (result.helper_revert_dispatched) {
+        result.database_restore_applied = true;
+      }
+    };
+
+    bool teardown_completed = false;
+    bool teardown_waited = false;
+    const auto wait_for_teardown_before_restore = [&]() {
+      if (teardown_waited || result.helper_revert_dispatched || !teardown_completed ||
+          !had_active_virtual_display || !enforce_db_restore) {
+        return;
+      }
+      constexpr auto kTeardownSettleTimeout = std::chrono::seconds(5);
+      if (wait_for_virtual_display_teardown(kTeardownSettleTimeout)) {
+        BOOST_LOG(debug) << "Virtual display cleanup: teardown settled before restore.";
+      }
+      teardown_waited = true;
+    };
+
+    // Keep the retained probe display alive for restore-before-remove callers,
+    // but remove it in the normal remove-before-restore order with the other
+    // virtual displays. This also covers a driver-accepted target that has
+    // not yet appeared in Windows enumeration.
+    for (const auto step : ordered_restore_steps(revert_order)) {
+      switch (step) {
+        case cleanup_step_t::helper_revert:
+          wait_for_teardown_before_restore();
+          if (enforce_db_restore) {
+            try_helper_revert();
+          }
+          break;
+        case cleanup_step_t::retained_probe_remove:
+          VDISPLAY::cleanup_retained_ensure_display();
+          break;
+        case cleanup_step_t::explicit_display_remove: {
+          const bool specific_display_removed = remove_specific_virtual_display(virtual_display_guid_bytes);
+          const bool tracked_displays_removed = VDISPLAY::removeAllVirtualDisplays();
+          result.virtual_displays_removed = specific_display_removed && tracked_displays_removed;
+          teardown_completed = true;
+          break;
+        }
+        case cleanup_step_t::database_restore:
+          wait_for_teardown_before_restore();
+          if (enforce_db_restore && !result.helper_revert_dispatched) {
+            result.database_restore_applied = restore_windows_display_database();
+          }
+          break;
+      }
+    }
+
+    BOOST_LOG(info) << "Virtual display cleanup: finished (reason=" << reason_text
+                    << ", had_active_virtual_display=" << (had_active_virtual_display ? "true" : "false")
+                    << ", virtual_displays_removed=" << (result.virtual_displays_removed ? "true" : "false")
+                    << ", helper_revert_dispatched=" << (result.helper_revert_dispatched ? "true" : "false")
+                    << ", database_restore_applied=" << (result.database_restore_applied ? "true" : "false")
+                    << ")";
+    return result;
+  }
+
+  bool in_progress() {
+    return g_cleanup_reservations.load(std::memory_order_acquire) != 0;
+  }
+}  // namespace platf::virtual_display_cleanup
+
+#endif  // _WIN32
