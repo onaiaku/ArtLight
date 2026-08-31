@@ -1,18 +1,18 @@
 ==========================================
-StreamTweak - ChangeLog - Developed by FoggyBytes
+ArtLightControl - ChangeLog - Developed by FoggyBytes
 ==========================================
 
-https://github.com/FoggyBytes/StreamTweak
+https://github.com/FoggyBytes/ArtLightControl
 
 -----------------------------------------------
 Version 8.2.0 - "The Quiet Update" (28/08/2026)
 -----------------------------------------------
 
 ⚡ IDLE CPU:
-• StreamTweak used a steady slice of a CPU core while doing nothing at all — sitting in the tray, no client connected, no session running. With nothing to report it now measures nothing (reported in issue #7)
+• ArtLightControl used a steady slice of a CPU core while doing nothing at all — sitting in the tray, no client connected, no session running. With nothing to report it now measures nothing (reported in issue #7)
 • The host metrics behind the client's overlay were most of that cost: they were read by asking one performance counter per process per GPU engine, one at a time, which re-read the whole set hundreds of times a second. One pass now gets the same numbers for a fraction of the cost, and that cost no longer grows with how busy the machine is
 • Those metrics are collected only while something is actually asking for them — a connected client, or the Dashboard open in front of you
-• The Dashboard's live tiles stop refreshing when the window is closed to the tray, and never start when StreamTweak launches minimised with Windows
+• The Dashboard's live tiles stop refreshing when the window is closed to the tray, and never start when ArtLightControl launches minimised with Windows
 • The watch for a new streaming-server log no longer rescans the log folder ten times a second — it looks only when the folder has actually changed, and notices a new log just as quickly as before
 
 🟩 NVIDIA SENTINEL:
@@ -61,16 +61,16 @@ Version 8.1.0 - "The Handshake Update" (08/08/2026)
 ---------------------------------------------------
 
 🎬 LAUNCH WATCH:
-• StreamTweak now watches what happens after the streaming server is told to open a game, and tells the client when the game is really on screen. The client uses it to hold its launch screen up instead of handing you a desktop that is still rearranging itself — windows moving, a launcher opening, the resolution changing — for the several seconds before anything of the game exists. Nothing is asked for unless the client wants it: in StreamLight this is the "Wait for the game to appear" switch, off by default
+• ArtLightControl now watches what happens after the streaming server is told to open a game, and tells the client when the game is really on screen. The client uses it to hold its launch screen up instead of handing you a desktop that is still rearranging itself — windows moving, a launcher opening, the resolution changing — for the several seconds before anything of the game exists. Nothing is asked for unless the client wants it: in StreamLight this is the "Wait for the game to appear" switch, off by default
 • A game asked for through a store still gets watched: Steam and Xbox launches are recognised from the streaming server's own log even though they carry no command of their own, and a game reached through a launcher protocol is matched back to its install directory
 • When something on the host is waiting for a click — a store client asking for a login, a game's own launcher wanting to update — that is reported too, and the client stops covering it up. A window that was already open before the launch is never mistaken for one of these: it has to be the store's own client, or a window that appeared after the launch began and then kept the screen
 • The Desktop entry, and anything else that opens no window of its own, is reported as having nothing to wait for, so it is shown immediately
-• A launcher that is doing its job no longer counts as one asking for a click: before saying the host needs you, StreamTweak checks whether the game's own process has started. Ubisoft Connect opens a window, starts the game and steps aside, while Battle.net opens a window and waits — watching windows cannot tell those apart, and no amount of waiting longer separates them, because one is helped by exactly as much as the other is hurt
+• A launcher that is doing its job no longer counts as one asking for a click: before saying the host needs you, ArtLightControl checks whether the game's own process has started. Ubisoft Connect opens a window, starts the game and steps aside, while Battle.net opens a window and waits — watching windows cannot tell those apart, and no amount of waiting longer separates them, because one is helped by exactly as much as the other is hurt
 • Battle.net titles get no launch screen at all: those launches open the client itself and the Play button you have to press is the very thing a launch screen would be covering, so there is nothing to wait for — the same answer the Desktop entry gets
 • Ninety seconds is the cap: past it the host says so rather than leaving the client waiting on an answer that isn't coming
 
 🔓 REMOTE UNLOCK:
-• StreamTweak now tells an approved client whether the host is sitting at a lock or logon screen, which is what lets StreamLight offer a PIN pad after waking it instead of leaving you with a host that answers pings and does nothing else
+• ArtLightControl now tells an approved client whether the host is sitting at a lock or logon screen, which is what lets StreamLight offer a PIN pad after waking it instead of leaving you with a host that answers pings and does nothing else
 • The brief session the client opens to type that PIN is kept out of the way entirely: it is not recorded in Sessions, it does not switch on spatial audio, it does not close and reopen your managed apps, and it credits no game. The client declares what that session is for before opening it — from the host's side one session looks like any other, and only the client knows why it opened
 • The declaration is used once and expires by itself, so a client that gives up half way cannot make the next real session vanish from the history
 • Nothing here types anything or unlocks anything on its own: the PIN travels on the streaming connection, the same path as the keystrokes you would send by hand, and it is the client that sends it
@@ -87,7 +87,7 @@ Version 8.1.0 - "The Handshake Update" (08/08/2026)
 • New "Let clients change the link speed" switch — permission, not configuration. Turn it off while you need full speed for something else and clients can still read the speed but not touch it
 • After the link comes back the host waits a few more seconds before telling the client it is ready — the adapter reports the new speed the moment it is up, but the streaming server's network sockets take longer than that to recover, and a stream started too early completes its handshake and then receives no video or audio at all
 • The link is never renegotiated while a stream is running, even when the streaming server never reported the previous session ending — a leftover session used to leave the host believing it was idle, and the change would then break the stream actually in progress
-• A restore that comes due while a stream is live is postponed instead of forced, including when StreamTweak itself is restarted mid-session
+• A restore that comes due while a stream is live is postponed instead of forced, including when ArtLightControl itself is restarted mid-session
 • The host no longer decides when to put the link back — it holds the streaming speed after a session ends and restores only when a client asks. StreamLight puts the question to you when you leave a host, so the speed survives the gap between two games instead of costing a renegotiation on the way out and another on the way back in
 • Nothing is undone behind your back: a session ending, a game exiting on the host, a change no session ever used — none of them move the adapter on their own any more. The one thing that still acts by itself is the check at startup, which puts back a link left switched by a previous run
 • Wi-Fi adapters are no longer listed — Wi-Fi has no fixed link speed to match, and the buffering this feature solves happens where a faster wired link meets a slower one. Previously a wireless adapter could be selected and would silently do nothing
@@ -107,11 +107,11 @@ Version 8.1.0 - "The Handshake Update" (08/08/2026)
 • New application icon, in the window, the taskbar and the installer. The two tray icons that show whether the link is on its streaming speed have been redrawn to match
 
 🩹 FIXES:
-• Closing StreamTweak during a session now records what was played — the detected games were collected on every other way a session can end but not on this one, so the session was filed as though nothing had been launched
+• Closing ArtLightControl during a session now records what was played — the detected games were collected on every other way a session can end but not on this one, so the session was filed as though nothing had been launched
 • The Dashboard's HDR badge no longer falls back to a dash once it has read the real state. Reading the display configuration fails for stretches at a time on a host with a virtual display — the retries were also too short, and missed the error this actually returns — and HDR does not turn itself off while nobody is looking, so the last figure actually read is kept
 • Epic Games titles now launch through the Epic launcher instead of by running their executable, which most of them cannot be started by at all — the entitlement and Epic Online Services tokens arrive on the command line from the launcher, so a direct launch plays the intro and drops back to the client, whether or not the launcher is already open. This applies both to streaming and to the Library page's own Play button, which are now the same decision rather than two. Re-sync the library once to rewrite the commands
-• The Library page's Play button no longer starts a game in StreamTweak's own folder — it set no working directory, so the game inherited StreamTweak's and any title that looks for its data next to where it was started refused to run, reporting a missing folder under Program Files. Games launched by the streaming server were never affected
-• A session that ends because the game itself exits is now recognised — until now StreamTweak only noticed a session ending when the client disconnected, so quitting a game left the session running in the history until something else ended it, a stream started shortly afterwards was merged into it, and the link speed was never put back
+• The Library page's Play button no longer starts a game in ArtLightControl's own folder — it set no working directory, so the game inherited ArtLightControl's and any title that looks for its data next to where it was started refused to run, reporting a missing folder under Program Files. Games launched by the streaming server were never affected
+• A session that ends because the game itself exits is now recognised — until now ArtLightControl only noticed a session ending when the client disconnected, so quitting a game left the session running in the history until something else ended it, a stream started shortly afterwards was merged into it, and the link speed was never put back
 • The Dashboard no longer reports HDR as off when it is on — reading the display configuration can fail while Windows is rearranging monitors, which happens around every session on a host with a virtual display, and the failure was being shown as a confident "Off". It is now retried, and when the state genuinely can't be read the badge shows a neutral dash instead of claiming the feature is disabled
 • Sessions are always recorded now — session history, telemetry, spatial audio and played-game detection all hang off the streaming-server log watcher, which used to be switched off together with the automatic link-speed switch
 • The installer no longer opens filling the whole screen with its contents still laid out for a small window, the artwork stranded in a corner — Windows was maximising a wizard that is not meant to be resized in the first place, which showed up on handhelds
@@ -146,8 +146,8 @@ Version 8.0.0 - "The UI Redesign" (18/07/2026)
 • "Streaming Mode" is now "Link-speed switch" and you finally choose the speed — pick the streaming target (no longer hardwired to 1 Gbps) and pick what to restore to afterwards ("Previous", or a fixed speed). The choice applies to the automatic, manual, tray and client-triggered paths alike
 
 🎮 SESSIONS:
-• A session no longer runs forever when the streaming server hangs on teardown — if the client stops sending telemetry, StreamTweak now ends the session on its own instead of leaving the counter running until you close the app
-• Games launched through a store client (Ubisoft, EA, Battle.net…) are now captured reliably — StreamTweak reads the exact game the server launched from its log, so a session's played games no longer come up empty for launcher-based titles
+• A session no longer runs forever when the streaming server hangs on teardown — if the client stops sending telemetry, ArtLightControl now ends the session on its own instead of leaving the counter running until you close the app
+• Games launched through a store client (Ubisoft, EA, Battle.net…) are now captured reliably — ArtLightControl reads the exact game the server launched from its log, so a session's played games no longer come up empty for launcher-based titles
 • Sessions shorter than a minute are no longer recorded — a connection test or a stream that failed to start carries no usable telemetry and only cluttered the history
 
 🩹 FIXES:
@@ -157,10 +157,10 @@ Version 8.0.0 - "The UI Redesign" (18/07/2026)
 • Game Library: scrolling the list no longer runs the covers flush against the Sync now / Add game buttons — the toolbar keeps a clear gap underneath it
 
 ⚙️ PLATFORM:
-• StreamTweak now runs on the Windows App SDK 2.3, the current major release of the UI framework — the 1.8 line it used until now is heading out of servicing, so this keeps the app on the version that still receives fixes and performance work
+• ArtLightControl now runs on the Windows App SDK 2.3, the current major release of the UI framework — the 1.8 line it used until now is heading out of servicing, so this keeps the app on the version that still receives fixes and performance work
 • The installer handles the switch for you — the 2.3 runtime is fetched only when it's missing, and it installs alongside any older runtime already present, so upgrading from 7.x requires no uninstall and leaves other apps on your machine untouched
 • The installer no longer re-downloads the Windows App SDK runtime on every single install — the check meant to detect an already-installed runtime never actually matched, so a full copy was pulled down each time even when the correct version was sitting right there
-• StreamTweak now opts into the new framework's interface optimisations — lighter icons, styles applied only when they actually do something, and less work at startup
+• ArtLightControl now opts into the new framework's interface optimisations — lighter icons, styles applied only when they actually do something, and less work at startup
 • Upgrading over an existing installation is more reliable — the background service is now stopped before files are replaced rather than after, instead of relying on Windows to notice it was in the way
 • The installer is now a 64-bit build with crisper artwork, and no longer copies its own wizard images into the installation folder — about 1 MB lighter overall
 
@@ -287,15 +287,15 @@ Version 7.1.0 - "The Secure Bridge Update" (04/06/2026)
 -------------------------------------------------------
 
 ✨ NEW FEATURES:
-• Authenticated bridge: the TCP bridge (port 47998) that StreamLight uses to control the NIC, read host metrics and the game list now requires authenticated clients. Each StreamLight device proves its identity by signing every command with its Moonlight certificate; the first time a new device connects, StreamTweak shows a one-time "Allow StreamLight client?" prompt (showing the device name and a 4-digit PIN to confirm against the one on the device) so you decide who is trusted. This closes the previously open bridge — a stranger on your LAN/VPN can no longer command your host or read its metrics
+• Authenticated bridge: the TCP bridge (port 47998) that StreamLight uses to control the NIC, read host metrics and the game list now requires authenticated clients. Each StreamLight device proves its identity by signing every command with its Moonlight certificate; the first time a new device connects, ArtLightControl shows a one-time "Allow StreamLight client?" prompt (showing the device name and a 4-digit PIN to confirm against the one on the device) so you decide who is trusted. This closes the previously open bridge — a stranger on your LAN/VPN can no longer command your host or read its metrics
 • Bridge clients management (Settings → Bridge security): see every approved and pending client, approve or deny pending ones, and revoke access at any time. A "Require authenticated StreamLight clients" toggle (ON by default) enforces the new behaviour; turning it off restores the legacy unauthenticated bridge for compatibility with older StreamLight builds
 
 🔒 SECURITY HARDENING:
-• Service pipe lock-down: the LocalSystem helper service now verifies that the connecting process is the genuine StreamTweakUI.exe from the install directory before executing any command, preventing other local users from abusing it (e.g. to write a malicious apps.json)
+• Service pipe lock-down: the LocalSystem helper service now verifies that the connecting process is the genuine ArtLightControl.exe from the install directory before executing any command, preventing other local users from abusing it (e.g. to write a malicious apps.json)
 • Bridge denial-of-service guards: per-connection idle timeout, a cap on concurrent connections, and a maximum line length so a hostile peer cannot exhaust resources or send an oversized payload
 • Correct WQL escaping for the NIC speed query, lock-serialized atomic config writes, and a randomized temp-script path in the UAC fallback
 
-ℹ️ Authorization never blocks streaming. A non-authorized (or older) StreamLight client streams exactly as before — only the StreamTweak↔StreamLight integration is gated: host metrics overlay, NIC speed display & one-click Streaming Mode, store badges on covers, session quality reports & live charts, Tailscale dual-tile, and remote pause.
+ℹ️ Authorization never blocks streaming. A non-authorized (or older) StreamLight client streams exactly as before — only the ArtLightControl↔StreamLight integration is gated: host metrics overlay, NIC speed display & one-click Streaming Mode, store badges on covers, session quality reports & live charts, Tailscale dual-tile, and remote pause.
 
 ⚠️ REQUIRES: StreamLight 3.1.0 or later on the client for those integration features. With "Require authenticated clients" ON (the default), older StreamLight versions can no longer use the bridge — update both apps together. You can temporarily turn the requirement off in Settings → Bridge security if you need to pair with an older client during the transition.
 
@@ -322,7 +322,7 @@ Version 7.0.0 - "The Sentinel Update" (30/05/2026)
 
 ✨ NEW FEATURES:
 • NVIDIA Sentinel: a dedicated sidebar page (NVIDIA GPUs only — greyed out on AMD/Intel) that protects the NVIDIA global driver profile from being silently reset by NVIDIA App. "Save current as my profile" snapshots the global profile to a .nip file (the same format NVIDIA Profile Inspector uses), "Restore my profile" re-applies it, "Clear my profile" discards it. The header shows the driver package (Game Ready / Studio), version and release date
-• NVIDIA Sentinel — Auto-restore: arm the toggle and StreamTweak watches the driver settings database (FileSystemWatcher + 5-second polling) and silently re-applies your saved profile within a couple of seconds whenever NVIDIA App resets it. Every restore is recorded in %LocalAppData%\StreamTweak\nvidia-restore.log
+• NVIDIA Sentinel — Auto-restore: arm the toggle and ArtLightControl watches the driver settings database (FileSystemWatcher + 5-second polling) and silently re-applies your saved profile within a couple of seconds whenever NVIDIA App resets it. Every restore is recorded in %LocalAppData%\ArtLightControl\nvidia-restore.log
 • NVIDIA Sentinel — Captured settings view: a collapsible terminal-style panel lists each customized setting in human-readable form — name, hex id, and the value translated to its NVIDIA label (e.g. "Force on", "Medium") — including the real installed DLSS Super Resolution / Ray Reconstruction / Frame Generation versions injected by the override
 
 🔧 IMPROVEMENTS:
@@ -335,7 +335,7 @@ Version 6.3.0 - "The Tailscale Update" (27/05/2026)
 
 ✨ NEW FEATURES:
 • Tailscale dual-tile (requires StreamLight 3.0.0+): a new TAILSCALE bridge command lets StreamLight, after pairing over the LAN, offer a one-time popup to add a second host tile pinned to the host's 100.x.y.z Tailscale address — one-click streaming from outside the LAN, no port forwarding. Dismissible permanently per-host
-• Host tile replacement (Game Library): a toolbar toggle swaps the streaming server's default Desktop and Steam tiles for StreamTweak-bundled PNGs and reverts them on demand — fully reversible, no UAC prompt (writes routed through the LocalSystem service)
+• Host tile replacement (Game Library): a toolbar toggle swaps the streaming server's default Desktop and Steam tiles for ArtLightControl-bundled PNGs and reverts them on demand — fully reversible, no UAC prompt (writes routed through the LocalSystem service)
 
 🐛 BUG FIXES:
 • Xbox / Game Pass games not recognized in session logs: the scanner now reads the executable name from each game's MicrosoftGame.config, so Game Pass titles are correctly attributed to their session
@@ -354,7 +354,7 @@ Version 6.2.7 - "The Stability Update" (13/05/2026)
 
 🐛 BUG FIXES:
 • Session logs — games missing on host shutdown: games played during a session that ended via host PC shutdown or power loss were not recorded in the session log. Two separate root causes fixed: (1) WriteCheckpoint() had an early-return guard (SampleCount < 2) that skipped the entire method including the games snapshot — this affected all sessions started without StreamLight and any session interrupted before the first 30-second checkpoint; the guard now checks telemetry and games independently and only skips when both are absent. (2) OnSystemSessionEnding() was not collecting the detected game list from SessionProcessMonitor before calling SessionLogger.EndSession() — fixed to match the existing pattern in HandleAutoStreamStop
-• Phantom session at startup: StreamTweak could incorrectly detect an active streaming session at startup when no stream was running. Root cause: HasActiveMoonlightSession() matched any established TCP connection from the Sunshine process, including its HTTPS web UI on ports 47989/47990, which any machine on the LAN can open without streaming. Fixed by filtering to port 48010 (RTSP), the only port active during a real streaming session
+• Phantom session at startup: ArtLightControl could incorrectly detect an active streaming session at startup when no stream was running. Root cause: HasActiveMoonlightSession() matched any established TCP connection from the Sunshine process, including its HTTPS web UI on ports 47989/47990, which any machine on the LAN can open without streaming. Fixed by filtering to port 48010 (RTSP), the only port active during a real streaming session
 • Phantom session from stale log file: CheckForExistingSession() Phase 2 (head-of-file scan) could fire a retrospective StreamStarted event from an old log entry when no session was actually in progress. Fixed by requiring a positive TCP check (HasActiveMoonlightSession) before raising the event
 • Stop Streaming Mode race condition: HandleAutoStreamStop() was declared async void, which caused ToggleStreamingAsync() in NetworkViewModel to receive Task.CompletedTask immediately and consider the stop complete before any async work ran. Changed to async Task; all callers updated accordingly
 • sessions.json corruption on crash: SessionLogger.Save() now writes to a .tmp file first, then renames it atomically — prevents a truncated (empty) sessions.json if the process is killed mid-write
@@ -430,7 +430,7 @@ Version 6.2.1 - "The Polish Update" (29/04/2026)
 ------------------------------------------------
 
 🐛 BUG FIXES:
-• Store tab (WebView2): the embedded browser failed to load when launched from the installer-built exe — the WebView2 runtime was trying to write its user data folder inside Program Files (read-only). Fixed by providing a custom environment via CreateWithOptionsAsync pointing to %LocalAppData%\StreamTweak\WebView2; a dismissible error bar is shown if initialization still fails for any reason
+• Store tab (WebView2): the embedded browser failed to load when launched from the installer-built exe — the WebView2 runtime was trying to write its user data folder inside Program Files (read-only). Fixed by providing a custom environment via CreateWithOptionsAsync pointing to %LocalAppData%\ArtLightControl\WebView2; a dismissible error bar is shown if initialization still fails for any reason
 • Debug Mode toggle in Settings now correctly shows its active state when navigating away from the Settings page and returning — the toggle was always reset to Off on re-navigation, requiring a second toggle cycle to actually stop the debug session
 
 🎨 UI / UX:
@@ -450,7 +450,7 @@ Version 6.2.0 - "The Store Update" (26/04/2026)
 -----------------------------------------------
 
 ✨ NEW FEATURES:
-• Store tab: a new Store entry in the sidebar opens Instant Gaming directly inside StreamTweak via an embedded browser, with a minimal toolbar (back, forward, home, open-in-system-browser) and the FoggyBytes affiliate link preserved on every navigation
+• Store tab: a new Store entry in the sidebar opens Instant Gaming directly inside ArtLightControl via an embedded browser, with a minimal toolbar (back, forward, home, open-in-system-browser) and the FoggyBytes affiliate link preserved on every navigation
 • Open in browser: a dedicated toolbar button hands off the current Instant Gaming page to the system default browser, automatically injecting the affiliate parameter so the referral is preserved across the handoff
 • External link handling: any non-instant-gaming URL clicked inside the Store (publisher pages, news links, etc.) is opened in the system browser instead of the embedded view, keeping the Store focused on shopping
 
@@ -461,7 +461,7 @@ Version 6.2.0 - "The Store Update" (26/04/2026)
 • Sessions interrupted by an abrupt host shutdown (power loss, OS kill) lost the list of detected games — the games list is now persisted in the 30-second telemetry checkpoint and recovered at next startup, alongside the existing telemetry recovery path
 
 🔒 SECURITY:
-• StreamTweakService — System.Text.Json upgraded from 8.0.0 (transitive) to 8.0.6 (explicit reference) to address two Microsoft .NET DoS advisories: CVE-2024-30105 (GHSA-hh2w-p6rv-4g7w) and CVE-2024-43485 (GHSA-8g4q-xg66-9fp4). Real-world impact on StreamTweak is minimal (the service does not deserialize untrusted JSON over the named pipe), but the fix closes the open Dependabot alerts and aligns the service with the latest LTS patch level
+• ArtLightControlService — System.Text.Json upgraded from 8.0.0 (transitive) to 8.0.6 (explicit reference) to address two Microsoft .NET DoS advisories: CVE-2024-30105 (GHSA-hh2w-p6rv-4g7w) and CVE-2024-43485 (GHSA-8g4q-xg66-9fp4). Real-world impact on ArtLightControl is minimal (the service does not deserialize untrusted JSON over the named pipe), but the fix closes the open Dependabot alerts and aligns the service with the latest LTS patch level
 
 🔔 UPDATE NOTIFICATIONS:
 • Update availability is now polled once at app startup against the GitHub Releases API and surfaced wherever the app version is shown: a small amber link appears in the sidebar footer beneath the version badge ("↑ Update to vX.Y.Z"), and an Informational InfoBar is displayed at the top of the Settings page. Both link to the latest release page in the system browser. The Home panel remains intentionally clean — it shows no update status, consistent with the 6.1.0 redesign. The check is silent on network failure (no error UI), and the previous duplicate update logic in the Home ViewModel has been removed in favour of a single centralised source
@@ -516,8 +516,8 @@ Version 6.0.0 - "The WinUI3 Update" (18/04/2026)
 ------------------------------------------------
 
 🏗 REWRITE — WPF → WinUI3:
-• StreamTweak's UI has been fully rewritten in WinUI3 (Windows App SDK 1.8), bringing it in line with the modern Windows 11 design system
-• Business logic extracted into a dedicated StreamTweak.Core library — cleaner architecture, same behavior
+• ArtLightControl's UI has been fully rewritten in WinUI3 (Windows App SDK 1.8), bringing it in line with the modern Windows 11 design system
+• Business logic extracted into a dedicated ArtLightControl.Core library — cleaner architecture, same behavior
 • Full MVVM architecture: UI and logic are now properly separated
 
 🎨 UI/UX:
@@ -550,11 +550,11 @@ Version 5.4.2 (04/04/2026)
 --------------------------
 
 🐛 BUG FIXES:
-• Dolby Atmos / Windows Sonic activation now verified against Windows after calling SetDefaultSpatialAudioFormatAsync — previously StreamTweak showed "✓ enabled" even when Windows had not applied the format change
-• Retrospective session detection: Dolby/Windows Sonic was never activated when StreamTweak launched mid-session — fixed by enabling the audio monitor before starting the log monitor so the startup event is not missed
+• Dolby Atmos / Windows Sonic activation now verified against Windows after calling SetDefaultSpatialAudioFormatAsync — previously ArtLightControl showed "✓ enabled" even when Windows had not applied the format change
+• Retrospective session detection: Dolby/Windows Sonic was never activated when ArtLightControl launched mid-session — fixed by enabling the audio monitor before starting the log monitor so the startup event is not missed
 • Retrospective activation delay reduced to 5 s (was 30 s) — audio is already initialized when a session is already active at startup
 • Retrospective session detection now works for long sessions: when verbose logging pushed CLIENT CONNECTED outside the tail-scan window (60 KB), the active session was not detected; a head-of-file scan now catches this case
-• Retrospective session detection: if StreamLight sends SESSIONDATA with no active session (StreamTweak restarted mid-stream), the incoming batch is now used as the retrospective signal — triggers Dolby activation and session tracking within 1 second of startup; more reliable than TCP or log checks since StreamLight sends data every second regardless
+• Retrospective session detection: if StreamLight sends SESSIONDATA with no active session (ArtLightControl restarted mid-stream), the incoming batch is now used as the retrospective signal — triggers Dolby activation and session tracking within 1 second of startup; more reliable than TCP or log checks since StreamLight sends data every second regardless
 
 --------------------------
 Version 5.4.1 (04/04/2026)
@@ -634,7 +634,7 @@ Version 5.2.1 - The "Chart Update" (28/03/2026)
 • Session telemetry — charts revised: the four sparklines now show RTT (ms), Frame Drops, Bitrate (Mbps), and Decode Latency (ms). FPS has been replaced by Decode Latency because FPS drops to near-zero on static screens and loading screens regardless of actual streaming quality, making it an unreliable indicator. The four retained metrics jointly cover the full quality picture: RTT measures network latency; Frame Drops quantify packet loss at the transport layer; Bitrate reflects encoder output and available bandwidth headroom; Decode Latency captures client-side hardware load.
 • Jitter: RTT variance is now collected per sample from StreamLight and stored per session as jitter_avg and jitter_max; displayed in the CLIENT stats panel of the session detail overlay alongside RTT
 • SparklineControl: bucket-average downsampling applied when data points exceed the chart's pixel width, keeping long sessions readable without distortion; chart label rendered above the polyline with a semi-transparent background so it remains legible at all times
-• Glossary tab: new dedicated tab in Settings with definitions of all technical terms used across the StreamTweak and StreamLight UIs, grouped by category in a terminal-style panel
+• Glossary tab: new dedicated tab in Settings with definitions of all technical terms used across the ArtLightControl and StreamLight UIs, grouped by category in a terminal-style panel
 
 ⚠️ REQUIRES: StreamLight 2.1.1 or later for jitter data to appear in session stats.
 
@@ -674,14 +674,14 @@ Version 5.1.0 - The "Dashboard Update" (25/03/2026)
 • Tray icon now reflects streaming session state: the active icon appears when a session is detected rather than only when the NIC is throttled, so the icon stays active for all sessions regardless of whether Auto Streaming Mode is in use
 
 🐛 BUG FIXES:
-• Session duration missing on host shutdown: StreamTweak now intercepts the Windows shutdown and logoff signal (WM_ENDSESSION) and saves the current session's end time before the process exits — sessions are no longer recorded with a blank duration when the PC is shut down during a stream
+• Session duration missing on host shutdown: ArtLightControl now intercepts the Windows shutdown and logoff signal (WM_ENDSESSION) and saves the current session's end time before the process exits — sessions are no longer recorded with a blank duration when the PC is shut down during a stream
 
 -----------------------------------------------------
 Version 5.0.1 - The "Reliability Update" (21/03/2026)
 -----------------------------------------------------
 
 🔧 IMPROVEMENTS:
-• Session detection at startup: when StreamTweak opens while a streaming session is already in progress, the sidebar now correctly shows "Streaming" and spatial audio activates as expected
+• Session detection at startup: when ArtLightControl opens while a streaming session is already in progress, the sidebar now correctly shows "Streaming" and spatial audio activates as expected
 • Sidebar sync on window open: opening the settings window during an active session now reflects the real session state immediately, without requiring a reconnect
 
 ------------------------------------------------------
@@ -689,17 +689,17 @@ Version 5.0.0 - The "Game Library Update" (21/03/2026)
 ------------------------------------------------------
 
 ✨ NEW FEATURES:
-• New FoggyBytes icon: StreamTweak now sports a new icon that visually unifies the FoggyBytes suite — the same icon is shared with StreamLight for a consistent identity across both apps
-• Game Library Sync: StreamTweak automatically discovers installed games across Steam, Epic Games, GOG, Ubisoft Connect, Xbox App, EA App, and Battle.net — and syncs them to Sunshine (and compatible forks: Apollo, Vibeshine, Vibepollo) without touching manually created entries; uninstalled games are removed on the next sync
+• New FoggyBytes icon: ArtLightControl now sports a new icon that visually unifies the FoggyBytes suite — the same icon is shared with StreamLight for a consistent identity across both apps
+• Game Library Sync: ArtLightControl automatically discovers installed games across Steam, Epic Games, GOG, Ubisoft Connect, Xbox App, EA App, and Battle.net — and syncs them to Sunshine (and compatible forks: Apollo, Vibeshine, Vibepollo) without touching manually created entries; uninstalled games are removed on the next sync
 • Cover art from native sources: cover images are fetched from each store's own CDN (Steam CDN, Epic metadata, GOG API, Battle.net aggregate.json) and cached locally as PNG — Sunshine displays them natively; no third-party service involved
 • Battle.net integration: Battle.net games are detected via the local aggregate.json file; all entries launch via the Battle.net client (Battle.net.exe), so any installed game is automatically included without needing per-game exe paths
 • Manual game management: use the Add button in the Games tab to include any executable not auto-detected; manual entries survive re-syncs and are removed individually with the − button per row
-• APPSTORES TCP command: StreamTweak serves the game→store map to StreamLight via the new APPSTORES command on port 47998, enabling per-game store badge display in the StreamLight client
+• APPSTORES TCP command: ArtLightControl serves the game→store map to StreamLight via the new APPSTORES command on port 47998, enabling per-game store badge display in the StreamLight client
 
 🔧 IMPROVEMENTS:
 • Game list sorted alphabetically after each sync for a consistent, predictable order
 • Manual games persist across re-syncs: only auto-discovered games are refreshed; manually added entries are preserved until explicitly removed
-• Single-entry Sunshine sync: adding or removing a manual game updates only that entry in apps.json — no other entries are touched; compatible with apps created outside StreamTweak
+• Single-entry Sunshine sync: adding or removing a manual game updates only that entry in apps.json — no other entries are touched; compatible with apps created outside ArtLightControl
 
 ⚠️ REQUIRES: StreamLight 2.0.0 or later for store badge display in the client.
 
@@ -735,11 +735,11 @@ Version 4.4.0 - The "Telemetry Update" (20/03/2026)
 ---------------------------------------------------
 
 ✨ NEW FEATURES:
-• Host metrics collection: StreamTweak now collects real-time host PC metrics — GPU usage %, GPU encoder usage %, GPU temperature (°C, NVIDIA only via NVML), VRAM used (MB), VRAM total (MB, NVIDIA only), CPU usage %, and network TX (Mbps) — and serves them to StreamLight via a new STATS command on the TCP bridge (port 47998)
+• Host metrics collection: ArtLightControl now collects real-time host PC metrics — GPU usage %, GPU encoder usage %, GPU temperature (°C, NVIDIA only via NVML), VRAM used (MB), VRAM total (MB, NVIDIA only), CPU usage %, and network TX (Mbps) — and serves them to StreamLight via a new STATS command on the TCP bridge (port 47998)
 • STATS command: the TCP bridge accepts a new STATS command that returns a JSON payload (e.g. {"gpu":45,"gpu_enc":12,"gpu_temp":62,"vram_used":4096,"vram_total":8192,"cpu":18,"net_tx":80}) for consumption by StreamLight's overlay
 • Cross-vendor GPU metrics via PDH PerformanceCounters: GPU utilization (3D engine), GPU encoder utilization, and VRAM used are read with System.Diagnostics.PerformanceCounter using the GPU Engine and GPU Process Memory performance counters — works on NVIDIA, AMD, and Intel Arc
 • NVML P/Invoke for GPU temperature and total VRAM (NVIDIA only): temperature and total VRAM capacity are read directly from nvml.dll (shipped with NVIDIA drivers) via P/Invoke; on non-NVIDIA systems these fields report -1 and no error is raised
-• Metrics unavailable for StreamLight: if StreamTweak is not reachable or metrics are not available, StreamLight's overlay omits the host metrics section entirely — no fallback values, no placeholders
+• Metrics unavailable for StreamLight: if ArtLightControl is not reachable or metrics are not available, StreamLight's overlay omits the host metrics section entirely — no fallback values, no placeholders
 
 🔧 IMPROVEMENTS:
 • HostMetricsCollector initialises asynchronously on a background Task to avoid any impact on WPF startup time
@@ -753,13 +753,13 @@ Version 4.3.0 - The "App Manager Update" (19/03/2026)
 -----------------------------------------------------
 
 ✨ NEW FEATURES:
-• Streaming App Manager: a user-configurable list of executables that StreamTweak automatically terminates when a streaming session starts and relaunches when it ends — ideal for apps like Hue Sync that conflict when running on both host and client simultaneously; each entry has an independent AutoManage toggle so individual apps can be excluded from automation while staying in the list
+• Streaming App Manager: a user-configurable list of executables that ArtLightControl automatically terminates when a streaming session starts and relaunches when it ends — ideal for apps like Hue Sync that conflict when running on both host and client simultaneously; each entry has an independent AutoManage toggle so individual apps can be excluded from automation while staying in the list
 • App Manager manual controls: each listed app can also be killed or restarted on demand from the Apps tab, without waiting for a streaming session to trigger the automation
 
 🔧 IMPROVEMENTS:
 • Session logging now tracks all streaming sessions regardless of whether NIC throttle was applied: previously only sessions that triggered a speed change were logged; now every session is recorded with a NIC Throttle column (Yes/No) and an Original NIC Speed column; the old Mode column has been removed
 • Session date format now includes the year (dd/MM/yyyy) for unambiguous historical records
-• Dolby Atmos retry loop: after the initial 30-second wait, DolbyAudioMonitor now retries device discovery every 5 seconds for up to 3 minutes — handles the case where the Windows Audio service is still initializing when StreamTweak starts on an early auto-login
+• Dolby Atmos retry loop: after the initial 30-second wait, DolbyAudioMonitor now retries device discovery every 5 seconds for up to 3 minutes — handles the case where the Windows Audio service is still initializing when ArtLightControl starts on an early auto-login
 
 --------------------------------------------------------
 Version 4.2.4 - The "Under the Hood Update" (18/03/2026)
@@ -772,7 +772,7 @@ Version 4.2.4 - The "Under the Hood Update" (18/03/2026)
 🔧 IMPROVEMENTS:
 • Removed dead null-checks on GetSupportedSpeeds return value: the method always returns a (possibly empty) Dictionary — never null; all five redundant call-site guards in App.xaml.cs have been removed
 • Removed superfluous CreateNoWindow = true from ApplyWithUac in SpeedChanger: the property is silently ignored by Windows when UseShellExecute = true
-• Extracted shared DebugLogger class: the identical DebugLog implementation previously duplicated across App, StreamTweakBridge, LogParser, and StreamingLogMonitor is now consolidated in a single StreamTweak.DebugLogger.Log entry point
+• Extracted shared DebugLogger class: the identical DebugLog implementation previously duplicated across App, ArtLightBridge, LogParser, and StreamingLogMonitor is now consolidated in a single ArtLightControl.DebugLogger.Log entry point
 • Centralized config persistence with PatchConfig helper: the repeated JSON read/patch/write pattern previously spread across seven SaveXxx methods in App.xaml.cs and SettingsWindow.xaml.cs is now unified behind a single PatchConfig(Action<Dictionary>) helper in each class
 
 -------------------------------------------------------------------
@@ -796,7 +796,7 @@ Version 4.2.2 - The "Bridge Reliability Update" (15/03/2026)
 
 🐛 STABILITY & FIXES:
 • Fixed PREPARE command from StreamLight being silently ignored when Auto Streaming Mode was disabled: the TCP bridge handler now works independently from the Auto Mode toggle — PREPARE correctly triggers the NIC speed change regardless of whether Auto Mode is on or off
-• Fixed UI thread blocking during PREPARE handling: the handler was using Dispatcher.Invoke with an async lambda, which resolved to async void and ran the named-pipe call to StreamTweakService synchronously on the UI thread (up to 5 seconds freeze); switched to Dispatcher.InvokeAsync and Task.Run so the blocking pipe roundtrip no longer stalls the interface
+• Fixed UI thread blocking during PREPARE handling: the handler was using Dispatcher.Invoke with an async lambda, which resolved to async void and ran the named-pipe call to ArtLightControlService synchronously on the UI thread (up to 5 seconds freeze); switched to Dispatcher.InvokeAsync and Task.Run so the blocking pipe roundtrip no longer stalls the interface
 
 -----------------------------------------------------
 Version 4.2.1 - The "Reliability Update" (15/03/2026)
@@ -822,25 +822,25 @@ Version 4.1.0-pre - The "StreamLight Update" (13/03/2026)
 ---------------------------------------------------------
 
 ✨ NEW FEATURES:
-• StreamLight integration (experimental): StreamTweak now includes early support for StreamLight, an upcoming Moonlight fork developed by FoggyBytes; when used in combination with StreamLight on the client side, StreamTweak will be able to receive NIC speed adjustment commands directly from the client — allowing the host network to be configured before the streaming session even starts
+• StreamLight integration (experimental): ArtLightControl now includes early support for StreamLight, an upcoming Moonlight fork developed by FoggyBytes; when used in combination with StreamLight on the client side, ArtLightControl will be able to receive NIC speed adjustment commands directly from the client — allowing the host network to be configured before the streaming session even starts
 
 ----------------------------------------------------
 Version 4.0.0 - The "Foundation Update" (10/03/2026)
 ----------------------------------------------------
-New starting point — with this release the visual identity of StreamTweak is consolidated and the interface is ready to grow.
+New starting point — with this release the visual identity of ArtLightControl is consolidated and the interface is ready to grow.
 
 ✨ NEW FEATURES:
 • Button animations: all interactive buttons now feature smooth scale animations on hover (+3–4%) and a tactile press-down effect on click, bringing the interface closer to a native Windows 11 feel; primary action buttons (Start/Stop Streaming Mode, Apply Settings, View on GitHub, Donate via PayPal) animate on hover without altering their background color, preserving visual focus on key actions
 
 🔧 IMPROVEMENTS:
 • Unified dark theme: the StreamingAdjustmentAlert notification window now fully matches the main Settings window dark palette, ensuring visual consistency across all application surfaces
-• Visual identity: the accent #BE5438 — a warm rust tone — is established as the defining color of the StreamTweak interface, consistently applied across all interactive states, panel highlights, and active controls
+• Visual identity: the accent #BE5438 — a warm rust tone — is established as the defining color of the ArtLightControl interface, consistently applied across all interactive states, panel highlights, and active controls
 
 -------------------------------------------------
 Version 3.2.0 - The "Display Update" (09/03/2026)
 -------------------------------------------------
 ✨ NEW FEATURES:
-• Display tab — HDR monitor control: the new Display tab shows all active monitors with resolution, refresh rate, and current HDR state; HDR can be toggled on or off directly from StreamTweak without opening Windows Settings, with full compatibility across Windows 10 and Windows 11 (including 24H2 and later)
+• Display tab — HDR monitor control: the new Display tab shows all active monitors with resolution, refresh rate, and current HDR state; HDR can be toggled on or off directly from ArtLightControl without opening Windows Settings, with full compatibility across Windows 10 and Windows 11 (including 24H2 and later)
 • Display tab — Auto HDR toggle: enables or disables Windows Auto HDR for supported SDR games directly from the app; the change is applied immediately via registry and broadcast to all running applications
 • Display tab — virtual display awareness: when Apollo or Vibepollo is detected, the Display tab automatically highlights the virtual display (SudoVDA / IDD) used for remote streaming, keeping the view focused on what matters during a session
 • Tray right-click — HDR toggles: HDR and Auto HDR can also be toggled directly from the system tray context menu, in sync with the Display tab
@@ -857,7 +857,7 @@ Version 3.1.1 - The "Session Integrity Update" (08/03/2026)
 • Orphan session recovery: at startup, any session left open by a previous crash or forced restart is automatically sealed as Interrupted
 
 🐛 STABILITY & FIXES:
-• Fixed sessions remaining stuck as "Active" indefinitely when StreamTweak was restarted while a streaming session was still in progress
+• Fixed sessions remaining stuck as "Active" indefinitely when ArtLightControl was restarted while a streaming session was still in progress
 • Fixed the inactivity timer expiring without actually ending the session when no client reconnect occurred within the 30-second grace period
 • Fixed StreamStopped events being silently discarded during the first 30 seconds of a session, even when the client had truly disconnected
 • Reconnect detection: a StreamStarted event received while a session is active now correctly cancels the pending disconnect timeout, keeping the session alive without logging a duplicate entry
@@ -866,20 +866,20 @@ Version 3.1.1 - The "Session Integrity Update" (08/03/2026)
 Version 3.1.0 - The "Atmos Update" (06/03/2026)
 -----------------------------------------------
 ✨ NEW FEATURES:
-• Audio tab — Auto Dolby Atmos for Headphones: when a streaming session is detected and stays active for at least 30 seconds, StreamTweak automatically enables Dolby Atmos for Headphones on Steam Streaming Speakers, provided Dolby Access is installed and the format is available
+• Audio tab — Auto Dolby Atmos for Headphones: when a streaming session is detected and stays active for at least 30 seconds, ArtLightControl automatically enables Dolby Atmos for Headphones on Steam Streaming Speakers, provided Dolby Access is installed and the format is available
 • Audio tab — Dolby Access detection indicator: a live status indicator shows whether Dolby Atmos for Headphones is detected on the host PC, checked via the Windows Spatial Audio API at startup and each time the Audio tab is opened
 • Audio tab — activation status: the Status box turns green when Dolby Atmos for Headphones is successfully enabled
 • Tray right-click — Dolby Atmos toggle: enable or disable the Dolby Atmos auto-activation directly from the system tray context menu, in sync with the Audio tab toggle
 
 🔧 IMPROVEMENTS:
-• About tab — version check: the current version of StreamTweak is now compared against the latest GitHub release; if a newer version is available, a download link is shown automatically
+• About tab — version check: the current version of ArtLightControl is now compared against the latest GitHub release; if a newer version is available, a download link is shown automatically
 
 ---------------------------------------------------
 Version 3.0.0 - The "Awareness Update" (06/03/2026)
 ---------------------------------------------------
 ✨ NEW FEATURES:
 • Logs tab: browse the last 10 speed-change sessions at a glance, including trigger mode (Auto/Manual), duration, and original speed
-• Streaming app detection in Logs tab: StreamTweak shows whether it has correctly located the log folder of the streaming server installed on the host PC (Sunshine, Apollo, Vibeshine or Vibepollo); click the path to open the folder in Explorer
+• Streaming app detection in Logs tab: ArtLightControl shows whether it has correctly located the log folder of the streaming server installed on the host PC (Sunshine, Apollo, Vibeshine or Vibepollo); click the path to open the folder in Explorer
 • About tab: version info, GitHub repository link, GPL v3 license badge, and PayPal donation button all in one place
 • Tray right-click — Auto Mode toggle: enable or disable Auto Streaming Mode directly from the system tray without opening Settings
 • Tray speed readout: current link speed of the selected adapter is always visible in the tray context menu
@@ -901,14 +901,14 @@ Version 2.5.2 - The "Vibe Update" (06/03/2026)
 • Updated UI warning: disconnect during speed adjustment is now stated clearly, with 30-second reconnect window explained
 
 🐛 STABILITY & FIXES:
-• Fixed monitor not switching to dynamic log files when they appear after StreamTweak has already started
+• Fixed monitor not switching to dynamic log files when they appear after ArtLightControl has already started
 • Fixed FileStream disposed too early in StreamingLogMonitor
 
 ------------------------------------------------------
 Version 2.5.1 - The "Silent Power Update" (04/03/2026)
 ------------------------------------------------------
 ✨ NEW FEATURES:
-• StreamTweakService: Windows Service (LocalSystem) handling all network speed changes with elevated privileges -- no UAC prompts, ever
+• ArtLightControlService: Windows Service (LocalSystem) handling all network speed changes with elevated privileges -- no UAC prompts, ever
 • Named Pipe IPC: secure communication between app and service, keeping the privilege boundary clean and UX uninterrupted
 
 🔧 IMPROVEMENTS:
@@ -948,7 +948,7 @@ Version 2.0 - The "ReBrand Update" (02/03/2026)
 • Shows installed GPU model for quick hardware reference
 
 🔧 IMPROVEMENTS:
-• NetworkSpeedToggle officially evolved into StreamTweak 💻<->💻
+• NetworkSpeedToggle officially evolved into ArtLightControl 💻<->💻
 • New modern app icon capturing the project's fresh spirit
 • Modern Windows 11 UI with rounded corners and professional design
 

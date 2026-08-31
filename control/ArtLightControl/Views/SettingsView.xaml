@@ -1,0 +1,307 @@
+<Page
+    x:Class="ArtLightControl.Views.SettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:ArtLightControl.ViewModels"
+    Background="{StaticResource STBackground}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>  <!-- status bar -->
+            <RowDefinition Height="*"/>     <!-- cards -->
+        </Grid.RowDefinitions>
+
+        <!-- Dynamic status InfoBar (keep — closable) -->
+        <InfoBar Grid.Row="0"
+                 Margin="28,24,28,0"
+                 IsOpen="{x:Bind ViewModel.HasStatus, Mode=OneWay}"
+                 Severity="{x:Bind ViewModel.StatusIsError, Mode=OneWay,
+                            Converter={StaticResource BoolToInfoBarSeverityConverter}}"
+                 Message="{x:Bind ViewModel.StatusText, Mode=OneWay}"
+                 IsClosable="True"
+                 Closed="StatusInfoBar_Closed">
+            <InfoBar.Resources>
+                <SolidColorBrush x:Key="InfoBarInformationalSeverityIconBackground" Color="#4ade80"/>
+            </InfoBar.Resources>
+        </InfoBar>
+
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto"
+                      Margin="28,12,28,28">
+            <StackPanel Spacing="16">
+
+                <!-- ── Update notice ─────────────────────────────────────────
+                     Visible only when AppStateService reports a newer GitHub release
+                     than the current AssemblyVersion. The check runs once at app
+                     startup; bound OneWay because dismissal is not persisted —
+                     the next session naturally re-shows the bar if the update is
+                     still pending. -->
+                <InfoBar Title="Update available"
+                         Severity="Informational"
+                         IsClosable="False"
+                         IsOpen="{x:Bind ViewModel.IsUpdateAvailable, Mode=OneWay}"
+                         Message="{x:Bind ViewModel.UpdateMessage, Mode=OneWay}">
+                    <InfoBar.Resources>
+                        <SolidColorBrush x:Key="InfoBarInformationalSeverityIconBackground" Color="#4ade80"/>
+                    </InfoBar.Resources>
+                    <InfoBar.ActionButton>
+                        <HyperlinkButton Content="Open releases page"
+                                         NavigateUri="https://github.com/FoggyBytes/ArtLightControl/releases/latest"/>
+                    </InfoBar.ActionButton>
+                </InfoBar>
+
+                <!-- ── About ─────────────────────────────────────────────── -->
+                <Border Style="{StaticResource ST_Card}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Spacing="4">
+                            <TextBlock Text="ArtLight Control"
+                                       Style="{StaticResource ST_PageTitle}"/>
+                            <TextBlock Text="{x:Bind ViewModel.AppVersion}"
+                                       Style="{StaticResource ST_MonoValueSmall}"/>
+                            <TextBlock Text="by FoggyBytes"
+                                       Style="{StaticResource ST_RowDescription}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1"
+                                    Orientation="Horizontal"
+                                    Spacing="8"
+                                    VerticalAlignment="Center">
+                            <Button Content="GPL v3"
+                                    Style="{StaticResource ST_ButtonSecondary}"
+                                    Click="OpenLicense_Click"/>
+                            <Button Style="{StaticResource ST_ButtonSecondary}"
+                                    AutomationProperties.Name="Donate"
+                                    Click="OpenDonate_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <Image Width="12" Height="12" VerticalAlignment="Center">
+                                        <Image.Source>
+                                            <SvgImageSource UriSource="ms-appx:///Resources/paypal.svg"/>
+                                        </Image.Source>
+                                    </Image>
+                                    <TextBlock Text="Donate" VerticalAlignment="Center"
+                                               FontFamily="{StaticResource DMSansMedium}"
+                                               FontSize="13"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Content="GitHub releases"
+                                    Style="{StaticResource ST_ButtonSecondary}"
+                                    Click="OpenArtLightControlReleases_Click"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- ── StreamLight ────────────────────────────────────────── -->
+                <Border Style="{StaticResource ST_Card}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Spacing="4">
+                            <TextBlock Text="StreamLight"
+                                       Style="{StaticResource ST_PageTitle}"/>
+                            <TextBlock Text="{x:Bind ViewModel.StreamLightVersion, Mode=OneWay}"
+                                       Style="{StaticResource ST_MonoValueSmall}"/>
+                            <TextBlock Text="by FoggyBytes"
+                                       Style="{StaticResource ST_RowDescription}"/>
+                        </StackPanel>
+
+                        <Button Grid.Column="1"
+                                Content="GitHub releases"
+                                Style="{StaticResource ST_ButtonSecondary}"
+                                VerticalAlignment="Center"
+                                Click="OpenStreamLightReleases_Click"/>
+                    </Grid>
+                </Border>
+
+                <!-- ── Data ──────────────────────────────────────────────── -->
+                <Border Style="{StaticResource ST_Card}">
+                    <StackPanel Spacing="14">
+                        <TextBlock Text="DATA" Style="{StaticResource ST_SectionLabel}"/>
+
+                        <Border Style="{StaticResource ST_Separator}"/>
+
+                        <!-- App data folder row -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="3">
+                                <TextBlock Text="App data folder"
+                                           Style="{StaticResource ST_RowDescription}"/>
+                                <TextBlock Text="{x:Bind ViewModel.DataFolderPath}"
+                                           Style="{StaticResource ST_MonoValueSmall}"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Content="Open"
+                                    Style="{StaticResource ST_ButtonSecondary}"
+                                    VerticalAlignment="Center"
+                                    Margin="14,0,0,0"
+                                    Click="OpenDataFolder_Click"/>
+                        </Grid>
+
+                        <Border Style="{StaticResource ST_Separator}"/>
+
+                        <!-- Log folder row -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="3">
+                                <TextBlock Text="Streaming server log folder"
+                                           Style="{StaticResource ST_RowDescription}"/>
+                                <TextBlock Text="{x:Bind ViewModel.LogFolderPath, Mode=OneWay}"
+                                           Style="{StaticResource ST_MonoValueSmall}"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Content="Open"
+                                    Style="{StaticResource ST_ButtonSecondary}"
+                                    VerticalAlignment="Center"
+                                    Margin="14,0,0,0"
+                                    Click="OpenLogFolder_Click"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ── Streaming server ──────────────────────────────────── -->
+                <Border Style="{StaticResource ST_Card}">
+                    <StackPanel Spacing="14">
+                        <TextBlock Text="STREAMING SERVER" Style="{StaticResource ST_SectionLabel}"/>
+
+                        <Border Style="{StaticResource ST_Separator}"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                <TextBlock Text="Detected server"
+                                           Style="{StaticResource ST_RowDescription}"/>
+                                <TextBlock Text="{x:Bind ViewModel.ServerName, Mode=OneWay}"
+                                           Style="{StaticResource ST_RowLabel}"/>
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Content="GitHub"
+                                    Style="{StaticResource ST_ButtonSecondary}"
+                                    Click="OpenServerRepo_Click"
+                                    Visibility="{x:Bind ViewModel.HasServerRepo, Mode=OneWay,
+                                                 Converter={StaticResource BoolToVisibilityConverter}}"
+                                    VerticalAlignment="Center"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ── Behavior ──────────────────────────────────────────── -->
+                <Border Style="{StaticResource ST_Card}">
+                    <StackPanel Spacing="14">
+                        <TextBlock Text="BEHAVIOR" Style="{StaticResource ST_SectionLabel}"/>
+
+                        <Border Style="{StaticResource ST_Separator}"/>
+
+                        <!-- Start with Windows -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="3" Margin="0,0,16,0">
+                                <TextBlock Text="Start with Windows"
+                                           Style="{StaticResource ST_RowLabel}"/>
+                                <TextBlock Text="Launch ArtLight Control automatically when you log in."
+                                           Style="{StaticResource ST_RowDescription}"/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1"
+                                          Style="{StaticResource ST_Toggle}"
+                                          AutomationProperties.AutomationId="StartWithWindowsToggle"
+                                          AutomationProperties.Name="Start with Windows"
+                                          IsOn="{x:Bind ViewModel.StartWithWindows, Mode=TwoWay}"
+                                          VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <Border Style="{StaticResource ST_Separator}"/>
+
+                        <!-- Only record sessions with a game -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="3" Margin="0,0,16,0">
+                                <TextBlock Text="Only record sessions with a game"
+                                           Style="{StaticResource ST_RowLabel}"/>
+                                <TextBlock Text="Sessions that never launched a game are discarded."
+                                           Style="{StaticResource ST_RowDescription}"/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1"
+                                          Style="{StaticResource ST_Toggle}"
+                                          AutomationProperties.AutomationId="RecordOnlyGameSessionsToggle"
+                                          AutomationProperties.Name="Only record sessions with a game"
+                                          IsOn="{x:Bind ViewModel.RecordOnlyGameSessions, Mode=TwoWay}"
+                                          VerticalAlignment="Center"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Bridge security moved to its own "Clients" section in 8.0. -->
+
+                <!-- ── Maintenance ───────────────────────────────────────── -->
+                <Border Style="{StaticResource ST_Card}">
+                    <StackPanel Spacing="14">
+                        <TextBlock Text="MAINTENANCE" Style="{StaticResource ST_SectionLabel}"/>
+
+                        <Border Style="{StaticResource ST_Separator}"/>
+
+                        <!-- Debug Mode -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="3" Margin="0,0,16,0">
+                                <TextBlock Text="Debug Mode"
+                                           Style="{StaticResource ST_RowLabel}"/>
+                                <TextBlock Text="Simulates an active streaming session for UI testing. No NIC changes are made."
+                                           Style="{StaticResource ST_RowDescription}"/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1"
+                                          x:Name="DebugModeToggle"
+                                          Style="{StaticResource ST_Toggle}"
+                                          AutomationProperties.AutomationId="DebugModeToggle"
+                                          AutomationProperties.Name="Debug mode"
+                                          IsOn="{x:Bind ViewModel.IsDebugModeActive, Mode=OneWay}"
+                                          Toggled="DebugModeToggle_Toggled"
+                                          VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <Border Style="{StaticResource ST_Separator}"/>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Open debug log"
+                                    Style="{StaticResource ST_ButtonSecondary}"
+                                    Click="OpenDebugLog_Click"/>
+                            <Button Content="Clear session history"
+                                    Style="{StaticResource ST_ButtonDanger}"
+                                    Click="ClearSessions_Click"/>
+                        </StackPanel>
+
+                        <TextBlock Text="Session history is stored in sessions.json in the app data folder. Clearing it is permanent."
+                                   Style="{StaticResource ST_RowDescription}"/>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+
+</Page>

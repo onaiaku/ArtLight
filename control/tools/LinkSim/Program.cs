@@ -1,10 +1,10 @@
 using System.Net;
-using StreamTweak;
+using ArtLightControl;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LinkSpeedManager simulator.
 //
-// Replays the real timelines of 27/07/2026 (StreamTweak debug.log + Sunshine log)
+// Replays the real timelines of 27/07/2026 (ArtLightControl debug.log + Sunshine log)
 // plus the cases that were never reached by hand, against virtual time, using the
 // production LinkSpeedManager unmodified.
 //
@@ -17,13 +17,13 @@ using StreamTweak;
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
-// DebugLogger writes to %LOCALAPPDATA%\StreamTweak\debug.log and GetFolderPath ignores the
+// DebugLogger writes to %LOCALAPPDATA%\ArtLightControl\debug.log and GetFolderPath ignores the
 // LOCALAPPDATA environment variable (verified), so a run would otherwise append a few hundred
 // invented "[Link] SETSPEED …" lines to the real diagnostic log — the one we read to find bugs
 // like the one this harness exists for. Snapshot it here and put it back at the end.
 string realLog = Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-    "StreamTweak", "debug.log");
+    "ArtLightControl", "debug.log");
 string logBackup = realLog + ".simbak";
 bool logSaved = false;
 if (File.Exists(realLog))
@@ -109,7 +109,7 @@ Scenario("S2  a slow launch must not be cut off by the unused-change restore  (r
 }
 
 // ── Scenario 3 ───────────────────────────────────────────────────────────────
-// 27/07 17:50: StreamTweak restarted while a stream was running and its startup
+// 27/07 17:50: ArtLightControl restarted while a stream was running and its startup
 // recovery restored the link immediately — 3000 failed sends/s on a live session.
 Scenario("S3  startup recovery must not restore under a live stream  (real: 17:50)");
 {

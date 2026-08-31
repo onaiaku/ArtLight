@@ -1,14 +1,14 @@
 ; =====================================================
-; StreamTweak v8.2.0 - GitHub Release Installer
+; ArtLightControl v8.2.0 - GitHub Release Installer
 ; WinUI 3 (Windows App SDK 2.3) unpackaged deployment
 ; =====================================================
-#define MyAppName "StreamTweak"
+#define MyAppName "ArtLight Control"
 #define MyAppVersion "8.2.0"
 #define MyAppPublisher "FoggyBytes"
-#define MyAppExeName "StreamTweakUI.exe"
-#define MyAppURL "https://github.com/FoggyBytes/StreamTweak"
-#define ServiceName "StreamTweakService"
-#define ServiceExe "StreamTweakService.exe"
+#define MyAppExeName "ArtLightControl.exe"
+#define MyAppURL "https://github.com/onaiaku/ArtLight"
+#define ServiceName "ArtLightControlService"
+#define ServiceExe "ArtLightControlService.exe"
 
 #include "CodeDependencies.iss"
 
@@ -20,30 +20,30 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 InfoBeforeFile=changelog.txt
-SetupIconFile=StreamTweakUI\Resources\streamtweak.ico
-; Wizard artwork lives under installer\ (not StreamTweakUI\Resources\): the WinUI
+SetupIconFile=ArtLightControl\Resources\artlightcontrol.ico
+; Wizard artwork lives under installer\ (not ArtLightControl\Resources\): the WinUI
 ; targets glob images in the app's Resources folder into the build output, which the
 ; [Files] sweep would then ship into {app} — installer-only assets have no business
 ; in the install directory. Same layout as StreamLight.
-WizardSmallImageFile=installer\resources\streamtweak.png
-WizardImageFile=installer\resources\streamtweakinstaller.png
-UninstallDisplayIcon={app}\Resources\streamtweak.ico
+WizardSmallImageFile=installer\resources\artlightcontrol.png
+WizardImageFile=installer\resources\artlightcontrol-installer.png
+UninstallDisplayIcon={app}\Resources\artlightcontrol.ico
 AllowNoIcons=yes
 DirExistsWarning=no
 CloseApplications=yes
 Compression=lzma2
 SolidCompression=yes
 OutputDir=Output
-OutputBaseFilename=StreamTweak_{#MyAppVersion}_Installer
+OutputBaseFilename=ArtLightControl_{#MyAppVersion}_Installer
 ; WinUI 3 + Windows App SDK 2.3 require Windows 10 1903+ (build 18362) — the 2.x line
 ; raised this from the 1809 (17763) floor of the 1.x line.
-; StreamTweak targets 19041 (20H1), which is stricter than both, so nothing changes here.
+; ArtLightControl targets 19041 (20H1), which is stricter than both, so nothing changes here.
 MinVersion=10.0.19041
 PrivilegesRequired=admin
 ; 64-bit Setup binary (Inno Setup 7+). The app is x64-only, so a 32-bit installer
 ; bought nothing; this also gets high-entropy ASLR by default.
 SetupArchitecture=x64
-; x64os (not the deprecated "x64", and not "x64compatible"): StreamTweak is the HOST
+; x64os (not the deprecated "x64", and not "x64compatible"): ArtLightControl is the HOST
 ; tool — it drives the NIC via CIM, reads GPU sensors via D3DKMT/NVML and hosts the
 ; streaming server. Running that emulated on ARM64 is not a scenario worth supporting.
 ; StreamLight, the client, deliberately uses x64compatible instead.
@@ -56,30 +56,30 @@ DisableWelcomePage=no
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
-WelcomeLabel1=Welcome to the StreamTweak Setup Wizard
+WelcomeLabel1=Welcome to the ArtLight Control Setup Wizard
 WelcomeLabel2=
 
 [Files]
 ; ── Main WinUI 3 application ─────────────────────────────────────────────────
-; dotnet build output. StreamTweak.Core.dll is included automatically (ProjectReference).
+; dotnet build output. ArtLightControl.Core.dll is included automatically (ProjectReference).
 ; Excludes:
 ;   *.pdb                        — debug symbols, not needed at runtime
 ;   ref\*                        — compiler-only reference assemblies
-;   StreamTweakUI.exe.WebView2\* — WebView2 user-data folder. The app stopped creating it
+;   ArtLightControl.exe.WebView2\* — WebView2 user-data folder. The app stopped creating it
 ;                                  in 7.2.0 (Store tab removed), but a stale one left over
 ;                                  from the 6.2.x era can still sit in bin and would be
 ;                                  swept in by recursesubdirs — it holds browsing cache
 ;                                  and cookies and must never ship. Safety net only.
-Source: "StreamTweakUI\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\*"; DestDir: "{app}"; Excludes: "*.pdb,ref\*,StreamTweakUI.exe.WebView2\*"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "ArtLightControl\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\*"; DestDir: "{app}"; Excludes: "*.pdb,ref\*,ArtLightControl.exe.WebView2\*"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; ── Background service (LocalSystem account, manages NIC speed via CIM) ─────
-Source: "StreamTweakService\bin\x64\Release\net8.0-windows\win-x64\*"; DestDir: "{app}"; Excludes: "*.pdb,ref\*"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "ArtLightControlService\bin\x64\Release\net8.0-windows\win-x64\*"; DestDir: "{app}"; Excludes: "*.pdb,ref\*"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; ── Release notes ────────────────────────────────────────────────────────────
 Source: "changelog.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 ; ── Installer wizard logo (extracted to temp for the welcome page) ────────────
-Source: "installer\resources\streamtweak.png"; Flags: dontcopy
+Source: "installer\resources\artlightcontrol.png"; Flags: dontcopy
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -173,8 +173,8 @@ begin
   // Before anything is laid out: the window exists by now, but has not been shown.
   MakeWizardFixedSize;
 
-  ExtractTemporaryFile('streamtweak.png');
-  TmpFileName := ExpandConstant('{tmp}\streamtweak.png');
+  ExtractTemporaryFile('artlightcontrol.png');
+  TmpFileName := ExpandConstant('{tmp}\artlightcontrol.png');
 
   LogoImage := TBitmapImage.Create(WizardForm);
   LogoImage.Parent := WizardForm.WelcomePage;
@@ -215,13 +215,13 @@ begin
   GitHubLinkLabel.Font.Style := [fsUnderline];
   GitHubLinkLabel.OnClick := @GitHubLinkClick;
 
-  // Mirror of the StreamTweak page in StreamLight's own installer: each app points at
+  // Mirror of the ArtLightControl page in StreamLight's own installer: each app points at
   // the other, since neither is much use to a streaming setup on its own. Same layout,
   // same full inner-page width — the Welcome page's right panel is too narrow for a
   // bullet list.
   StreamLightPage := CreateCustomPage(wpWelcome,
     'StreamLight — recommended companion app', #13#10 +
-    'Install StreamLight on the device you play from to unlock StreamTweak''s features.');
+    'Install StreamLight on the device you play from to unlock ArtLight Control''s features.');
 
   StreamLightIntroLabel := TNewStaticText.Create(StreamLightPage);
   StreamLightIntroLabel.Parent := StreamLightPage.Surface;
@@ -231,7 +231,7 @@ begin
   StreamLightIntroLabel.WordWrap := True;
   StreamLightIntroLabel.AutoSize := True;
   StreamLightIntroLabel.Caption :=
-    'StreamTweak tunes this host for any Moonlight-compatible client. Paired with ' +
+    'ArtLight Control tunes this host for any Moonlight-compatible client. Paired with ' +
     'StreamLight — a free open-source Moonlight fork for the client device, also ' +
     'developed by FoggyBytes — the two work as one:';
 
@@ -263,9 +263,9 @@ begin
   StreamLightOutroLabel.WordWrap := True;
   StreamLightOutroLabel.AutoSize := True;
   StreamLightOutroLabel.Caption :=
-    'StreamLight is optional — StreamTweak works with any Moonlight-compatible client, ' +
+    'StreamLight is optional — ArtLight Control works with any Moonlight-compatible client, ' +
     'and you can install it on the client device at any time. Click Next to continue ' +
-    'installing StreamTweak.';
+    'installing ArtLight Control.';
 
   StreamLightLearnMoreLabel := TNewStaticText.Create(StreamLightPage);
   StreamLightLearnMoreLabel.Parent := StreamLightPage.Surface;
@@ -291,7 +291,7 @@ var
   ResultCode: Integer;
 begin
   // Stop the service BEFORE [Files] copies anything. On an upgrade over a running
-  // install, StreamTweakService.exe holds a lock on its own binary, so overwriting it
+  // install, ArtLightControlService.exe holds a lock on its own binary, so overwriting it
   // would otherwise depend on Restart Manager (CloseApplications=yes) noticing the
   // service and shutting it down — which is implicit, not guaranteed, and can race
   // with the sc delete/create that runs later in ssPostInstall.
@@ -320,14 +320,14 @@ begin
     Exec('sc.exe',
       'create ' + '{#ServiceName}' +
       ' binPath= "' + AppDir + '\{#ServiceExe}"' +
-      ' DisplayName= "StreamTweak Speed Service"' +
+      ' DisplayName= "ArtLight Control Speed Service"' +
       ' start= auto',
       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
     // Set service description
     Exec('sc.exe',
       'description ' + '{#ServiceName}' +
-      ' "Applies network adapter speed changes for StreamTweak without UAC prompts."',
+      ' "Applies network adapter speed changes for ArtLight Control without UAC prompts."',
       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
     // Start the service immediately
@@ -344,7 +344,7 @@ begin
     Exec('sc.exe', 'stop '   + '{#ServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('sc.exe', 'delete ' + '{#ServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     // Remove autostart registry entry if the user had it enabled in-app
-    RegDeleteValue(HKCU, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Run', 'StreamTweak');
+    RegDeleteValue(HKCU, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Run', 'ArtLightControl');
   end;
 end;
 
