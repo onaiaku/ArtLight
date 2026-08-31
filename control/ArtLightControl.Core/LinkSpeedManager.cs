@@ -52,7 +52,7 @@ namespace ArtLightControl
         public const int RestoreGraceSeconds = 60;
 
         // ⚠️ The host does not decide when to put the link back. It parks at the streaming speed
-        // when a session ends and stays there until a client asks — in StreamLight the user
+        // when a session ends and stays there until a client asks — in ArtMoon the user
         // answers a prompt on returning to the home screen. Three timers used to make that
         // decision here and all three are gone:
         //

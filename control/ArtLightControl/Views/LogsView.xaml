@@ -386,7 +386,7 @@
                                 BorderThickness="1" CornerRadius="8"
                                 Padding="16,14">
                             <StackPanel Spacing="10">
-                                <TextBlock Text="CLIENT  (StreamLight)"
+                                <TextBlock Text="CLIENT  (ArtMoon)"
                                            Style="{StaticResource ST_SectionLabel}"/>
 
                                 <!-- Two metric columns: label · primary value · dim secondary -->
@@ -861,7 +861,7 @@
                                             BorderThickness="1" CornerRadius="8"
                                             Padding="16,14">
                                         <StackPanel Spacing="8">
-                                            <TextBlock Text="CLIENT  (StreamLight)"
+                                            <TextBlock Text="CLIENT  (ArtMoon)"
                                                        Style="{StaticResource ST_SectionLabel}"/>
                                             <!-- column key -->
                                             <Grid>

@@ -16,7 +16,7 @@ namespace ArtLightControl
     public enum EnrollResult { Pending, Approved, Denied }
 
     /// <summary>
-    /// A StreamLight client that has contacted the bridge. Persisted to
+    /// A ArtMoon client that has contacted the bridge. Persisted to
     /// %LOCALAPPDATA%\ArtLightControl\bridgeclients.json. The trust is the client's
     /// existing Moonlight identity certificate (reused — no separate PIN).
     /// </summary>
@@ -33,7 +33,7 @@ namespace ArtLightControl
     }
 
     /// <summary>
-    /// Authenticates StreamLight clients on the TCP bridge (port 47998).
+    /// Authenticates ArtMoon clients on the TCP bridge (port 47998).
     ///
     /// Scheme (see design doc): trust-on-first-use enrollment of the client's
     /// existing Moonlight certificate, then per-command verification of an

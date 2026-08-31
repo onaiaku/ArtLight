@@ -6,7 +6,7 @@ namespace ArtLightControl
     /// <summary>
     /// Lightweight, read-only probe for "are there Windows updates waiting that a
     /// shutdown would install/finalize?". Used by the bridge's UPDATESTATE command so
-    /// an approved StreamLight client can show the user whether "install updates before
+    /// an approved ArtMoon client can show the user whether "install updates before
     /// power-off" has anything to do.
     ///
     /// Detection is the *solid* registry signal only — the two keys Windows sets when an

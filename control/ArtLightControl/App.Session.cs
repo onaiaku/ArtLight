@@ -62,7 +62,7 @@ namespace ArtLightControl
 
                 // Snapshot detected games BEFORE the SampleCount guard.
                 // A retrospective session (ArtLightControl started mid-stream with no prior
-                // telemetry) or a desktop session (no StreamLight connected) may have
+                // telemetry) or a desktop session (no ArtMoon connected) may have
                 // SampleCount < 2 but still have games detected by the process monitor.
                 // Previously the early return on SampleCount < 2 also skipped this
                 // snapshot, so if the host was shut down the checkpoint was never written
@@ -594,7 +594,7 @@ namespace ArtLightControl
         }
 
         // ── Client-heartbeat watchdog ────────────────────────────────────────
-        // Fallback session-end that does NOT depend on the server log. StreamLight sends
+        // Fallback session-end that does NOT depend on the server log. ArtMoon sends
         // SESSIONDATA every second while streaming; its cessation is a reliable "client gone"
         // signal even when the server hangs/crashes on teardown and never logs a disconnect
         // (observed: Sunshine "Fatal: Hang detected! … Stuck waiting for: post-join cleanup",

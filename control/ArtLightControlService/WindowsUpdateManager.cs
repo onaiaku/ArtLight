@@ -6,7 +6,7 @@ namespace ArtLightControlService;
 /// <summary>
 /// Drives Windows Update Agent (WUA) from the LocalSystem service: scan → classify →
 /// download → install → (reboot if required). Used by the remote "Update host" feature
-/// (StreamLight) via the named pipe.
+/// (ArtMoon) via the named pipe.
 ///
 /// Runs WUA through late-bound COM (<c>dynamic</c> + ProgIDs) on purpose: it avoids a
 /// WUApiLib COM interop reference, which would break the Linux CI builds that compile the
@@ -29,7 +29,7 @@ public sealed class WindowsUpdateManager
     private const string CatDefinition = "E0789628-CE08-4437-BE74-2495B842F43B";
     private const string CatUpgrade    = "3689BDC8-B205-4CE4-AE71-B6164B3A92A8";
 
-    // Phases reported to the client (must match the StreamLight state machine).
+    // Phases reported to the client (must match the ArtMoon state machine).
     public const string PhaseIdle        = "IDLE";
     public const string PhaseChecking    = "CHECKING";
     public const string PhaseCheckReady  = "CHECK_READY";

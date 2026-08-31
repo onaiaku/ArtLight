@@ -1,4 +1,4 @@
-using Microsoft.UI;
+﻿using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -196,7 +196,7 @@ namespace ArtLightControl
         private void SidebarUpdateLink_Click(object sender, RoutedEventArgs e)
         {
             _ = Windows.System.Launcher.LaunchUriAsync(
-                new Uri("https://github.com/FoggyBytes/ArtLightControl/releases/latest"));
+                new Uri("https://github.com/onaiaku/ArtLight/releases/latest"));
         }
 
         // ── Bridge client approval (7.1.0) ──────────────────────────────────────
@@ -205,7 +205,7 @@ namespace ArtLightControl
         private readonly Queue<BridgeClient> _pendingApprovals = new();
 
         /// <summary>
-        /// Queues a trust-on-first-use approval prompt for a StreamLight client that
+        /// Queues a trust-on-first-use approval prompt for a ArtMoon client that
         /// just enrolled on the bridge. Safe to call from any thread's dispatch.
         /// </summary>
         public void ShowBridgeApproval(BridgeClient client)
@@ -266,7 +266,7 @@ namespace ArtLightControl
 
                     var dialog = new ContentDialog
                     {
-                        Title             = "Allow StreamLight client?",
+                        Title             = "Allow ArtMoon client?",
                         Content           = content,
                         PrimaryButtonText = "Allow",
                         CloseButtonText   = "Deny",

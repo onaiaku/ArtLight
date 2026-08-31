@@ -1,4 +1,4 @@
-using ArtLightControl;
+﻿using ArtLightControl;
 using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
@@ -47,7 +47,7 @@ namespace ArtLightControl.Services
         public void RaiseLinkSpeedChanged() => LinkSpeedChanged?.Invoke();
 
         /// <summary>
-        /// Signal StreamLight to stop the active streaming session via the next STATS response.
+        /// Signal ArtMoon to stop the active streaming session via the next STATS response.
         /// Sets a one-shot flag consumed by the StatsProvider lambda in App.xaml.cs.
         /// </summary>
         public Action? RequestStopStreamAction { get; set; }
@@ -114,7 +114,7 @@ namespace ArtLightControl.Services
             SpatialAudioStatusChanged?.Invoke(status);
         }
 
-        // ── Live session telemetry (1 sample/sec from StreamLight) ───────────
+        // ── Live session telemetry (1 sample/sec from ArtMoon) ───────────
 
         /// <summary>
         /// One second of live telemetry for the Dashboard live cockpit. Client-side
@@ -126,7 +126,7 @@ namespace ArtLightControl.Services
             float HostLatencyMs, int Gpu, int Enc, int Cpu);
 
         /// <summary>
-        /// Fired every second while a session is active and StreamLight is sending data.
+        /// Fired every second while a session is active and ArtMoon is sending data.
         /// Subscribers must marshal to the UI thread if needed.
         /// </summary>
         public event Action<LiveSample>? LiveTelemetrySample;
@@ -152,7 +152,7 @@ namespace ArtLightControl.Services
 
         /// <summary>
         /// Bitrate ceiling configured on the client for the active session, in Mbps.
-        /// 0 when unknown (StreamLight older than 4.5.0, which doesn't report it) — the
+        /// 0 when unknown (ArtMoon older than 4.5.0, which doesn't report it) — the
         /// Dashboard then shows the delivered rate without a target. Written on every
         /// SESSIONDATA batch, so it self-corrects when a different client connects.
         /// </summary>
@@ -206,7 +206,7 @@ namespace ArtLightControl.Services
 
         // ── Bridge authentication (7.1.0) ─────────────────────────────────────
         //
-        // Set by App.xaml.cs at boot. Holds the approved StreamLight client list
+        // Set by App.xaml.cs at boot. Holds the approved ArtMoon client list
         // and verifies per-command signatures on the TCP bridge. The approval
         // dialog (MainWindow) and the Settings "Bridge clients" list read/write
         // through this instance.
@@ -263,7 +263,7 @@ namespace ArtLightControl.Services
             {
                 _updateHttp.DefaultRequestHeaders.UserAgent.TryParseAdd("ArtLightControl-UpdateCheck");
                 string json = await _updateHttp.GetStringAsync(
-                    "https://api.github.com/repos/FoggyBytes/ArtLightControl/releases/latest");
+                    "https://api.github.com/repos/onaiaku/ArtLight/releases/latest");
 
                 using var doc = JsonDocument.Parse(json);
                 if (!doc.RootElement.TryGetProperty("tag_name", out var tagEl)) return;

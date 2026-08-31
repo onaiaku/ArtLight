@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace ArtLightControl
 {
-    // Host power-off (remote SHUTDOWN / SHUTDOWN_UPDATE from an approved StreamLight client).
+    // Host power-off (remote SHUTDOWN / SHUTDOWN_UPDATE from an approved ArtMoon client).
     // Split out of App.xaml.cs: pure Win32 plumbing, no shared streaming state.
     public partial class App
     {

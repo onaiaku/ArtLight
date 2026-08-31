@@ -150,7 +150,7 @@ namespace ArtLightControl
         public event Action<bool>? UnlockSessionMarked;
 
         /// <summary>
-        /// Raised when a SESSIONDATA command is received from StreamLight.
+        /// Raised when a SESSIONDATA command is received from ArtMoon.
         /// The argument is the deserialized ClientBatch for the current session.
         /// Subscribe in App.xaml.cs to feed the TelemetryAccumulator.
         /// </summary>
@@ -172,7 +172,7 @@ namespace ArtLightControl
 
         /// <summary>
         /// Raised when a SHUTDOWN / SHUTDOWN_UPDATE command is received from an
-        /// authenticated StreamLight client. Powers off the host PC; the bool argument is
+        /// authenticated ArtMoon client. Powers off the host PC; the bool argument is
         /// true when pending Windows updates should be installed first ("Update and shut
         /// down"). Subscribe in App.xaml.cs.
         /// Both commands are destructive, so they are only ever raised for a command that
@@ -592,7 +592,7 @@ namespace ArtLightControl
         }
 
         // Decodes the optional base64 client hostname sent with ENROLL into the device
-        // label (the bare device name, e.g. "Foggy-Ally"). Falls back to the remote IP for
+        // label (the bare device name, e.g. "Niks-ROGAlly"). Falls back to the remote IP for
         // older clients that don't send a name. Newlines stripped and length capped so a
         // hostile peer cannot inject control characters or an oversized label.
         // Label shown in the host UI ("switched by …"). Prefers the approved client's friendly
@@ -618,7 +618,7 @@ namespace ArtLightControl
                 }
                 catch { }
             }
-            return remote != null ? remote.Address.ToString() : "StreamLight";
+            return remote != null ? remote.Address.ToString() : "ArtMoon";
         }
 
         // Reads a single '\n'-terminated line, capping the length at maxChars so an

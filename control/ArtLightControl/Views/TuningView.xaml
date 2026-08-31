@@ -1,4 +1,4 @@
-<Page
+﻿<Page
     x:Class="ArtLightControl.Views.TuningView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -122,12 +122,12 @@
                                     <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center" Margin="0,0,16,0">
                                         <StackPanel Orientation="Horizontal" Spacing="7">
                                             <TextBlock Text="Let clients change the link speed" Style="{StaticResource ST_RowLabel}" VerticalAlignment="Center"/>
-                                            <ctrl:InfoHint Term="Link-speed switch" Tip="Permission, not configuration: the adapter is this PC's hardware. Turn it off while you need full speed for something else. Clients older than StreamLight 4.6.0 can't ask at all — they stream normally and leave the link alone."/>
+                                            <ctrl:InfoHint Term="Link-speed switch" Tip="Permission, not configuration: the adapter is this PC's hardware. Turn it off while you need full speed for something else. Clients older than ArtMoon 4.6.0 can't ask at all — they stream normally and leave the link alone."/>
                                         </StackPanel>
                                         <!-- One line: the version requirement is the part that
                                              can't be guessed, the rest lives in the hint. -->
                                         <TextBlock Style="{StaticResource ST_RowDescription}" TextWrapping="Wrap"
-                                                   Text="StreamLight 4.6.0 or later asks for the speed that matches its own wired connection."/>
+                                                   Text="ArtMoon 4.6.0 or later asks for the speed that matches its own wired connection."/>
                                     </StackPanel>
                                     <ToggleSwitch Grid.Column="1" Style="{StaticResource ST_Toggle}" VerticalAlignment="Center"
                                                   IsOn="{x:Bind Net.AllowClientControl, Mode=TwoWay}"/>

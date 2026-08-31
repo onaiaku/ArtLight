@@ -150,7 +150,7 @@ namespace ArtLightControl
             // Primary: check active TCP connections on port 48010 (RTSP).
             // Sunshine / Apollo / Vibeshine / Vibepollo maintain this connection
             // for the entire session — instantaneous, no log parsing, works with
-            // any Moonlight-compatible client (not just StreamLight).
+            // any Moonlight-compatible client (not just ArtMoon).
             if (LogParser.HasActiveMoonlightSession())
             {
                 FireRetrospectiveStarted();

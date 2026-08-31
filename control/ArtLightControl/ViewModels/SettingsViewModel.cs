@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Reflection;
 using Microsoft.Win32;
@@ -38,11 +38,11 @@ namespace ArtLightControl.ViewModels
                 ? $"Version {AppStateService.Instance.LatestVersion} is available on GitHub."
                 : string.Empty;
 
-        private string _streamLightVersion = "Checking…";
-        public string StreamLightVersion
+        private string _artMoonVersion = "Checking…";
+        public string ArtMoonVersion
         {
-            get => _streamLightVersion;
-            private set => SetProperty(ref _streamLightVersion, value);
+            get => _artMoonVersion;
+            private set => SetProperty(ref _artMoonVersion, value);
         }
 
         // ── Paths ─────────────────────────────────────────────────────────────
@@ -174,7 +174,7 @@ namespace ArtLightControl.ViewModels
         }
 
         // ── Bridge security (7.2.0) ───────────────────────────────────────────
-        // Authentication between ArtLightControl and StreamLight is now mandatory; the
+        // Authentication between ArtLightControl and ArtMoon is now mandatory; the
         // toggle that allowed turning it off (BridgeRequireAuth) was removed in 7.2.0.
 
         public ObservableCollection<BridgeClientItem> BridgeClients { get; } = new();
@@ -182,11 +182,11 @@ namespace ArtLightControl.ViewModels
         public bool HasNoBridgeClients => BridgeClients.Count == 0;
 
         // Show only the bare device name. Older enrollments were stored with a
-        // "StreamLight @ " prefix (DecodeClientName no longer adds it); strip it here so
+        // "ArtMoon @ " prefix (DecodeClientName no longer adds it); strip it here so
         // existing entries display cleanly too.
-        private static string StripStreamLightPrefix(string? name)
+        private static string StripArtMoonPrefix(string? name)
         {
-            const string prefix = "StreamLight @ ";
+            const string prefix = "ArtMoon @ ";
             if (string.IsNullOrEmpty(name)) return "";
             return name.StartsWith(prefix, StringComparison.Ordinal) ? name.Substring(prefix.Length) : name;
         }
@@ -208,7 +208,7 @@ namespace ArtLightControl.ViewModels
                     BridgeClients.Add(new BridgeClientItem
                     {
                         UniqueId         = c.UniqueId,
-                        Name             = StripStreamLightPrefix(c.Name),
+                        Name             = StripArtMoonPrefix(c.Name),
                         StatusLabel      = status,
                         CanApprove       = c.Status == "pending" || c.Status == "denied",
                         StatusColorHex   = color,
@@ -281,8 +281,8 @@ namespace ArtLightControl.ViewModels
             OnPropertyChanged(nameof(StartWithWindows));
             OnPropertyChanged(nameof(RecordOnlyGameSessions));
 
-            // Fetch StreamLight latest release from GitHub (fire-and-forget)
-            _ = LoadStreamLightVersionAsync();
+            // Fetch ArtMoon latest release from GitHub (fire-and-forget)
+            _ = LoadArtMoonVersionAsync();
         }
 
         private static readonly HttpClient _httpClient = new()
@@ -290,20 +290,20 @@ namespace ArtLightControl.ViewModels
             DefaultRequestHeaders = { { "User-Agent", "ArtLightControl" } }
         };
 
-        private async Task LoadStreamLightVersionAsync()
+        private async Task LoadArtMoonVersionAsync()
         {
             try
             {
                 var json = await _httpClient.GetStringAsync(
-                    "https://api.github.com/repos/FoggyBytes/StreamLight/releases/latest");
+                    "https://api.github.com/repos/onaiaku/ArtMoon/releases/latest");
                 using var doc = System.Text.Json.JsonDocument.Parse(json);
-                StreamLightVersion = doc.RootElement.TryGetProperty("tag_name", out var tag)
+                ArtMoonVersion = doc.RootElement.TryGetProperty("tag_name", out var tag)
                     ? tag.GetString() ?? "N/A"
                     : "N/A";
             }
             catch
             {
-                StreamLightVersion = "Unavailable";
+                ArtMoonVersion = "Unavailable";
             }
         }
 

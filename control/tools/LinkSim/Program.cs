@@ -55,7 +55,7 @@ void Scenario(string name)
 Scenario("S1  switch 2.5G -> 1G, client launches on idle  (real: 17:38, 18:06)");
 {
     var (env, mgr) = Build(linkMbps: 2500);
-    var r = mgr.RequestSpeed(1000, "Foggy-Ally", IPAddress.Parse("192.168.188.32"));
+    var r = mgr.RequestSpeed(1000, "Test-Ally", IPAddress.Parse("192.168.188.32"));
     Check("S1", "SETSPEED accepted", r == SpeedRequestResult.Accepted, r.ToString());
     env.Quiesce();
     Check("S1", "state is changing immediately", mgr.State == LinkSpeedState.Changing, mgr.State.ToString());
@@ -93,7 +93,7 @@ Scenario("S1  switch 2.5G -> 1G, client launches on idle  (real: 17:38, 18:06)")
 Scenario("S2  a slow launch must not be cut off by the unused-change restore  (real: 18:03/18:04)");
 {
     var (env, mgr) = Build(linkMbps: 2500);
-    mgr.RequestSpeed(1000, "Foggy-Ally", null);
+    mgr.RequestSpeed(1000, "Test-Ally", null);
     env.AdvanceUntilIdle(mgr);
     int applies = env.ApplyCount;
 
@@ -138,7 +138,7 @@ Scenario("S4  a ghost session must still block a switch  (real: 18:03)");
     var (env, mgr) = Build(linkMbps: 2500);
     env.StreamLive = true;              // the probe sees it
     // mgr.SessionActive stays false — the log-derived flag is wrong, as it was that evening.
-    var r = mgr.RequestSpeed(1000, "Foggy-Ally", null);
+    var r = mgr.RequestSpeed(1000, "Test-Ally", null);
     env.Quiesce();
     Check("S4", "SETSPEED refused as busy", r == SpeedRequestResult.Busy, r.ToString());
     Check("S4", "the adapter was never touched", env.ApplyCount == 0, $"{env.ApplyCount} applies");
@@ -152,7 +152,7 @@ Scenario("S4  a ghost session must still block a switch  (real: 18:03)");
 Scenario("S5  relaunch at T+55 s inside the restore grace");
 {
     var (env, mgr) = Build(linkMbps: 2500);
-    mgr.RequestSpeed(1000, "Foggy-Ally", null);
+    mgr.RequestSpeed(1000, "Test-Ally", null);
     env.AdvanceUntilIdle(mgr);
     mgr.OnSessionStarted();
     env.Advance(TimeSpan.FromSeconds(600));
@@ -160,7 +160,7 @@ Scenario("S5  relaunch at T+55 s inside the restore grace");
     int applies = env.ApplyCount;
 
     env.Advance(TimeSpan.FromSeconds(55));
-    var r = mgr.RequestSpeed(1000, "Foggy-Ally", null);   // already at 1000
+    var r = mgr.RequestSpeed(1000, "Test-Ally", null);   // already at 1000
     env.Quiesce();
     Check("S5", "same-speed request accepted", r == SpeedRequestResult.Accepted, r.ToString());
     Check("S5", "no second renegotiation", env.ApplyCount == applies, $"{env.ApplyCount - applies} extra applies");
@@ -177,7 +177,7 @@ Scenario("S6  adapter settles at the wrong rate — the client must be released"
 {
     var (env, mgr) = Build(linkMbps: 2500);
     env.ForceSettleMbps = 2500;         // the write is accepted but the rate does not change
-    mgr.RequestSpeed(1000, "Foggy-Ally", null);
+    mgr.RequestSpeed(1000, "Test-Ally", null);
     env.Advance(TimeSpan.FromSeconds(90));
     Check("S6", "state returns to idle (never stuck on changing)",
           mgr.State == LinkSpeedState.Idle, mgr.State.ToString());
@@ -189,7 +189,7 @@ Scenario("S6  adapter settles at the wrong rate — the client must be released"
 Scenario("S7  a second client during the change must be refused, not queued");
 {
     var (env, mgr) = Build(linkMbps: 2500);
-    mgr.RequestSpeed(1000, "Foggy-Ally", null);
+    mgr.RequestSpeed(1000, "Test-Ally", null);
     env.Quiesce();
     env.Advance(TimeSpan.FromSeconds(2));
     var r = mgr.RequestSpeed(100, "Other-Client", null);
@@ -214,7 +214,7 @@ Scenario("S8  same-speed request during a live stream stays a restore-cancelling
     env.Quiesce();
     int applies = env.ApplyCount;
 
-    var r = mgr.RequestSpeed(1000, "Foggy-Ally", null);
+    var r = mgr.RequestSpeed(1000, "Test-Ally", null);
     env.Quiesce();
     Check("S8", "accepted, not refused as busy", r == SpeedRequestResult.Accepted, r.ToString());
     Check("S8", "no adapter write", env.ApplyCount == applies, $"{env.ApplyCount - applies} extra applies");
@@ -227,7 +227,7 @@ Scenario("S8  same-speed request during a live stream stays a restore-cancelling
 Scenario("S9  a change no session ever used is left alone");
 {
     var (env, mgr) = Build(linkMbps: 2500);
-    mgr.RequestSpeed(1000, "Foggy-Ally", null);
+    mgr.RequestSpeed(1000, "Test-Ally", null);
     env.AdvanceUntilIdle(mgr);
     Check("S9", "switched to 1 Gbps", mgr.CurrentMbps == 1000, $"{mgr.CurrentMbps} Mbps");
 
@@ -242,7 +242,7 @@ Scenario("S9  a change no session ever used is left alone");
 Scenario("S10  a disconnect with the game still running parks the speed, it does not restore");
 {
     var (env, mgr) = Build(linkMbps: 2500);
-    mgr.RequestSpeed(1000, "Foggy-Ally", null);
+    mgr.RequestSpeed(1000, "Test-Ally", null);
     env.AdvanceUntilIdle(mgr);
     mgr.OnSessionStarted();
     env.Advance(TimeSpan.FromSeconds(300));
@@ -267,7 +267,7 @@ Scenario("S10  a disconnect with the game still running parks the speed, it does
 Scenario("S11  the game exiting on the host does not restore by itself");
 {
     var (env, mgr) = Build(linkMbps: 2500);
-    mgr.RequestSpeed(1000, "Foggy-Ally", null);
+    mgr.RequestSpeed(1000, "Test-Ally", null);
     env.AdvanceUntilIdle(mgr);
     mgr.OnSessionStarted();
     env.Advance(TimeSpan.FromSeconds(120));
@@ -288,7 +288,7 @@ Scenario("S11  the game exiting on the host does not restore by itself");
 Scenario("S12  parked stays parked — no cap puts it back on its own");
 {
     var (env, mgr) = Build(linkMbps: 2500);
-    mgr.RequestSpeed(1000, "Foggy-Ally", null);
+    mgr.RequestSpeed(1000, "Test-Ally", null);
     env.AdvanceUntilIdle(mgr);
     mgr.OnSessionStarted();
     env.Advance(TimeSpan.FromSeconds(60));
@@ -311,7 +311,7 @@ Scenario("S12  parked stays parked — no cap puts it back on its own");
 Scenario("S13  an explicit client RESTORE puts the link back at once");
 {
     var (env, mgr) = Build(linkMbps: 2500);
-    mgr.RequestSpeed(1000, "Foggy-Ally", null);
+    mgr.RequestSpeed(1000, "Test-Ally", null);
     env.AdvanceUntilIdle(mgr);
     mgr.OnSessionStarted();
     env.Advance(TimeSpan.FromSeconds(60));
@@ -332,7 +332,7 @@ Scenario("S13  an explicit client RESTORE puts the link back at once");
 Scenario("S14  an explicit RESTORE is still refused while the stream is live");
 {
     var (env, mgr) = Build(linkMbps: 2500);
-    mgr.RequestSpeed(1000, "Foggy-Ally", null);
+    mgr.RequestSpeed(1000, "Test-Ally", null);
     env.AdvanceUntilIdle(mgr);
     mgr.OnSessionStarted();
     env.Advance(TimeSpan.FromSeconds(30));
@@ -393,14 +393,14 @@ Scenario("S15  end-of-session log lines are recognised (real lines, all four ser
 Scenario("S16  the link match works inside App's post-session grace period");
 {
     var (env, mgr) = Build(linkMbps: 2500);
-    mgr.RequestSpeed(1000, "Foggy-Ally", null);
+    mgr.RequestSpeed(1000, "Test-Ally", null);
     env.AdvanceUntilIdle(mgr);
     mgr.OnSessionStarted();
     env.Advance(TimeSpan.FromSeconds(120));
 
     // The invariant this must not cost us.
     Check("S16", "refused while the stream is live",
-          mgr.RequestSpeed(100, "Foggy-Ally", null) == SpeedRequestResult.Busy);
+          mgr.RequestSpeed(100, "Test-Ally", null) == SpeedRequestResult.Busy);
 
     // CLIENT DISCONNECTED. App starts its 30 s timer and tells the manager now.
     mgr.OnStreamDisconnected();
@@ -412,12 +412,12 @@ Scenario("S16  the link match works inside App's post-session grace period");
     // even when the link already matches (§38), so this is the ordinary case, not an edge one.
     env.Advance(TimeSpan.FromSeconds(5));
     Check("S16", "a relaunch inside the window is accepted",
-          mgr.RequestSpeed(1000, "Foggy-Ally", null) == SpeedRequestResult.Accepted);
+          mgr.RequestSpeed(1000, "Test-Ally", null) == SpeedRequestResult.Accepted);
 
     // …and so is the half that actually renegotiates.
     int applies = env.ApplyCount;
     Check("S16", "and so is a request that really renegotiates",
-          mgr.RequestSpeed(100, "Foggy-Ally", null) == SpeedRequestResult.Accepted);
+          mgr.RequestSpeed(100, "Test-Ally", null) == SpeedRequestResult.Accepted);
     env.AdvanceUntilIdle(mgr);
     Check("S16", "which was applied", env.ApplyCount > applies && mgr.CurrentMbps == 100,
           $"{mgr.CurrentMbps} Mbps");
@@ -432,7 +432,7 @@ Scenario("S16  the link match works inside App's post-session grace period");
 Scenario("S17  the grace window is not a hole in the guard");
 {
     var (env, mgr) = Build(linkMbps: 2500);
-    mgr.RequestSpeed(1000, "Foggy-Ally", null);
+    mgr.RequestSpeed(1000, "Test-Ally", null);
     env.AdvanceUntilIdle(mgr);
     mgr.OnSessionStarted();
     env.Advance(TimeSpan.FromSeconds(60));
@@ -445,7 +445,7 @@ Scenario("S17  the grace window is not a hole in the guard");
     mgr.OnSessionStarted();
     Check("S17", "a resume inside the window counts as live again", mgr.SessionActive);
     Check("S17", "and is refused",
-          mgr.RequestSpeed(100, "Foggy-Ally", null) == SpeedRequestResult.Busy);
+          mgr.RequestSpeed(100, "Test-Ally", null) == SpeedRequestResult.Busy);
 
     // (b) The server is still streaming but never logged its disconnect. The flag cannot see
     // that — it is log-derived — and the probe is the guard that does not depend on the log.
@@ -453,7 +453,7 @@ Scenario("S17  the grace window is not a hole in the guard");
     env.StreamLive = true;
     int applies = env.ApplyCount;
     Check("S17", "the probe still blocks with the flag clear",
-          mgr.RequestSpeed(100, "Foggy-Ally", null) == SpeedRequestResult.Busy);
+          mgr.RequestSpeed(100, "Test-Ally", null) == SpeedRequestResult.Busy);
     env.Advance(TimeSpan.FromSeconds(30));
     Check("S17", "and nothing was applied", env.ApplyCount == applies && mgr.CurrentMbps == 1000,
           $"{mgr.CurrentMbps} Mbps");

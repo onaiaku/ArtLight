@@ -24,7 +24,7 @@ namespace ArtLightControl
         public int Cpu;         // CPU utilization %
         public int NetTxMbps;   // Network outbound throughput on the primary interface, Mbps
 
-        /// <summary>Serializes to the wire format expected by StreamLight's STATS command.</summary>
+        /// <summary>Serializes to the wire format expected by ArtMoon's STATS command.</summary>
         public string ToJson() =>
             $"{{\"gpu\":{Gpu},\"gpu_enc\":{GpuEnc},\"gpu_temp\":{GpuTemp}," +
             $"\"vram_used\":{VramUsedMb},\"vram_total\":{VramTotalMb},\"cpu\":{Cpu},\"net_tx\":{NetTxMbps}}}";
@@ -96,7 +96,7 @@ namespace ArtLightControl
         /// The first read after an idle period returns all -1 — the rate counters need two
         /// reads a second apart before they mean anything, and reporting the pre-idle sample
         /// would be reporting a stale figure as a live one. Consumers already treat all -1 as
-        /// "unavailable" (StreamLight hides the host metrics section), so the values simply
+        /// "unavailable" (ArtMoon hides the host metrics section), so the values simply
         /// appear one tick into a session instead of instantly.
         /// </remarks>
         public HostMetricsSample GetLatestSample()

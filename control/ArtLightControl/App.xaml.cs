@@ -200,13 +200,13 @@ namespace ArtLightControl
             AppStateService.Instance.LinkSpeed = _linkSpeed;
             _linkSpeed.RecoverAtStartup();
 
-            // TCP bridge (StreamLight → ArtLightControl commands)
+            // TCP bridge (ArtMoon → ArtLightControl commands)
             _bridge.LinkSpeed            = _linkSpeed;
             _bridge.RestoreRequested    += OnBridgeRestoreRequested;
             _bridge.ShutdownRequested   += OnBridgeShutdownRequested;
             _bridge.SessionDataReceived += OnSessionDataReceived;
 
-            // Bridge authentication (7.2.0): mandatory. Only StreamLight clients the
+            // Bridge authentication (7.2.0): mandatory. Only ArtMoon clients the
             // user has approved on this host may issue commands; the ability to turn
             // authentication off was removed (the previous BridgeRequireAuth toggle).
             // Configured before Start() so the very first incoming connection is gated.
@@ -445,7 +445,7 @@ namespace ArtLightControl
             });
         }
 
-        // An approved StreamLight client asked the host to power off (Power → Host/Both).
+        // An approved ArtMoon client asked the host to power off (Power → Host/Both).
         // The bridge only raises this for a verified-authenticated SHUTDOWN, so no further
         // auth check is needed here. Runs in the interactive UI process, which already
         // holds SeShutdownPrivilege — no service/pipe round-trip required.

@@ -5,7 +5,7 @@ namespace ArtLightControl
 {
     /// <summary>
     /// Lightweight, read-only probe for "is this host sitting at a lock or logon screen?".
-    /// Used by the bridge's LOCKSTATE command so an approved StreamLight client can decide
+    /// Used by the bridge's LOCKSTATE command so an approved ArtMoon client can decide
     /// whether it needs to show its PIN pad at all — and, after sending a PIN, whether the
     /// attempt worked.
     ///

@@ -37,7 +37,7 @@ namespace ArtLightControl.ViewModels
         public SessionGameCover(string gameName) => GameName = gameName;
     }
 
-    // ── One approved StreamLight client (Dashboard "Paired clients" list) ─────
+    // ── One approved ArtMoon client (Dashboard "Paired clients" list) ─────
     public sealed class HomeClientRow
     {
         public string Name         { get; init; } = "";
@@ -323,7 +323,7 @@ namespace ArtLightControl.ViewModels
         private string _liveFpsNumber = "—";
         public string LiveFpsNumber { get => _liveFpsNumber; private set => SetProperty(ref _liveFpsNumber, value); }
 
-        // "of N Mbps target" once the client reports its ceiling (StreamLight 4.5.0+),
+        // "of N Mbps target" once the client reports its ceiling (ArtMoon 4.5.0+),
         // otherwise the plain "live outbound" caption used before the field existed.
         private string _liveBitrateSub = "live outbound";
         public string LiveBitrateSub { get => _liveBitrateSub; private set => SetProperty(ref _liveBitrateSub, value); }
@@ -762,7 +762,7 @@ namespace ArtLightControl.ViewModels
         private string _weekPerfStreamed = "—";
         public string WeekPerfStreamed { get => _weekPerfStreamed; private set => SetProperty(ref _weekPerfStreamed, value); }
 
-        // ── Paired StreamLight clients (Dashboard bottom-right) ───────────────
+        // ── Paired ArtMoon clients (Dashboard bottom-right) ───────────────
         public ObservableCollection<HomeClientRow> PairedClients { get; } = new();
 
         private bool _hasPairedClients;
@@ -1354,7 +1354,7 @@ namespace ArtLightControl.ViewModels
 
             // Performance trend — one point per graded session (oldest → newest).
             // RTT is always present; host frame latency only for sessions recorded with
-            // StreamLight ≥ 4.0.1, so that line is added only when there is real data.
+            // ArtMoon ≥ 4.0.1, so that line is added only when there is real data.
             var ordered  = wkStats.OrderBy(s => s.StartTime).ToList();
             var rttData  = ordered.Select(s => (float)s.QualityStats!.RttAvgMs).ToList();
             var hostData = ordered
@@ -1469,7 +1469,7 @@ namespace ArtLightControl.ViewModels
 
                         PairedClients.Add(new HomeClientRow
                         {
-                            Name         = string.IsNullOrWhiteSpace(c.Name) ? "StreamLight client" : c.Name,
+                            Name         = string.IsNullOrWhiteSpace(c.Name) ? "ArtMoon client" : c.Name,
                             LastSeenText = seen,
                         });
                     }
@@ -1526,15 +1526,15 @@ namespace ArtLightControl.ViewModels
 
         public void OpenGitHub()
             => _ = Windows.System.Launcher.LaunchUriAsync(
-                new Uri("https://github.com/FoggyBytes/ArtLightControl"));
+                new Uri("https://github.com/onaiaku/ArtLight"));
 
         public void OpenPayPal()
             => _ = Windows.System.Launcher.LaunchUriAsync(
-                new Uri("https://paypal.me/foggybytes"));
+                new Uri("https://github.com/onaiaku/ArtLight"));
 
         public void OpenLicense()
             => _ = Windows.System.Launcher.LaunchUriAsync(
-                new Uri("https://github.com/FoggyBytes/ArtLightControl/blob/main/LICENSE"));
+                new Uri("https://github.com/onaiaku/ArtLight/blob/main/LICENSE"));
 
         private static string FormatTotalDuration(TimeSpan t)
         {
@@ -1784,7 +1784,7 @@ namespace ArtLightControl.ViewModels
                 LiveBitrateValue  = s.BitrateMbps >= 100f ? $"{s.BitrateMbps:0} Mbps" : $"{s.BitrateMbps:0.0} Mbps";
                 LiveBitrateNumber = s.BitrateMbps >= 100f ? $"{s.BitrateMbps:0}"      : $"{s.BitrateMbps:0.0}";
 
-                // Host frame latency (capture + encode); "—" until StreamLight reports it.
+                // Host frame latency (capture + encode); "—" until ArtMoon reports it.
                 LiveHostLatNumber = _hostLatBuffer.Count > 0 ? $"{_hostLatBuffer[^1]:0.0}" : "—";
 
                 // Frame rate (live state box).

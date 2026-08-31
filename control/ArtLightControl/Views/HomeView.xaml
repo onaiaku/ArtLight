@@ -305,7 +305,7 @@
                                 <!-- Covers first, figures after, the figures flush right. The strip
                                      used to sit on the right with the numbers on the left, which put
                                      the card's widest gap in its own middle; reading now runs from the
-                                     artwork into the numbers. Matches StreamLight's host card, which
+                                     artwork into the numbers. Matches ArtMoon's host card, which
                                      shows the same session. -->
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
 
@@ -611,7 +611,7 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
 
-                                <TextBlock Text="No approved clients yet. Approve a StreamLight client from the Clients page."
+                                <TextBlock Text="No approved clients yet. Approve a ArtMoon client from the Clients page."
                                            Style="{StaticResource ST_BodySmall}" TextWrapping="Wrap"
                                            Visibility="{x:Bind ViewModel.HasPairedClients, Mode=OneWay, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
                             </StackPanel>

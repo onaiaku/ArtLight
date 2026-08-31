@@ -593,7 +593,7 @@ namespace ArtLightControl
         // ── Battle.net ────────────────────────────────────────────────────────
         // Reads %ProgramData%\Battle.net\Agent\aggregate.json which the Battle.net Agent
         // keeps up to date with every installed product. ExePath is always the Battle.net
-        // client executable — launching from StreamLight opens Battle.net so the user can
+        // client executable — launching from ArtMoon opens Battle.net so the user can
         // click Play. This avoids the hardcoded LauncherId dictionary that DLSS Swap requires.
 
         private static readonly HashSet<string> _bnetSkip =

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -35,7 +35,7 @@ namespace ArtLightControl
             var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
             string ver = v != null ? $"{v.Major}.{v.Minor}.{v.Build}" : "7.3";
             _http.DefaultRequestHeaders.Add("User-Agent",
-                $"ArtLightControl/{ver} (FoggyBytes; https://github.com/FoggyBytes/ArtLightControl)");
+                $"ArtLightControl/{ver} (onaiaku; https://github.com/onaiaku/ArtLight)");
         }
 
         /// <summary>

@@ -1,4 +1,4 @@
-using Microsoft.UI.Xaml;
+﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using ArtLightControl.Services;
@@ -64,15 +64,15 @@ namespace ArtLightControl.Views
 
         private async void OpenDonate_Click(object sender, RoutedEventArgs e)
             => await Windows.System.Launcher.LaunchUriAsync(
-                new Uri("https://www.paypal.com/paypalme/foggypunk"));
+                new Uri("https://github.com/onaiaku/ArtLight"));
 
         private async void OpenArtLightControlReleases_Click(object sender, RoutedEventArgs e)
             => await Windows.System.Launcher.LaunchUriAsync(
-                new Uri("https://github.com/FoggyBytes/ArtLightControl/releases"));
+                new Uri("https://github.com/onaiaku/ArtLight/releases"));
 
-        private async void OpenStreamLightReleases_Click(object sender, RoutedEventArgs e)
+        private async void OpenArtMoonReleases_Click(object sender, RoutedEventArgs e)
             => await Windows.System.Launcher.LaunchUriAsync(
-                new Uri("https://github.com/FoggyBytes/StreamLight/releases"));
+                new Uri("https://github.com/onaiaku/ArtMoon/releases"));
 
         private async void OpenServerRepo_Click(object sender, RoutedEventArgs e)
         {

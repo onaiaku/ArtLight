@@ -25,7 +25,7 @@
     <AssemblyName>ArtLightControl</AssemblyName>
     <AssemblyTitle>ArtLightControl</AssemblyTitle>
     <Product>ArtLightControl</Product>
-    <Company>FoggyBytes</Company>
+    <Company>onaiaku</Company>
     <!-- Keeps the compiler-generated Main (renamed to XamlGeneratedProgram.XamlGeneratedMain)
          but stops it being the entry point, so Program.cs can opt into the WinAppSDK 2.3
          XAML performance changes before Application.Start. See Program.cs. -->

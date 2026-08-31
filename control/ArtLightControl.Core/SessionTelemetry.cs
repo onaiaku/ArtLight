@@ -29,8 +29,8 @@ namespace ArtLightControl
         [JsonPropertyName("decode_ms")]    public float DecodeMs       { get; set; }
         [JsonPropertyName("bitrate_mbps")] public float BitrateAvgMbps { get; set; }
         // Host frame-processing latency (capture+encode) reported by the host in
-        // each video frame header and surfaced by StreamLight 4.1.0+. 0 = the
-        // client did not report it (older StreamLight, or no host timestamps).
+        // each video frame header and surfaced by ArtMoon 4.1.0+. 0 = the
+        // client did not report it (older ArtMoon, or no host timestamps).
         [JsonPropertyName("host_latency_avg")] public float HostLatencyAvg { get; set; }
         [JsonPropertyName("host_latency_max")] public float HostLatencyMax { get; set; }
     }
@@ -43,7 +43,7 @@ namespace ArtLightControl
 
         /// <summary>
         /// Configured bitrate ceiling for the session, in Mbps (same unit as the per-sample
-        /// bitrate). Sent by StreamLight 4.5.0+; stays 0 with older clients, which is how the
+        /// bitrate). Sent by ArtMoon 4.5.0+; stays 0 with older clients, which is how the
         /// UI knows to fall back to showing the delivered rate alone. Comparing the two is the
         /// point: neither side can do it on its own — the client sets the target, the host
         /// measures what actually goes out.
@@ -164,7 +164,7 @@ namespace ArtLightControl
                     _decodeTimeSeries.Add(s.DecodeMs);
 
                     // Host frame-processing latency — only when the client reported it
-                    // (>0). Older StreamLight builds send 0; excluded from the average,
+                    // (>0). Older ArtMoon builds send 0; excluded from the average,
                     // the spike tracker and the sparkline so they read N/A, not zero.
                     if (s.HostLatencyAvg > 0f)
                     {

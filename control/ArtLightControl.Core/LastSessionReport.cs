@@ -14,7 +14,7 @@ namespace ArtLightControl
 {
     /// <summary>
     /// Serves the host's most recent finished session over the bridge (LASTSESSION), so a
-    /// StreamLight client can show on its own home screen what ArtLightControl's Dashboard shows
+    /// ArtMoon client can show on its own home screen what ArtLightControl's Dashboard shows
     /// on the host: the grade, how long ago, how long it ran, and the three headline numbers.
     ///
     /// This is the host's last session, not the asking client's — ArtLightControl logs whatever

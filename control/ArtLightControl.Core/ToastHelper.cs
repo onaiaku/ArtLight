@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using Windows.Data.Xml.Dom;
@@ -8,7 +8,7 @@ namespace ArtLightControl
 {
     public static class ToastHelper
     {
-        private const string AppId = "FoggyBytes.ArtLightControl";
+        private const string AppId = "onaiaku.ArtLightControl";
 
         [DllImport("shell32.dll", SetLastError = true)]
         private static extern int SetCurrentProcessExplicitAppUserModelID(

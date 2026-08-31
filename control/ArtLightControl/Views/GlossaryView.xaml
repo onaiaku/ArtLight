@@ -13,7 +13,7 @@
 
         <StackPanel Grid.Row="0" Spacing="3" Margin="0,0,0,14">
             <TextBlock Text="Glossary" Style="{StaticResource ST_PageTitle}"/>
-            <TextBlock Text="Technical terms used across ArtLight Control and StreamLight."
+            <TextBlock Text="Technical terms used across ArtLight Control and ArtMoon."
                        Style="{StaticResource ST_PageSubtitle}"/>
         </StackPanel>
 
@@ -134,9 +134,9 @@
                     <Rectangle Height="0.5" Fill="{StaticResource STBorderActive}" Margin="0,0,0,10"/>
 
                     <local:GlossaryRow Term="Bridge"
-                                       Definition="Authenticated TCP channel (port 47998) between StreamLight and ArtLightControl for the advanced integration — host metrics, link-speed switch, power-off. Streaming itself never uses it."/>
+                                       Definition="Authenticated TCP channel (port 47998) between ArtMoon and ArtLightControl for the advanced integration — host metrics, link-speed switch, power-off. Streaming itself never uses it."/>
                     <local:GlossaryRow Term="Client approval"
-                                       Definition="A StreamLight device must be approved once (a 4-digit PIN shown on both sides is compared out of band) before it can use the bridge integration. Its Moonlight certificate then signs every command."/>
+                                       Definition="A ArtMoon device must be approved once (a 4-digit PIN shown on both sides is compared out of band) before it can use the bridge integration. Its Moonlight certificate then signs every command."/>
 
                     <!-- ── STREAMING SERVERS ── -->
                     <TextBlock Text="// STREAMING SERVERS"

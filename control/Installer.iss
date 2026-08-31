@@ -4,7 +4,7 @@
 ; =====================================================
 #define MyAppName "ArtLight Control"
 #define MyAppVersion "8.2.0"
-#define MyAppPublisher "FoggyBytes"
+#define MyAppPublisher "onaiaku"
 #define MyAppExeName "ArtLightControl.exe"
 #define MyAppURL "https://github.com/onaiaku/ArtLight"
 #define ServiceName "ArtLightControlService"
@@ -24,7 +24,7 @@ SetupIconFile=ArtLightControl\Resources\artlightcontrol.ico
 ; Wizard artwork lives under installer\ (not ArtLightControl\Resources\): the WinUI
 ; targets glob images in the app's Resources folder into the build output, which the
 ; [Files] sweep would then ship into {app} — installer-only assets have no business
-; in the install directory. Same layout as StreamLight.
+; in the install directory. Same layout as ArtMoon.
 WizardSmallImageFile=installer\resources\artlightcontrol.png
 WizardImageFile=installer\resources\artlightcontrol-installer.png
 UninstallDisplayIcon={app}\Resources\artlightcontrol.ico
@@ -46,7 +46,7 @@ SetupArchitecture=x64
 ; x64os (not the deprecated "x64", and not "x64compatible"): ArtLightControl is the HOST
 ; tool — it drives the NIC via CIM, reads GPU sensors via D3DKMT/NVML and hosts the
 ; streaming server. Running that emulated on ARM64 is not a scenario worth supporting.
-; StreamLight, the client, deliberately uses x64compatible instead.
+; ArtMoon, the client, deliberately uses x64compatible instead.
 ArchitecturesAllowed=x64os
 ArchitecturesInstallIn64BitMode=x64os
 WizardStyle=modern
@@ -89,7 +89,7 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}
 
 [Code]
 // ── Stop Windows from maximising the wizard ──────────────────────────────────
-// Mirror of the same block in StreamLight.iss — keep the two identical.
+// Mirror of the same block in ArtMoon's installer — keep the two identical.
 //
 // On a handheld the wizard opens filling the whole screen with the layout still
 // drawn for a small window: artwork at natural size in the top-left, a large empty
@@ -145,12 +145,12 @@ var
   LogoImage: TBitmapImage;
   DevelopedByLabel: TNewStaticText;
   GitHubLinkLabel: TNewStaticText;
-  StreamLightPage: TWizardPage;
-  StreamLightIntroLabel: TNewStaticText;
-  StreamLightBulletsLabel: TNewStaticText;
-  StreamLightOutroLabel: TNewStaticText;
-  StreamLightLearnMoreLabel: TNewStaticText;
-  StreamLightLinkLabel: TNewStaticText;
+  ArtMoonPage: TWizardPage;
+  ArtMoonIntroLabel: TNewStaticText;
+  ArtMoonBulletsLabel: TNewStaticText;
+  ArtMoonOutroLabel: TNewStaticText;
+  ArtMoonLearnMoreLabel: TNewStaticText;
+  ArtMoonLinkLabel: TNewStaticText;
 
 procedure GitHubLinkClick(Sender: TObject);
 var
@@ -159,11 +159,11 @@ begin
   ShellExec('open', '{#MyAppURL}', '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
 end;
 
-procedure StreamLightLinkClick(Sender: TObject);
+procedure ArtMoonLinkClick(Sender: TObject);
 var
   ErrorCode: Integer;
 begin
-  ShellExec('open', 'https://github.com/FoggyBytes/StreamLight', '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
+  ShellExec('open', 'https://github.com/onaiaku/ArtMoon', '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
 end;
 
 procedure InitializeWizard;
@@ -201,7 +201,7 @@ begin
   DevelopedByLabel.Parent := WizardForm.WelcomePage;
   DevelopedByLabel.Left := LogoImage.Left;
   DevelopedByLabel.Top := LogoImage.Top + LogoImage.Height + ScaleY(30);
-  DevelopedByLabel.Caption := 'Developed by FoggyBytes © 2026';
+  DevelopedByLabel.Caption := 'Developed by onaiaku © 2026';
   DevelopedByLabel.Font.Size := 10;
   DevelopedByLabel.AutoSize := True;
 
@@ -215,32 +215,32 @@ begin
   GitHubLinkLabel.Font.Style := [fsUnderline];
   GitHubLinkLabel.OnClick := @GitHubLinkClick;
 
-  // Mirror of the ArtLightControl page in StreamLight's own installer: each app points at
+  // Companion page: points at ArtMoon, our client, since neither app is much use alone.
   // the other, since neither is much use to a streaming setup on its own. Same layout,
   // same full inner-page width — the Welcome page's right panel is too narrow for a
   // bullet list.
-  StreamLightPage := CreateCustomPage(wpWelcome,
-    'StreamLight — recommended companion app', #13#10 +
-    'Install StreamLight on the device you play from to unlock ArtLight Control''s features.');
+  ArtMoonPage := CreateCustomPage(wpWelcome,
+    'ArtMoon — recommended companion app', #13#10 +
+    'Install ArtMoon on the device you play from to unlock ArtLight Control''s features.');
 
-  StreamLightIntroLabel := TNewStaticText.Create(StreamLightPage);
-  StreamLightIntroLabel.Parent := StreamLightPage.Surface;
-  StreamLightIntroLabel.Left := 0;
-  StreamLightIntroLabel.Top := 0;
-  StreamLightIntroLabel.Width := StreamLightPage.SurfaceWidth;
-  StreamLightIntroLabel.WordWrap := True;
-  StreamLightIntroLabel.AutoSize := True;
-  StreamLightIntroLabel.Caption :=
+  ArtMoonIntroLabel := TNewStaticText.Create(ArtMoonPage);
+  ArtMoonIntroLabel.Parent := ArtMoonPage.Surface;
+  ArtMoonIntroLabel.Left := 0;
+  ArtMoonIntroLabel.Top := 0;
+  ArtMoonIntroLabel.Width := ArtMoonPage.SurfaceWidth;
+  ArtMoonIntroLabel.WordWrap := True;
+  ArtMoonIntroLabel.AutoSize := True;
+  ArtMoonIntroLabel.Caption :=
     'ArtLight Control tunes this host for any Moonlight-compatible client. Paired with ' +
-    'StreamLight — a free open-source Moonlight fork for the client device, also ' +
-    'developed by FoggyBytes — the two work as one:';
+    'ArtMoon — a free open-source Moonlight fork for the client device, from the ' +
+    'same team — the two work as one:';
 
-  StreamLightBulletsLabel := TNewStaticText.Create(StreamLightPage);
-  StreamLightBulletsLabel.Parent := StreamLightPage.Surface;
-  StreamLightBulletsLabel.Left := ScaleX(16);
-  StreamLightBulletsLabel.Top := StreamLightIntroLabel.Top + StreamLightIntroLabel.Height + ScaleY(14);
-  StreamLightBulletsLabel.AutoSize := True;
-  StreamLightBulletsLabel.Caption :=
+  ArtMoonBulletsLabel := TNewStaticText.Create(ArtMoonPage);
+  ArtMoonBulletsLabel.Parent := ArtMoonPage.Surface;
+  ArtMoonBulletsLabel.Left := ScaleX(16);
+  ArtMoonBulletsLabel.Top := ArtMoonIntroLabel.Top + ArtMoonIntroLabel.Height + ScaleY(14);
+  ArtMoonBulletsLabel.AutoSize := True;
+  ArtMoonBulletsLabel.Caption :=
     // NB: this label has no WordWrap, so every bullet must stay on one line —
     // keep them at or under ~76 characters or they get clipped on the right.
     '•  Link-speed matching — this host follows the client, before connecting' + #13#10 +
@@ -255,35 +255,35 @@ begin
     '•  Per-game and per-host profiles, custom resolutions, live stream settings' + #13#10 +
     '•  Tailscale presence for streaming from outside your network';
 
-  StreamLightOutroLabel := TNewStaticText.Create(StreamLightPage);
-  StreamLightOutroLabel.Parent := StreamLightPage.Surface;
-  StreamLightOutroLabel.Left := 0;
-  StreamLightOutroLabel.Top := StreamLightBulletsLabel.Top + StreamLightBulletsLabel.Height + ScaleY(18);
-  StreamLightOutroLabel.Width := StreamLightPage.SurfaceWidth;
-  StreamLightOutroLabel.WordWrap := True;
-  StreamLightOutroLabel.AutoSize := True;
-  StreamLightOutroLabel.Caption :=
-    'StreamLight is optional — ArtLight Control works with any Moonlight-compatible client, ' +
+  ArtMoonOutroLabel := TNewStaticText.Create(ArtMoonPage);
+  ArtMoonOutroLabel.Parent := ArtMoonPage.Surface;
+  ArtMoonOutroLabel.Left := 0;
+  ArtMoonOutroLabel.Top := ArtMoonBulletsLabel.Top + ArtMoonBulletsLabel.Height + ScaleY(18);
+  ArtMoonOutroLabel.Width := ArtMoonPage.SurfaceWidth;
+  ArtMoonOutroLabel.WordWrap := True;
+  ArtMoonOutroLabel.AutoSize := True;
+  ArtMoonOutroLabel.Caption :=
+    'ArtMoon is optional — ArtLight Control works with any Moonlight-compatible client, ' +
     'and you can install it on the client device at any time. Click Next to continue ' +
     'installing ArtLight Control.';
 
-  StreamLightLearnMoreLabel := TNewStaticText.Create(StreamLightPage);
-  StreamLightLearnMoreLabel.Parent := StreamLightPage.Surface;
-  StreamLightLearnMoreLabel.Left := 0;
-  StreamLightLearnMoreLabel.Top := StreamLightOutroLabel.Top + StreamLightOutroLabel.Height + ScaleY(16);
-  StreamLightLearnMoreLabel.Caption := 'Learn more:';
-  StreamLightLearnMoreLabel.AutoSize := True;
+  ArtMoonLearnMoreLabel := TNewStaticText.Create(ArtMoonPage);
+  ArtMoonLearnMoreLabel.Parent := ArtMoonPage.Surface;
+  ArtMoonLearnMoreLabel.Left := 0;
+  ArtMoonLearnMoreLabel.Top := ArtMoonOutroLabel.Top + ArtMoonOutroLabel.Height + ScaleY(16);
+  ArtMoonLearnMoreLabel.Caption := 'Learn more:';
+  ArtMoonLearnMoreLabel.AutoSize := True;
 
-  StreamLightLinkLabel := TNewStaticText.Create(StreamLightPage);
-  StreamLightLinkLabel.Parent := StreamLightPage.Surface;
-  StreamLightLinkLabel.Left := StreamLightLearnMoreLabel.Left + StreamLightLearnMoreLabel.Width + ScaleX(4);
-  StreamLightLinkLabel.Top := StreamLightLearnMoreLabel.Top;
-  StreamLightLinkLabel.Caption := 'https://github.com/FoggyBytes/StreamLight';
-  StreamLightLinkLabel.Cursor := crHand;
-  StreamLightLinkLabel.Font.Color := clHighlight;
-  StreamLightLinkLabel.Font.Style := [fsUnderline];
-  StreamLightLinkLabel.OnClick := @StreamLightLinkClick;
-  StreamLightLinkLabel.AutoSize := True;
+  ArtMoonLinkLabel := TNewStaticText.Create(ArtMoonPage);
+  ArtMoonLinkLabel.Parent := ArtMoonPage.Surface;
+  ArtMoonLinkLabel.Left := ArtMoonLearnMoreLabel.Left + ArtMoonLearnMoreLabel.Width + ScaleX(4);
+  ArtMoonLinkLabel.Top := ArtMoonLearnMoreLabel.Top;
+  ArtMoonLinkLabel.Caption := 'https://github.com/onaiaku/ArtMoon';
+  ArtMoonLinkLabel.Cursor := crHand;
+  ArtMoonLinkLabel.Font.Color := clHighlight;
+  ArtMoonLinkLabel.Font.Style := [fsUnderline];
+  ArtMoonLinkLabel.OnClick := @ArtMoonLinkClick;
+  ArtMoonLinkLabel.AutoSize := True;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;

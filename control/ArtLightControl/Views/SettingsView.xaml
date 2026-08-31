@@ -1,4 +1,4 @@
-<Page
+﻿<Page
     x:Class="ArtLightControl.Views.SettingsView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -46,7 +46,7 @@
                     </InfoBar.Resources>
                     <InfoBar.ActionButton>
                         <HyperlinkButton Content="Open releases page"
-                                         NavigateUri="https://github.com/FoggyBytes/ArtLightControl/releases/latest"/>
+                                         NavigateUri="https://github.com/onaiaku/ArtLight/releases/latest"/>
                     </InfoBar.ActionButton>
                 </InfoBar>
 
@@ -63,7 +63,7 @@
                                        Style="{StaticResource ST_PageTitle}"/>
                             <TextBlock Text="{x:Bind ViewModel.AppVersion}"
                                        Style="{StaticResource ST_MonoValueSmall}"/>
-                            <TextBlock Text="by FoggyBytes"
+                            <TextBlock Text="by onaiaku"
                                        Style="{StaticResource ST_RowDescription}"/>
                         </StackPanel>
 
@@ -95,7 +95,7 @@
                     </Grid>
                 </Border>
 
-                <!-- ── StreamLight ────────────────────────────────────────── -->
+                <!-- ── ArtMoon ────────────────────────────────────────── -->
                 <Border Style="{StaticResource ST_Card}">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -104,11 +104,11 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Spacing="4">
-                            <TextBlock Text="StreamLight"
+                            <TextBlock Text="ArtMoon"
                                        Style="{StaticResource ST_PageTitle}"/>
-                            <TextBlock Text="{x:Bind ViewModel.StreamLightVersion, Mode=OneWay}"
+                            <TextBlock Text="{x:Bind ViewModel.ArtMoonVersion, Mode=OneWay}"
                                        Style="{StaticResource ST_MonoValueSmall}"/>
-                            <TextBlock Text="by FoggyBytes"
+                            <TextBlock Text="by onaiaku"
                                        Style="{StaticResource ST_RowDescription}"/>
                         </StackPanel>
 
@@ -116,7 +116,7 @@
                                 Content="GitHub releases"
                                 Style="{StaticResource ST_ButtonSecondary}"
                                 VerticalAlignment="Center"
-                                Click="OpenStreamLightReleases_Click"/>
+                                Click="OpenArtMoonReleases_Click"/>
                     </Grid>
                 </Border>
 
