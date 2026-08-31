@@ -25,7 +25,7 @@ namespace ArtLightControl
             var v = Assembly.GetExecutingAssembly().GetName().Version;
             SidebarVersionText.Text = v != null
                 ? $"v{v.Major}.{v.Minor}.{v.Build}"
-                : "v8.2.0";
+                : "v0.1.0";
 
             // Set NavigationView pane background via resource dictionary override.
             // PaneBackground does not exist as a XAML property on WinUI3 NavigationView;
