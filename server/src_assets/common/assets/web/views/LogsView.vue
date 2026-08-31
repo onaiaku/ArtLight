@@ -446,7 +446,7 @@ function downloadVisible(): void {
   const anchor = document.createElement('a');
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   anchor.href = url;
-  anchor.download = `vibepollo-${source.value}-${timestamp}.log`;
+  anchor.download = `artlightserver-${source.value}-${timestamp}.log`;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();

@@ -149,7 +149,7 @@ namespace platf::dxgi {
         // through a 200 ms blocking snapshot. Above ~166 fps the client frame
         // interval is shorter than the 6 ms grace, so an idle screen busts
         // the group on every forwarded frame and capture collapses to the
-        // compositor's publish rate (vibepollo#267). Clamp the grace to leave
+        // compositor's publish rate (artlightserver#267). Clamp the grace to leave
         // ~2 ms of the slot for wait/scheduling overhead.
         const auto frame_interval = std::chrono::nanoseconds(std::chrono::seconds(1)) / client_framerate;
         const auto clamped = std::chrono::duration_cast<std::chrono::milliseconds>(frame_interval - std::chrono::milliseconds(2));

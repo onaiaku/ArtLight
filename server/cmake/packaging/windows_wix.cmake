@@ -6,7 +6,7 @@ set(CPACK_GENERATOR "WIX")
 
 # Product identity and visuals
 set(CPACK_WIX_PRODUCT_ICON "${CMAKE_SOURCE_DIR}/src_assets/common/assets/web/public/images/apollo.ico")
-set(CPACK_WIX_PROGRAM_MENU_FOLDER "Vibepollo")
+set(CPACK_WIX_PROGRAM_MENU_FOLDER "ArtLight Server")
 
 # Stable Upgrade GUID to enable in-place upgrades
 # NOTE: Do not change once released, or upgrades will break.
@@ -14,7 +14,7 @@ set(CPACK_WIX_UPGRADE_GUID "{E3FA501A-85F8-4187-85A7-D6E6BDC7EDA1}")
 
 # Generate a fresh sortable ProductCode for every CPack WiX invocation.  The
 # Upgrade GUID above intentionally remains stable so Windows Installer still
-# treats all Vibepollo MSIs as the same product family.
+# treats all ArtLight Server MSIs as the same product family.
 set(CPACK_PROJECT_CONFIG_FILE "${CMAKE_SOURCE_DIR}/packaging/windows/wix/generate_sortable_product_guid.cmake")
 
 # Start Menu shortcut is now defined in custom_actions.wxs with --shortcut argument
@@ -45,7 +45,7 @@ set(CPACK_WIX_LIGHT_EXTRA_FLAGS
 # BinDir: directory containing built binaries (sunshine.exe) at packaging time
 set(CPACK_WIX_CANDLE_EXTRA_FLAGS
   "-dBinDir=${CMAKE_BINARY_DIR}"
-  "-dVibepolloAppId=${WINDOWS_APP_USER_MODEL_ID}"
+  "-dArtLightServerAppId=${WINDOWS_APP_USER_MODEL_ID}"
   # Human-readable version for ARP DisplayVersion; ProductVersion itself is
   # ordinal-encoded (see below) and no longer matches the semver.
   "-dVibeshineSemVer=${PROJECT_VERSION_FULL}"

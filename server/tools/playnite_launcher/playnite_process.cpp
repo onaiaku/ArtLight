@@ -23,8 +23,8 @@ namespace playnite_launcher::playnite {
   namespace {
     constexpr wchar_t cleanup_watchdog_filename[] = L"playnite-cleanup-watchdog.exe";
     constexpr wchar_t cleanup_watchdog_cache_directory[] = L"playnite-watchdogs";
-    constexpr wchar_t cleanup_watchdog_cache_mutex[] = L"Local\\VibepolloPlayniteWatchdogCache-v1";
-    constexpr wchar_t cleanup_lease_mutex_prefix[] = L"Local\\VibepolloPlayniteCleanupLease-v1-";
+    constexpr wchar_t cleanup_watchdog_cache_mutex[] = L"Local\\ArtLight ServerPlayniteWatchdogCache-v1";
+    constexpr wchar_t cleanup_lease_mutex_prefix[] = L"Local\\ArtLight ServerPlayniteCleanupLease-v1-";
 
     std::optional<std::wstring> cleanup_lease_mutex_name(const std::string &install_dir_utf8) {
       if (install_dir_utf8.empty()) {
@@ -180,7 +180,7 @@ namespace playnite_launcher::playnite {
         return std::nullopt;
       }
 
-      std::filesystem::path root = std::filesystem::path(local_app_data) / L"Vibepollo" / cleanup_watchdog_cache_directory;
+      std::filesystem::path root = std::filesystem::path(local_app_data) / L"ArtLight Server" / cleanup_watchdog_cache_directory;
       CoTaskMemFree(local_app_data);
       return root;
     }

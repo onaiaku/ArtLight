@@ -10,7 +10,7 @@ Fix the reported Vibeshine virtual display behavior so reconnecting with a virtu
 - The change is verified with the smallest relevant build/test command available in this repo.
 
 ## Current context
-- User reports layout restore differs from Apollo/Vibepollo expectations.
+- User reports layout restore differs from Apollo/ArtLight Server expectations.
 - Turning off global display automation improves behavior but reconnecting still disrupts monitor layout.
 - Touch/pen works when the virtual screen is on the left, but lands on the physical display when the virtual screen is on the right.
 

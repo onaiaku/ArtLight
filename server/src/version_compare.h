@@ -156,7 +156,7 @@ namespace version_compare {
     const bool left_stable = is_stable_channel(left);
     const bool right_stable = is_stable_channel(right);
 
-    // Vibepollo uses `-stable.N` for post-release respins, so those need to sort
+    // ArtLight Server uses `-stable.N` for post-release respins, so those need to sort
     // above the naked release while keeping normal prerelease semantics elsewhere.
     if (left_stable && right_stable) {
       return compare_identifier_lists(left.prerelease, right.prerelease, 1);

@@ -87,7 +87,7 @@ jobs:
             "unsigned-msi-package-Windows"
             # upload-artifact v7 uses the source filename as the artifact name
             # when archive is false, which SignPath requires for a direct MSI.
-            "Vibepollo.msi"
+            "ArtLight Server.msi"
             "windows-versioninfo-Windows"
           )
 
@@ -342,7 +342,7 @@ jobs:
       release_commit: ${{ needs.resolve_release.outputs.release_commit }}
       release_version: ${{ needs.resolve_release.outputs.release_version }}
       release_tag: ${{ needs.resolve_release.outputs.tag_name }}
-      symbol_product_name: Vibepollo
+      symbol_product_name: ArtLight Server
       publish_symbols: true
       symbol_release_draft: true
       symbol_release_prefix: polo
@@ -385,9 +385,9 @@ jobs:
           $artifactRoot = Join-Path $PWD 'artifacts'
           $manifestPath = Join-Path $artifactRoot 'release-provenance.json'
           $assets = @(Get-ChildItem -LiteralPath $artifactRoot -File | Where-Object { $_.Name -ne 'release-provenance.json' })
-          $setups = @($assets | Where-Object { $_.Name -like 'VibepolloSetup*.exe' })
+          $setups = @($assets | Where-Object { $_.Name -like 'ArtLight ServerSetup*.exe' })
           if ($setups.Count -ne 1) {
-            throw "Expected exactly one finalized Vibepollo setup executable; found $($setups.Count)."
+            throw "Expected exactly one finalized ArtLight Server setup executable; found $($setups.Count)."
           }
 
           $signature = Get-AuthenticodeSignature -LiteralPath $setups[0].FullName
@@ -508,7 +508,7 @@ jobs:
             make_latest=true
           fi
 
-          product_name="Vibepollo"
+          product_name="ArtLight Server"
 
           notes_file=""
           for candidate in \

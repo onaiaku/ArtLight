@@ -71,7 +71,7 @@ if (-not $releaseExists) {
   if ($NotesPath -and (Test-Path -LiteralPath $NotesPath)) {
     $createArgs += @("--notes-file", $NotesPath)
   } else {
-    $createArgs += @("--notes", "Pinned Windows x64 WebRTC artifacts for Vibepollo.")
+    $createArgs += @("--notes", "Pinned Windows x64 WebRTC artifacts for ArtLight Server.")
   }
   if ($env:GITHUB_SHA) {
     $createArgs += @("--target", $env:GITHUB_SHA)
@@ -92,7 +92,7 @@ $existingAssets = @($existingAssetsJson | ConvertFrom-Json | Select-Object -Expa
 $existingAsset = @($existingAssets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1)
 
 if ($existingAsset.Count -gt 0) {
-  $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "vibepollo-webrtc-publish-$([System.Guid]::NewGuid().ToString('N'))"
+  $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "artlightserver-webrtc-publish-$([System.Guid]::NewGuid().ToString('N'))"
   New-Item -ItemType Directory -Path $tempRoot | Out-Null
   try {
     & $gh.Source release download $tag --repo $repo --pattern $assetName --dir $tempRoot

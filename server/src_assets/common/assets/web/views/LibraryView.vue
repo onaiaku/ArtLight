@@ -28,7 +28,7 @@ type ViewMode = 'grid' | 'list';
 type SortMode = 'name' | 'name-desc' | 'source';
 
 const PAGE_SIZE = 72;
-const VIEW_STORAGE_KEY = 'vibepollo.library.view';
+const VIEW_STORAGE_KEY = 'artlightserver.library.view';
 const validSortModes = new Set<SortMode>(['name', 'name-desc', 'source']);
 
 const route = useRoute();

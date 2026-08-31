@@ -155,7 +155,7 @@
                     strong
                     size="small"
                     class="w-full justify-center sm:w-auto"
-                    href="https://github.com/Nonary/Vibepollo/issues/new?template=bug_report.yml"
+                    href="https://github.com/onaiaku/ArtLight/issues/new?template=bug_report.yml"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -513,7 +513,7 @@ import { NCard, NAlert, useMessage, useDialog } from 'naive-ui';
 import ResourceCard from '@/ResourceCard.vue';
 import ChangelogPanel from '@/components/ChangelogPanel.vue';
 import PlayniteReinstallButton from '@/components/PlayniteReinstallButton.vue';
-import VibepolloVersion, { GitHubRelease } from '@/sunshine_version';
+import ArtLight ServerVersion, { GitHubRelease } from '@/sunshine_version';
 import { useConfigStore } from '@/stores/config';
 import { useAuthStore } from '@/stores/auth';
 import { useAppsStore } from '@/stores/apps';
@@ -522,19 +522,19 @@ import type { CrashDumpStatus } from '@/utils/crashDump';
 import { isCrashDumpEligible, sanitizeCrashDumpStatus } from '@/utils/crashDump';
 import { toIntlLocale } from '@/utils/intlLocale';
 
-const installedVersion = ref<VibepolloVersion>(new VibepolloVersion('0.0.0'));
+const installedVersion = ref<ArtLight ServerVersion>(new ArtLight ServerVersion('0.0.0'));
 const githubRelease = ref<GitHubRelease | null>(null);
 const preReleaseRelease = ref<GitHubRelease | null>(null);
 
 const githubVersion = computed(() =>
   githubRelease.value
-    ? VibepolloVersion.fromRelease(githubRelease.value)
-    : new VibepolloVersion('0.0.0'),
+    ? ArtLight ServerVersion.fromRelease(githubRelease.value)
+    : new ArtLight ServerVersion('0.0.0'),
 );
 const preReleaseVersion = computed(() =>
   preReleaseRelease.value
-    ? VibepolloVersion.fromRelease(preReleaseRelease.value)
-    : new VibepolloVersion('0.0.0'),
+    ? ArtLight ServerVersion.fromRelease(preReleaseRelease.value)
+    : new ArtLight ServerVersion('0.0.0'),
 );
 const notifyPreReleases = ref(false);
 const showPreNotes = ref(false);
@@ -691,14 +691,14 @@ async function runVersionChecks() {
     notifyPreReleases.value =
       cfg.notify_pre_releases === true || cfg.notify_pre_releases === 'enabled';
     const serverVersion = configStore.metadata?.version || cfg.version;
-    installedVersion.value = new VibepolloVersion(serverVersion || '0.0.0');
+    installedVersion.value = new ArtLight ServerVersion(serverVersion || '0.0.0');
     branch.value = cfg.branch || '';
     commit.value = cfg.commit || '';
 
     // Remote release checks (GitHub)
     try {
       githubRelease.value = await fetch(
-        'https://api.github.com/repos/Nonary/Vibepollo/releases/latest',
+        'https://api.github.com/repos/onaiaku/ArtLight/releases/latest',
       ).then((r) => r.json());
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -706,7 +706,7 @@ async function runVersionChecks() {
     }
     // Fetch list of releases to locate prereleases and determine installed stability
     try {
-      const releases = await fetch('https://api.github.com/repos/Nonary/Vibepollo/releases').then(
+      const releases = await fetch('https://api.github.com/repos/onaiaku/ArtLight/releases').then(
         (r) => r.json(),
       );
       if (Array.isArray(releases)) {
@@ -714,10 +714,10 @@ async function runVersionChecks() {
         const prereleases = releases.filter((r: any) => r && r.prerelease && !r.draft);
         if (prereleases.length > 0) {
           let best = prereleases[0];
-          let bestV = VibepolloVersion.fromRelease(best);
+          let bestV = ArtLight ServerVersion.fromRelease(best);
           for (let i = 1; i < prereleases.length; i++) {
             const cand = prereleases[i];
-            const candV = VibepolloVersion.fromRelease(cand);
+            const candV = ArtLight ServerVersion.fromRelease(cand);
             if (candV.isGreater(bestV)) {
               best = cand;
               bestV = candV;
@@ -743,7 +743,7 @@ async function runVersionChecks() {
       // eslint-disable-next-line no-console
       console.warn('[Dashboard] releases list fetch failed', e);
     }
-    // Tag-based comparison handled below via VibepolloVersion
+    // Tag-based comparison handled below via ArtLight ServerVersion
 
     const plat = (configStore.metadata?.platform || '').toLowerCase();
     // ViGEm health (Windows only)

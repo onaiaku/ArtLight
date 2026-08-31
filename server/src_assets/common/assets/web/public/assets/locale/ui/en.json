@@ -36,15 +36,15 @@
         "empty": "No matching covers were found. Try adjusting the application name.",
         "errorTitle": "Cover selection unavailable",
         "playniteTitle": "This changes Playnite metadata",
-        "playniteUpdateError": "Vibepollo downloaded the cover but could not replace this game's cover metadata in Playnite.",
+        "playniteUpdateError": "ArtLight Server downloaded the cover but could not replace this game's cover metadata in Playnite.",
         "playniteWarning": "Choosing a cover here replaces this game's cover metadata in Playnite.",
         "searchAction": "Search",
-        "searchError": "Vibepollo could not search for cover artwork.",
+        "searchError": "ArtLight Server could not search for cover artwork.",
         "searchLabel": "Search for cover artwork",
         "searchPlaceholder": "Search for a game cover",
         "select": "Use the {name} cover",
         "title": "Choose cover artwork",
-        "uploadError": "Vibepollo could not download and prepare that cover."
+        "uploadError": "ArtLight Server could not download and prepare that cover."
       },
       "delete": {
         "action": "Delete application",
@@ -86,7 +86,7 @@
           "placeholder": "One command per line"
         },
         "displayAction": {
-          "description": "Control how aggressively Vibepollo applies the requested layout.",
+          "description": "Control how aggressively ArtLight Server applies the requested layout.",
           "label": "Display configuration action"
         },
         "displayLayout": {
@@ -312,7 +312,7 @@
           "title": "Virtual display and layout"
         },
         "execution": {
-          "description": "Paths are interpreted by the host running Vibepollo.",
+          "description": "Paths are interpreted by the host running ArtLight Server.",
           "title": "Executable, output, and artwork"
         },
         "frameGeneration": {
@@ -348,7 +348,7 @@
     },
     "auth": {
       "credentials_required": "Enter a username and password.",
-      "login_description": "Sign in to manage this Vibepollo host.",
+      "login_description": "Sign in to manage this ArtLight Server host.",
       "security_note": "This page is served directly by your host. Credentials do not leave this machine.",
       "setup_description": "Create the administrator account used to manage streaming and paired devices."
     },
@@ -477,7 +477,7 @@
       "checksFailed": "Some integration checks failed",
       "confirm": {
         "defaultTitle": "Confirm integration action",
-        "playniteInstallDescription": "Vibepollo will write its bundled extension into the detected Playnite extensions directory.",
+        "playniteInstallDescription": "ArtLight Server will write its bundled extension into the detected Playnite extensions directory.",
         "playniteInstallTitle": "Install the Playnite extension?",
         "playniteRemoveDescription": "Playnite library synchronization will stop until the extension is installed again.",
         "playniteRemoveTitle": "Remove the Playnite extension?",
@@ -485,7 +485,7 @@
         "vigemDescription": "The bundled elevated installer will modify the virtual controller driver on this host.",
         "vigemInstallTitle": "Install ViGEmBus?",
         "vigemRepairTitle": "Repair ViGEmBus?",
-        "vulkanRegisterDescription": "Vibepollo will repair the system registration for its bundled implicit Vulkan layer.",
+        "vulkanRegisterDescription": "ArtLight Server will repair the system registration for its bundled implicit Vulkan layer.",
         "vulkanRegisterTitle": "Register the Vulkan HDR layer?"
       },
       "description": "Optional host components and their current operational state.",
@@ -526,7 +526,7 @@
         "vulkanRefreshed": "The Vulkan HDR layer registration was refreshed."
       },
       "playnite": {
-        "description": "Synchronizes installed games and metadata through the Vibepollo extension.",
+        "description": "Synchronizes installed games and metadata through the ArtLight Server extension.",
         "shortDescription": "Library synchronization and launch integration."
       },
       "refreshing": "Refreshing",
@@ -750,7 +750,7 @@
         "deleteSnapshotTitle": "Delete the recovery snapshot?",
         "replaceSnapshotTitle": "Replace the recovery snapshot?",
         "restartDescription": "Active streams will disconnect and this interface will be unavailable while the service restarts.",
-        "restartTitle": "Restart Vibepollo?",
+        "restartTitle": "Restart ArtLight Server?",
         "revokeSessionDescription": "That browser will need to sign in again before it can manage this host.",
         "revokeSessionTitle": "Revoke {browser}?"
       },
@@ -783,7 +783,7 @@
       "notices": {
         "crashAcknowledged": "The crash notice was acknowledged.",
         "credentialsUpdated": "Web UI credentials were updated.",
-        "restartRequested": "Restart requested. Reconnect after the Vibepollo service comes back online.",
+        "restartRequested": "Restart requested. Reconnect after the ArtLight Server service comes back online.",
         "sessionRevoked": "{browser} was revoked.",
         "snapshotCaptured": "The current display layout is now the recovery baseline.",
         "snapshotDeleted": "The display recovery snapshot was deleted."
@@ -910,7 +910,7 @@
       "input_unavailable": "Input forwarding is unavailable",
       "install": {
         "action": "Improve iPad fullscreen",
-        "description": "To remove Safari's address bar before opening fullscreen, tap Safari's Share button, choose Add to Home Screen, keep Open as Web App enabled, then launch Vibepollo from its Home Screen icon. Safari may still briefly show its own fullscreen exit control.",
+        "description": "To remove Safari's address bar before opening fullscreen, tap Safari's Share button, choose Add to Home Screen, keep Open as Web App enabled, then launch ArtLight Server from its Home Screen icon. Safari may still briefly show its own fullscreen exit control.",
         "done": "Got it",
         "title": "Set up iPad fullscreen"
       },
@@ -969,7 +969,7 @@
     },
     "not_found": {
       "action": "Return to overview",
-      "description": "That Vibepollo page does not exist or may have moved.",
+      "description": "That ArtLight Server page does not exist or may have moved.",
       "title": "Page not found"
     },
     "overview": {
@@ -1119,12 +1119,12 @@
         "local_approval": "Local approval",
         "title": "Pair a device"
       },
-      "privacy": "The PIN is sent only to this Vibepollo host over the current authenticated connection.",
+      "privacy": "The PIN is sent only to this ArtLight Server host over the current authenticated connection.",
       "steps": {
         "approve_description": "Short PINs are submitted as four digits, including leading zeroes.",
         "approve_title": "Approve it here",
         "number": "{number}",
-        "open_moonlight_description": "Select this Vibepollo host from the Artemis client you want to authorize.",
+        "open_moonlight_description": "Select this ArtLight Server host from the Artemis client you want to authorize.",
         "open_moonlight_title": "Open Artemis",
         "start_pairing_description": "Keep Artemis open while its numeric PIN is visible.",
         "start_pairing_title": "Start pairing",
@@ -1151,7 +1151,7 @@
         "app_running_title": "Application is still running",
         "history_degraded_description": "Live streams are unaffected, but new diagnostics may be incomplete.",
         "history_degraded_title": "Session history is degraded",
-        "partial_failure_description": "Existing rows remain visible while Vibepollo retries.",
+        "partial_failure_description": "Existing rows remain visible while ArtLight Server retries.",
         "partial_failure_title": "Some session data is unavailable"
       },
       "confirm": {
@@ -1310,7 +1310,7 @@
         "empty": "No expert values match this search.",
         "label": "Expert",
         "title": "Expert configuration",
-        "warning": "These values are passed directly to Vibepollo. Preserve their expected format.",
+        "warning": "These values are passed directly to ArtLight Server. Preserve their expected format.",
         "warning_title": "Expert settings"
       },
       "fields": {
@@ -1324,7 +1324,7 @@
           "description": "Add only trusted HTTPS origins, separated by commas."
         },
         "dd_configuration_option": {
-          "description": "Choose how Vibepollo prepares the selected display before a stream."
+          "description": "Choose how ArtLight Server prepares the selected display before a stream."
         },
         "dd_config_revert_on_disconnect": {
           "description": "Restore the physical desktop immediately instead of keeping the game and virtual screen available for reconnection.",
@@ -1350,7 +1350,7 @@
         "dd_paused_virtual_display_timeout_secs": {
           "description": "When a disconnected stream leaves its game running, keep the virtual display available for this long before removing it.",
           "label": "Keep a disconnected virtual display for",
-          "warning": "When this expires, Vibepollo removes the virtual display even if the game is still running. Some older games can crash when their display disappears. Close the game first or choose Until the game closes."
+          "warning": "When this expires, ArtLight Server removes the virtual display even if the game is still running. Some older games can crash when their display disappears. Close the game first or choose Until the game closes."
         },
         "dd_refresh_rate_option": {
           "description": "Match the client request, prefer the highest compatible rate, or use a fixed value."
@@ -1367,7 +1367,7 @@
           "label": "Windows scaling"
         },
         "capture": {
-          "description": "Automatic follows the capture backend Vibepollo already chooses for this Windows version. Override it only for compatibility or a specific pacing behavior.",
+          "description": "Automatic follows the capture backend ArtLight Server already chooses for this Windows version. Override it only for compatibility or a specific pacing behavior.",
           "label": "Capture method"
         },
         "encoder": {
@@ -1379,8 +1379,8 @@
           "label": "Network recovery (FEC)"
         },
         "dd_use_sunshine_virtual_display_driver": {
-          "description": "Recommended. Uses Vibepollo's bundled driver for per-client and shared virtual screens. Turn this off only to fall back to SudoVDA.",
-          "label": "Use the Vibepollo Display Driver"
+          "description": "Recommended. Uses ArtLight Server's bundled driver for per-client and shared virtual screens. Turn this off only to fall back to SudoVDA.",
+          "label": "Use the ArtLight Server Display Driver"
         },
         "frame_limiter_disable_vsync": {
           "description": "Controls the manual limiter. Automatic virtual-screen game smoothness temporarily disables VSYNC while its pacing policy is active."
@@ -1408,7 +1408,7 @@
           "label": "Lossless Scaling executable"
         },
         "output_name": {
-          "description": "Leave blank to let Vibepollo choose the display. Otherwise use an exact device name."
+          "description": "Leave blank to let ArtLight Server choose the display. Otherwise use an exact device name."
         },
         "rtss_frame_limit_type": {
           "description": "Async is the recommended low-latency limiter mode."
@@ -1422,7 +1422,7 @@
           "label": "How it joins the desktop"
         },
         "virtual_display_mode": {
-          "description": "Choose whether Vibepollo captures a physical monitor or creates a display sized for the client.",
+          "description": "Choose whether ArtLight Server captures a physical monitor or creates a display sized for the client.",
           "label": "Streaming display"
         },
         "wgc_pacing_smoothing": {
@@ -1566,10 +1566,10 @@
       "no_results": "No settings match “{query}”.",
       "notices": {
         "display_state_cleared": "Saved display-device state was cleared.",
-        "restarting": "Vibepollo is restarting. This page will reconnect when the host is ready.",
+        "restarting": "ArtLight Server is restarting. This page will reconnect when the host is ready.",
         "saved": "Configuration saved and applied.",
         "saved_deferred": "Saved. Changes will apply after the active stream ends.",
-        "saved_restart": "Saved. Restart Vibepollo to apply these changes.",
+        "saved_restart": "Saved. Restart ArtLight Server to apply these changes.",
         "title": "Configuration updated"
       },
       "options": {
@@ -1767,7 +1767,7 @@
         "create_snapshot": "Create snapshot",
         "golden_title": "Golden recovery snapshot",
         "hotkey_configured": "Configured",
-        "hotkey_detail": "When Vibepollo runs in your Windows desktop session, use this shortcut to restore the session baseline, fall back to the golden layout when needed, remove virtual displays, and stop recovery. Service-mode installs may not receive desktop shortcuts.",
+        "hotkey_detail": "When ArtLight Server runs in your Windows desktop session, use this shortcut to restore the session baseline, fall back to the golden layout when needed, remove virtual displays, and stop recovery. Service-mode installs may not receive desktop shortcuts.",
         "hotkey_invalid": "Use F1–F24, a letter, or a number as the main key.",
         "hotkey_modifier_required": "Include Ctrl, Alt, Shift, or Win so ordinary typing cannot trigger display recovery.",
         "hotkey_listening": "Listening — press the shortcut you want to use.",
@@ -1777,8 +1777,8 @@
         "hotkey_unsafe": "Needs a modifier",
         "hotkey_unsafe_detail": "This saved shortcut could trigger during ordinary typing. Add Ctrl, Alt, Shift, or Win, or replace it with the recommended shortcut.",
         "not_created": "Not created",
-        "not_created_detail": "Save the physical desktop layout Vibepollo should recover when normal session restoration is unavailable.",
-        "prefer_golden_detail": "Use this known-good layout first whenever Vibepollo restores the desktop. If it cannot be restored, Vibepollo falls back to the session snapshot.",
+        "not_created_detail": "Save the physical desktop layout ArtLight Server should recover when normal session restoration is unavailable.",
+        "prefer_golden_detail": "Use this known-good layout first whenever ArtLight Server restores the desktop. If it cannot be restored, ArtLight Server falls back to the session snapshot.",
         "prefer_golden_title": "Restore this desktop by default",
         "prefer_golden_unavailable": "Create a recovery snapshot to make a known-good desktop layout the default. Session-based restoration remains available as the fallback.",
         "ready": "Ready",
@@ -1792,7 +1792,7 @@
         "snapshot_requested": "Snapshot capture was requested. The status will refresh after the display helper finishes.",
         "status_error": "The golden recovery snapshot status could not be loaded.",
         "unavailable": "Unavailable",
-        "unavailable_detail": "Vibepollo could not read the golden recovery snapshot status.",
+        "unavailable_detail": "ArtLight Server could not read the golden recovery snapshot status.",
         "update_snapshot": "Update snapshot",
         "use_recommended_hotkey": "Use Ctrl + Alt + Shift + F12"
       },
@@ -1801,7 +1801,7 @@
       "restart": "Restart",
       "restart_now": "Restart now",
       "restart_required": "Restart required",
-      "restart_required_description": "One or more unsaved changes require a Vibepollo restart.",
+      "restart_required_description": "One or more unsaved changes require a ArtLight Server restart.",
       "save": "Save changes",
       "save_hint": "Changes apply after saving.",
       "save_restart_hint": "A restart will be required.",
@@ -1916,7 +1916,7 @@
       "reveal": {
         "description": "This credential is displayed only after creation.",
         "title": "Your API token is ready",
-        "warning": "Copy this token now. Vibepollo stores only a hash and cannot show the full token again.",
+        "warning": "Copy this token now. ArtLight Server stores only a hash and cannot show the full token again.",
         "warning_title": "Save it securely"
       },
       "revoke": {
@@ -1929,7 +1929,7 @@
     },
     "shell": {
       "appearance": "Appearance",
-      "brand_overview": "Vibepollo overview",
+      "brand_overview": "ArtLight Server overview",
       "change_theme": "Theme: {theme}. Change theme",
       "close_navigation": "Close navigation",
       "collapse_navigation": "Collapse navigation",
@@ -1950,7 +1950,7 @@
     },
     "system": {
       "host_status_unavailable": "Host status is temporarily unavailable.",
-      "unreachable": "Unable to reach Vibepollo."
+      "unreachable": "Unable to reach ArtLight Server."
     }
   }
 }

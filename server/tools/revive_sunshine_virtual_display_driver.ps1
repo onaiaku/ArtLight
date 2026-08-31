@@ -79,7 +79,7 @@ function Resolve-SystemToolPath {
 
 function New-DefaultLogPath {
     $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-    return Join-Path ([System.IO.Path]::GetTempPath()) "vibepollo_vdisplay_revive_$stamp.log"
+    return Join-Path ([System.IO.Path]::GetTempPath()) "artlightserver_vdisplay_revive_$stamp.log"
 }
 
 function Write-Log {

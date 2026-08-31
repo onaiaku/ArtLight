@@ -1,8 +1,8 @@
 {
   "id": "/v2/stream",
-  "name": "Vibepollo Browser Stream",
-  "short_name": "Vibepollo",
-  "description": "Low-latency remote streaming from Vibepollo",
+  "name": "ArtLight Server Browser Stream",
+  "short_name": "ArtLight Server",
+  "description": "Low-latency remote streaming from ArtLight Server",
   "start_url": "/v2/stream",
   "scope": "/v2/",
   "display": "fullscreen",

@@ -7,12 +7,12 @@ artifact-configuration XML so the signing rules are auditable in version control
 > **The SignPath portal is the source of truth.** The XML files here are copies
 > for review. Changing them does **not** change signing behavior — you must edit
 > the matching *artifact configuration* in the SignPath portal
-> (Organization → Project `Vibepollo` → Artifact configurations).
+> (Organization → Project `ArtLight Server` → Artifact configurations).
 
 ## Why two signing requests ("the whole package, setup and all")
 
-The shipped artifact is a single self-contained `VibepolloSetup.exe`. It is a
-**custom C# bootstrapper** (`packaging/windows/bootstrapper/VibeshineInstaller.cs`)
+The shipped artifact is a single self-contained `ArtLight ServerSetup.exe`. It is a
+**custom C# bootstrapper** (`packaging/windows/bootstrapper/ArtLightServerInstaller.cs`)
 that embeds the MSI as a **.NET managed manifest resource** named `Payload.msi`
 (`build_bootstrapper.ps1` compiles with `csc /resource:<msi>,Payload.msi`; the
 installer reads it back via `Assembly.GetManifestResourceStream("Payload.msi")`).
@@ -51,7 +51,7 @@ UX. That is intentionally out of scope.
 | Slug | File | Used by | Purpose |
 | --- | --- | --- | --- |
 | `msi-file-apollo` | [`msi-file-apollo.artifact-config.xml`](msi-file-apollo.artifact-config.xml) | `ci-windows.yml` (MSI request), `scripts/signpath_sign.ps1` | Deep-sign nested first-party PEs, then the MSI |
-| `setup-exe` | [`setup-exe.artifact-config.xml`](setup-exe.artifact-config.xml) | `ci-windows.yml` (setup-EXE request) | Authenticode-sign the outer `VibepolloSetup.exe` |
+| `setup-exe` | [`setup-exe.artifact-config.xml`](setup-exe.artifact-config.xml) | `ci-windows.yml` (setup-EXE request) | Authenticode-sign the outer `ArtLight ServerSetup.exe` |
 
 Slugs and project/org/policy are passed as reusable-workflow inputs in
 `ci-windows.yml` (`signpath_msi_artifact_configuration_slug`,
@@ -122,7 +122,7 @@ first-party binaries when the pinned TrueHDR runtime bundle is included.
 `ci-windows.yml` runs a post-sign verification step (when SignPath is enabled)
 that fails the build if any first-party PE is unsigned. It:
 
-1. confirms the outer `VibepolloSetup.exe` is signed,
+1. confirms the outer `ArtLight ServerSetup.exe` is signed,
 2. confirms the signed MSI is signed,
 3. administratively extracts the MSI and confirms every first-party PE carries a
    signature, while **skipping** the vendor/catalog files above.
@@ -136,7 +136,7 @@ or a newly added binary missing from Strategy-1 enumeration) before release.
    `msi-file-apollo.artifact-config.xml` (deep-signs first-party PEs, excludes vendors).
 2. Create/confirm the `setup-exe` artifact configuration matches
    `setup-exe.artifact-config.xml` (PE Authenticode).
-3. Confirm the GitHub trusted-build system is linked to project `Vibepollo`.
+3. Confirm the GitHub trusted-build system is linked to project `ArtLight Server`.
 4. Trigger `tester-windows-installer.yml` (or a release candidate) and confirm the
    verification gate passes.
 

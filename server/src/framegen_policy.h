@@ -16,7 +16,7 @@ namespace framegen {
 
   struct stream_start_policy_t {
     int fps = 0;
-    // Vibepollo's raw stream cadence in millihertz when it is available.
+    // ArtLight Server's raw stream cadence in millihertz when it is available.
     int fps_scaled = 0;
     // Exact per-client display-mode rate. Zero means use the streamed FPS.
     std::uint32_t frame_limit_millihz = 0;

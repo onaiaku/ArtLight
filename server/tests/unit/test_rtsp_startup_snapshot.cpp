@@ -7,7 +7,7 @@
  * clone must carry every field that stream::session::alloc() and the cmd_announce()
  * startup lambda consume. A previous revision dropped `perm`, which left streaming
  * sessions at PERM::_no and made input::passthrough() silently discard all mouse,
- * keyboard, and controller input (Vibepollo #280). The same omission also dropped
+ * keyboard, and controller input (ArtLight Server #280). The same omission also dropped
  * the per-client do/undo command lists. This test fails if any consumed field is
  * dropped again.
  */
@@ -48,7 +48,7 @@ namespace {
 
 }  // namespace
 
-// Guards the exact field that caused Vibepollo #280: a dropped perm leaves the
+// Guards the exact field that caused ArtLight Server #280: a dropped perm leaves the
 // streaming session at PERM::_no, which makes input::passthrough() discard every
 // mouse/keyboard/controller packet while video keeps flowing.
 TEST(RtspStartupSnapshot, PreservesPermission) {

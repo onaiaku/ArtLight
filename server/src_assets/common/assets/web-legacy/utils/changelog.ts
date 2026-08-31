@@ -185,7 +185,7 @@ export function parseBundledReleaseNote(filename: string, content: string): Chan
   const info = parseChangelogVersion(tag);
   const normalizedBody = (content || '').replace(/\r\n/g, '\n').trim();
   const lines = normalizedBody.split('\n');
-  let name = `Vibepollo ${tag}`;
+  let name = `ArtLight Server ${tag}`;
   let date = '';
   let body = normalizedBody;
   const title = lines[0]?.match(/^#\s+(.+?)(?:\s+-\s+(\d{4}-\d{2}-\d{2}))?\s*$/);
@@ -222,7 +222,7 @@ export function githubReleaseToChangelogEntry(release: GitHubReleaseLike): Chang
   const body = (changelogBody ?? releaseBody).trim();
   const entry: ChangelogEntry = {
     tag,
-    name: (release.name || `Vibepollo ${tag}`).trim(),
+    name: (release.name || `ArtLight Server ${tag}`).trim(),
     date: (release.published_at || release.created_at || '').slice(0, 10),
     body,
     sections: parseMarkdownSections(body),

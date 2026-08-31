@@ -34,7 +34,7 @@ function storedBoolean(key: string, fallback: boolean): boolean {
 }
 
 function readThemePreference(): ThemePreference {
-  const value = localStorage.getItem('vibepollo.theme');
+  const value = localStorage.getItem('artlightserver.theme');
   return value === 'dark' || value === 'light' || value === 'auto' ? value : 'auto';
 }
 
@@ -45,7 +45,7 @@ export const useSystemStore = defineStore('system', () => {
   const session = ref<SessionStatus | null>(null);
   const loadingHost = ref(false);
   const error = ref('');
-  const navCollapsed = ref(storedBoolean('vibepollo.nav-collapsed', false));
+  const navCollapsed = ref(storedBoolean('artlightserver.nav-collapsed', false));
   const mobileNavOpen = ref(false);
   const theme = ref<ThemePreference>(readThemePreference());
   const lastUpdatedAt = ref<number | null>(null);
@@ -78,13 +78,13 @@ export const useSystemStore = defineStore('system', () => {
 
   function setTheme(value: ThemePreference): void {
     theme.value = value;
-    localStorage.setItem('vibepollo.theme', value);
+    localStorage.setItem('artlightserver.theme', value);
     applyTheme();
   }
 
   function toggleNav(): void {
     navCollapsed.value = !navCollapsed.value;
-    localStorage.setItem('vibepollo.nav-collapsed', String(navCollapsed.value));
+    localStorage.setItem('artlightserver.nav-collapsed', String(navCollapsed.value));
   }
 
   async function fetchAuthStatus(): Promise<AuthStatus> {

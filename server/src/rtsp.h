@@ -170,7 +170,7 @@ namespace rtsp_stream {
      *
      * Contract: copy every field that stream::session::alloc() or the cmd_announce()
      * startup lambda reads. If you add such a field, copy it here too -- the
-     * RtspStartupSnapshot tests guard this (a dropped `perm` caused Vibepollo #280,
+     * RtspStartupSnapshot tests guard this (a dropped `perm` caused ArtLight Server #280,
      * where streaming sessions ran at PERM::_no and silently discarded all input).
      */
     [[nodiscard]] std::shared_ptr<launch_session_t> clone_for_startup() const;

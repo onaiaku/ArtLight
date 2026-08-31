@@ -1,6 +1,6 @@
 /**
  * @file tests/integration/test_virtual_display_packaging.cpp
- * @brief Tests for Vibepollo Display Driver packaging invariants.
+ * @brief Tests for ArtLight Server Display Driver packaging invariants.
  */
 #include <gtest/gtest.h>
 
@@ -107,7 +107,7 @@ TEST(SunshineVirtualDisplayPackaging, BootstrapperForwardsArgumentsWithWindowsQu
 TEST(SunshineVirtualDisplayPackaging, ConflictProductsUseExactDisplayNames) {
   EXPECT_TRUE(contract::conflict_names_exact);
   EXPECT_EQ(contract::conflict_product_names, std::to_array<std::string_view>({
-    "Sunshine", "Apollo", "Vibepollo", "Vibeshine"
+    "Sunshine", "Apollo", "ArtLight Server", "Vibeshine"
   }));
 }
 

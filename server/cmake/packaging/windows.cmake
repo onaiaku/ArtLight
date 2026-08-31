@@ -107,7 +107,7 @@ install(FILES ${SUDOVDA_DRIVER_FILES}
         DESTINATION "${SUNSHINE_VDD_SUDOVDA_DESTINATION}"
         COMPONENT sudovda)
 
-# Drivers (Vibepollo Display Driver)
+# Drivers (ArtLight Server Display Driver)
 set(SUNSHINE_VIRTUAL_DISPLAY_DRIVER_SOURCE_DIR "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/drivers/sunshine")
 set(SUNSHINE_VIRTUAL_DISPLAY_DRIVER_REFRESH_SCRIPT "${CMAKE_SOURCE_DIR}/packaging/windows/virtual_display_driver/refresh_driver_package.ps1")
 set(SUNSHINE_VIRTUAL_DISPLAY_DRIVER_DOWNLOAD_SCRIPT "${CMAKE_SOURCE_DIR}/scripts/download_libvirtualdisplay_release.ps1")
@@ -151,11 +151,11 @@ unset(_sunshine_driver_optional_name)
 
 foreach(_sunshine_driver_file IN LISTS SUNSHINE_VIRTUAL_DISPLAY_PACKAGE_FILES)
     if (NOT EXISTS "${_sunshine_driver_file}")
-        message(FATAL_ERROR "Required Vibepollo Display Driver artifact missing: ${_sunshine_driver_file}")
+        message(FATAL_ERROR "Required ArtLight Server Display Driver artifact missing: ${_sunshine_driver_file}")
     endif()
     file(SIZE "${_sunshine_driver_file}" _sunshine_driver_file_size)
     if (_sunshine_driver_file_size EQUAL 0)
-        message(FATAL_ERROR "Required Vibepollo Display Driver artifact is empty (0 bytes): ${_sunshine_driver_file}")
+        message(FATAL_ERROR "Required ArtLight Server Display Driver artifact is empty (0 bytes): ${_sunshine_driver_file}")
     endif()
 endforeach()
 unset(_sunshine_driver_file_size)
@@ -173,7 +173,7 @@ if(EXISTS "${SUNSHINE_VIRTUAL_DISPLAY_DRIVER_REFRESH_SCRIPT}")
                     -Tag "${SUNSHINE_VDD_LIBVIRTUALDISPLAY_RELEASE_TAG}"
                     -OutDir "${SUNSHINE_EFFECTIVE_LIBVIRTUALDISPLAY_PREBUILT_DIR}"
             DEPENDS "${SUNSHINE_VIRTUAL_DISPLAY_DRIVER_DOWNLOAD_SCRIPT}"
-            COMMENT "Downloading pinned Vibepollo Display Driver release"
+            COMMENT "Downloading pinned ArtLight Server Display Driver release"
             VERBATIM)
     endif()
 
@@ -186,7 +186,7 @@ if(EXISTS "${SUNSHINE_VIRTUAL_DISPLAY_DRIVER_REFRESH_SCRIPT}")
                 -PackageDir "${SUNSHINE_VIRTUAL_DISPLAY_DRIVER_SOURCE_DIR}"
         DEPENDS "${SUNSHINE_VIRTUAL_DISPLAY_DRIVER_REFRESH_SCRIPT}"
                 ${SUNSHINE_VIRTUAL_DISPLAY_PACKAGE_FILES}
-        COMMENT "Validating Vibepollo Display Driver package assets"
+        COMMENT "Validating ArtLight Server Display Driver package assets"
         VERBATIM)
 
     if(SUNSHINE_DOWNLOAD_LIBVIRTUALDISPLAY_RELEASE)
@@ -203,7 +203,7 @@ if(EXISTS "${SUNSHINE_VIRTUAL_DISPLAY_DRIVER_REFRESH_SCRIPT}")
                 -PackageDir "${SUNSHINE_VIRTUAL_DISPLAY_DRIVER_SOURCE_DIR}"
                 ${SUNSHINE_VIRTUAL_DISPLAY_DRIVER_SIGNING_ARGS}
         DEPENDS "${SUNSHINE_VIRTUAL_DISPLAY_DRIVER_REFRESH_SCRIPT}"
-        COMMENT "Refreshing Vibepollo Display Driver package assets from the pinned release"
+        COMMENT "Refreshing ArtLight Server Display Driver package assets from the pinned release"
         VERBATIM)
 
     if(SUNSHINE_DOWNLOAD_LIBVIRTUALDISPLAY_RELEASE)
@@ -297,7 +297,7 @@ set(CPACK_COMPONENT_APPLICATION_DEPENDS assets)
 
 # service auto-start script
 set(CPACK_COMPONENT_AUTOSTART_DISPLAY_NAME "Launch on Startup")
-set(CPACK_COMPONENT_AUTOSTART_DESCRIPTION "If enabled, launches Vibepollo automatically on system startup.")
+set(CPACK_COMPONENT_AUTOSTART_DESCRIPTION "If enabled, launches ArtLight Server automatically on system startup.")
 set(CPACK_COMPONENT_AUTOSTART_GROUP "Core")
 
 # assets
@@ -312,7 +312,7 @@ set(CPACK_COMPONENT_SUDOVDA_DESCRIPTION "Bundled rollback virtual display driver
 set(CPACK_COMPONENT_SUDOVDA_GROUP "Drivers")
 set(CPACK_COMPONENT_SUDOVDA_REQUIRED true)
 
-set(CPACK_COMPONENT_VIRTUAL_DISPLAY_DRIVER_DISPLAY_NAME "Vibepollo Display Driver")
+set(CPACK_COMPONENT_VIRTUAL_DISPLAY_DRIVER_DISPLAY_NAME "ArtLight Server Display Driver")
 set(CPACK_COMPONENT_VIRTUAL_DISPLAY_DRIVER_DESCRIPTION "Default virtual display driver.")
 set(CPACK_COMPONENT_VIRTUAL_DISPLAY_DRIVER_GROUP "Drivers")
 set(CPACK_COMPONENT_VIRTUAL_DISPLAY_DRIVER_REQUIRED true)

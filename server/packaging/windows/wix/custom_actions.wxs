@@ -8,7 +8,7 @@
     - Add/remove firewall rules
     - Install/update SudoVDA virtual display driver
     - Install/uninstall service and autostart configuration
-    - Optional prompts on uninstall for SudoVDA removal and factory reset of known Vibepollo app data
+    - Optional prompts on uninstall for SudoVDA removal and factory reset of known ArtLight Server app data
     - Detect legacy Sunshine on direct MSI installs and prompt for removal
 
     Notes:
@@ -43,19 +43,19 @@
   <Fragment>
     <DirectoryRef Id="TARGETDIR">
       <Directory Id="ProgramMenuFolder">
-        <Directory Id="VIBEPOLLO_PROGRAM_MENU_FOLDER" Name="Vibepollo">
+        <Directory Id="ARTLIGHTSERVER_PROGRAM_MENU_FOLDER" Name="ArtLight Server">
           <Component Id="StartMenuShortcut" Guid="{A3B4C5D6-E7F8-4A5B-9C2D-3E4F5A6B7C8D}">
-            <Shortcut Id="VibepolloStartMenuShortcut"
-                      Name="Vibepollo"
-                      Description="Launch Vibepollo Web UI"
+            <Shortcut Id="ArtLight ServerStartMenuShortcut"
+                      Name="ArtLight Server"
+                      Description="Launch ArtLight Server Web UI"
                       Target="[INSTALL_ROOT]sunshine.exe"
                       Icon="ProductIcon.ico"
                       Arguments="--shortcut"
                       WorkingDirectory="INSTALL_ROOT">
-              <ShortcutProperty Key="System.AppUserModel.ID" Value="$(var.VibepolloAppId)" />
+              <ShortcutProperty Key="System.AppUserModel.ID" Value="$(var.ArtLightServerAppId)" />
             </Shortcut>
-            <RegistryValue Root="HKCU" Key="Software\Vibepollo\Shortcuts" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
-            <RemoveFolder Id="RemoveVibepolloMenuFolder" Directory="VIBEPOLLO_PROGRAM_MENU_FOLDER" On="uninstall" />
+            <RegistryValue Root="HKCU" Key="Software\ArtLight Server\Shortcuts" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
+            <RemoveFolder Id="RemoveArtLightServerMenuFolder" Directory="ARTLIGHTSERVER_PROGRAM_MENU_FOLDER" On="uninstall" />
           </Component>
         </Directory>
       </Directory>
@@ -124,7 +124,7 @@
     <!-- Post-install chores (ACL reset, config migration, installer migrations) run
          AFTER InstallFiles. They are best-effort housekeeping, not prerequisites for
          the app to boot: a failure here must NOT roll back / brick an otherwise complete
-         upgrade. Use Return="ignore" like the driver/Vulkan-layer actions below; Vibepollo
+         upgrade. Use Return="ignore" like the driver/Vulkan-layer actions below; ArtLight Server
          re-repairs config ACLs AND re-hardens the private credentials directory at startup
          (statefile::repair_config_permissions / secure_private_directory, and create_creds
          hardens it before writing the key), and the legacy config-key migrations are
@@ -132,10 +132,10 @@
     <CustomAction Id="ResetAcls" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no" />
     <CustomAction Id="MigrateConfig" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no" />
     <CustomAction Id="RunInstallerMigrations" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no" />
-    <!-- Driver and Vulkan-layer installs stay Return="ignore" in Vibepollo: a failed
+    <!-- Driver and Vulkan-layer installs stay Return="ignore" in ArtLight Server: a failed
          SudoVDA/virtual-display driver refresh or Vulkan HDR layer registration (AV
          quarantine, ACLs, missing payload on upgrade) must NOT roll back an otherwise
-         complete install. Vibepollo reconciles drivers and the layer at startup and
+         complete install. ArtLight Server reconciles drivers and the layer at startup and
          surfaces a Web UI toggle + dashboard warning. -->
     <CustomAction Id="InstallSudovda" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no" />
     <CustomAction Id="InstallVirtualDisplayDriver" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no" />
@@ -247,8 +247,8 @@
     <CustomAction Id="AskUninstallLegacySunshine" BinaryKey="AskUninstallLegacySunshineVbs" VBScriptCall="AskUninstallLegacySunshine" Execute="immediate" Return="check" />
     <CustomAction Id="WaitForLegacyUninstall" BinaryKey="WaitForLegacyUninstallVbs" VBScriptCall="WaitForLegacyUninstall" Execute="immediate" Return="check" />
 
-    <CustomAction Id="BlockLegacySunshineStillPresent" Error="Legacy Sunshine is still installed. It must be removed before installing Vibepollo; click OK to start the uninstallation." />
-    <CustomAction Id="BlockUserCancelledLegacy" Error="Installation cancelled. Legacy Sunshine must be removed before installing Vibepollo." />
+    <CustomAction Id="BlockLegacySunshineStillPresent" Error="Legacy Sunshine is still installed. It must be removed before installing ArtLight Server; click OK to start the uninstallation." />
+    <CustomAction Id="BlockUserCancelledLegacy" Error="Installation cancelled. Legacy Sunshine must be removed before installing ArtLight Server." />
 
     <!-- UI-only prompt at end of a successful Repair to inform no reboot is required -->
     <CustomAction Id="RepairCompletePrompt" BinaryKey="RepairCompleteVbs" VBScriptCall="ShowRepairComplete" Execute="immediate" Return="ignore" />
@@ -261,14 +261,14 @@
     <DirectoryRef Id="INSTALL_ROOT">
       <Component Id="ArpCustomUninstallEntry" Guid="*" Win64="yes">
         <CreateFolder />
-        <RegistryKey Root="HKLM" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Vibepollo">
-          <RegistryValue Name="DisplayName" Type="string" Value="Vibepollo" KeyPath="yes" />
+        <RegistryKey Root="HKLM" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ArtLight Server">
+          <RegistryValue Name="DisplayName" Type="string" Value="ArtLight Server" KeyPath="yes" />
           <!-- Human-readable semver; ProductVersion is ordinal-encoded (e.g.
                1.18.0-beta.2 -> 1.18.32.0) and would confuse users here. The
                bootstrapper's ParseVersion maps this string back into the
                encoded space for comparisons. -->
           <RegistryValue Name="DisplayVersion" Type="string" Value="$(var.VibeshineSemVer)" />
-          <RegistryValue Name="Publisher" Type="string" Value="Nonary" />
+          <RegistryValue Name="Publisher" Type="string" Value="onaiaku" />
           <RegistryValue Name="InstallLocation" Type="string" Value="[INSTALL_ROOT]" />
           <RegistryValue Name="DisplayIcon" Type="string" Value="[INSTALL_ROOT]sunshine.exe" />
           <RegistryValue Name="UninstallString" Type="string" Value="&quot;[INSTALL_ROOT]uninstall.exe&quot;" />
@@ -281,15 +281,15 @@
       <Component Id="Fw_Exceptions" Guid="{7229349C-BC66-4A1D-8019-9546CBD2620B}">
         <CreateFolder />
         <Firewall:FirewallException xmlns:Firewall="http://schemas.microsoft.com/wix/FirewallExtension"
-                                    Id="FE_VibepolloExe"
-                                    Name="Vibepollo"
+                                    Id="FE_ArtLight ServerExe"
+                                    Name="ArtLight Server"
                                     Program="[INSTALL_ROOT]sunshine.exe"
                                     IgnoreFailure="yes"
                                     Profile="all"
                                     Scope="any" />
         <Firewall:FirewallException xmlns:Firewall="http://schemas.microsoft.com/wix/FirewallExtension"
-                                    Id="FE_VibepolloSvcExe"
-                                    Name="Vibepollo Service"
+                                    Id="FE_ArtLight ServerSvcExe"
+                                    Name="ArtLight Server Service"
                                     Program="[INSTALL_ROOT]tools\sunshinesvc.exe"
                                     IgnoreFailure="yes"
                                     Profile="all"

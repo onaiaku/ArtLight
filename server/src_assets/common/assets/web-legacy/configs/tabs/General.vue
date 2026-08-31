@@ -89,7 +89,7 @@ function removeServerCommand(index: number) {
       v-model="config.sunshine_name"
       setting-key="sunshine_name"
       class="mb-6"
-      placeholder="Vibepollo"
+      placeholder="ArtLight Server"
     />
 
     <ConfigFieldRenderer v-model="config.min_log_level" setting-key="min_log_level" class="mb-6" />

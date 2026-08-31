@@ -1,4 +1,4 @@
-# Vibepollo requirements traceability
+# ArtLight Server requirements traceability
 
 This matrix turns the UX specification into implementation ownership and observable acceptance conditions. Priorities are **Critical**, **High**, and **Later**.
 

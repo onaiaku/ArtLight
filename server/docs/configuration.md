@@ -925,7 +925,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             <br>
             **Windows:**
             <br>
-            Select the adapter in the web interface so Vibepollo can save both
+            Select the adapter in the web interface so ArtLight Server can save both
             its display name and persistent Windows device identity. For
             manually authored configurations, use the following command in
             command prompt or PowerShell to list adapter descriptions.
@@ -938,7 +938,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             <br>
             <br>
             Once an adapter is selected, capture stays pinned to it. If that GPU currently has no display
-            attached (for example a TV that is powered off), Vibepollo does **not** fall back to another
+            attached (for example a TV that is powered off), ArtLight Server does **not** fall back to another
             GPU; it treats the host as displayless and creates the virtual display on the selected adapter.
             }
         </td>
@@ -971,7 +971,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             The web interface records this value automatically when an adapter
             is selected, allowing adapters with identical descriptions to
             remain distinct across restarts and enumeration-order changes.
-            The same identity selects the render adapter when Vibepollo creates
+            The same identity selects the render adapter when ArtLight Server creates
             a virtual display fallback.
             Do not configure this key by itself. If it is omitted,
             `adapter_name` retains its legacy description-only behavior.
@@ -1617,7 +1617,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            When enabled, Vibepollo uses the Vibepollo Display Driver for virtual display streams. Disable this to switch back to the bundled SudoVDA rollback driver.
+            When enabled, ArtLight Server uses the ArtLight Server Display Driver for virtual display streams. Disable this to switch back to the bundled SudoVDA rollback driver.
             @note{Applies to Windows only.}
         </td>
     </tr>
@@ -3359,10 +3359,10 @@ They appear in the Frame Limiter section of the settings UI.
 
 @note{HDR (HEVC Main10) encoding through AMF requires the AMF runtime shipped with Adrenalin 23.30
 or newer, which reports AMF 1.4.32. FFmpeg refuses 10-bit P010 surfaces on any older runtime, so HDR
-is not offered to clients even though Vibepollo's own AMF check only needs 1.4.23. Update your
+is not offered to clients even though ArtLight Server's own AMF check only needs 1.4.23. Update your
 graphics drivers if HDR is unavailable on an AMD GPU. This limitation applies to the
 @code{amdvce_legacy} rollback encoder only; the native @code{amdvce} encoder talks to AMF directly
-and is not subject to FFmpeg's 10-bit refusal. Vibepollo carries one narrow exception for the legacy
+and is not subject to FFmpeg's 10-bit refusal. ArtLight Server carries one narrow exception for the legacy
 encoder: on a Radeon Pro 5500 XT (PCI @code{1002:7340}) running AMF 1.4.31.x, it presents 1.4.32 to
 FFmpeg for the duration of codec validation so HEVC Main10 is not refused. The exception is applied
 automatically, has no configuration option, and does not apply to any other adapter. The detected AMF
@@ -4307,7 +4307,7 @@ Automatically selects the audio capture sink when no explicit virtual sink is co
 
 ### enable_discovery
 
-Controls whether Vibepollo advertises itself for local-network discovery.
+Controls whether ArtLight Server advertises itself for local-network discovery.
 
 ### enable_input_only_mode
 

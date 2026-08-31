@@ -23,7 +23,7 @@ function New-GitHubHeaders {
 
     $headers = @{
         'Accept' = 'application/vnd.github+json'
-        'User-Agent' = 'vibepollo-libvirtualdisplay-downloader'
+        'User-Agent' = 'artlightserver-libvirtualdisplay-downloader'
         'X-GitHub-Api-Version' = '2022-11-28'
     }
     if ($Token) {

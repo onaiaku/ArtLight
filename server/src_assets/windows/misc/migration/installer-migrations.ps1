@@ -420,7 +420,7 @@ $candidateJsonFiles = @(
 
 $changedAny = $false
 if (Update-SunshineVirtualDriverPreference -RootDir $rootDir -InstallVirtualDisplayDriver $InstallVirtualDisplayDriver) {
-    Write-Output 'Updated Vibepollo Display Driver preference from installer selection.'
+    Write-Output 'Updated ArtLight Server Display Driver preference from installer selection.'
     $changedAny = $true
 }
 

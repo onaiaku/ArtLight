@@ -73,7 +73,7 @@ class ReleaseWorkflowSplitTest(unittest.TestCase):
             '"${source_path}" != ".github/workflows/ci.yml" && "${source_path}" != ".github/workflows/ci.yml@"*',
             workflow_text,
         )
-        self.assertIn("Vibepollo.msi", workflow_text)
+        self.assertIn("ArtLight Server.msi", workflow_text)
         self.assertIn("windows-versioninfo-Windows", workflow_text)
         self.assertEqual(dispatch_inputs["signed_run_id"]["required"], "false")
         self.assertIn("finalized signed artifacts", dispatch_inputs["signed_run_id"]["description"])
@@ -324,7 +324,7 @@ class WindowsWorkflowEfficiencyTest(unittest.TestCase):
             ROOT / "cmake" / "prep" / "emit_windows_versioninfo.cmake"
         ).read_text(encoding="utf-8")
         bootstrapper = (
-            ROOT / "packaging" / "windows" / "bootstrapper" / "VibeshineInstaller.cs"
+            ROOT / "packaging" / "windows" / "bootstrapper" / "ArtLightServerInstaller.cs"
         ).read_text(encoding="utf-8")
 
         self.assertIn(

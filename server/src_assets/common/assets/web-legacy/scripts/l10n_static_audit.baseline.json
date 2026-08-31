@@ -4,13 +4,13 @@
   "issueCount": 411,
   "issues": [
     {
-      "fingerprint": "fallback-literal|Troubleshooting.vue||troubleshooting.collect_playnite_logs_desc|Export Vibepollo, Playnite, plugin, and display-helper logs.||",
+      "fingerprint": "fallback-literal|Troubleshooting.vue||troubleshooting.collect_playnite_logs_desc|Export ArtLight Server, Playnite, plugin, and display-helper logs.||",
       "rule": "fallback-literal",
       "file": "Troubleshooting.vue",
       "locale": null,
       "key": "troubleshooting.collect_playnite_logs_desc",
-      "value": "Export Vibepollo, Playnite, plugin, and display-helper logs.",
-      "message": "I18n expression uses an English fallback literal: Export Vibepollo, Playnite, plugin, and display-helper logs."
+      "value": "Export ArtLight Server, Playnite, plugin, and display-helper logs.",
+      "message": "I18n expression uses an English fallback literal: Export ArtLight Server, Playnite, plugin, and display-helper logs."
     },
     {
       "fingerprint": "fallback-literal|Troubleshooting.vue||troubleshooting.collect_playnite_logs|Export Logs||",
@@ -31,13 +31,13 @@
       "message": "I18n expression uses an English fallback literal: Export Logs"
     },
     {
-      "fingerprint": "fallback-literal|Troubleshooting.vue||troubleshooting.export_crash_bundle_desc|Download logs and the most recent Vibepollo crash dump for issue reports.||",
+      "fingerprint": "fallback-literal|Troubleshooting.vue||troubleshooting.export_crash_bundle_desc|Download logs and the most recent ArtLight Server crash dump for issue reports.||",
       "rule": "fallback-literal",
       "file": "Troubleshooting.vue",
       "locale": null,
       "key": "troubleshooting.export_crash_bundle_desc",
-      "value": "Download logs and the most recent Vibepollo crash dump for issue reports.",
-      "message": "I18n expression uses an English fallback literal: Download logs and the most recent Vibepollo crash dump for issue reports."
+      "value": "Download logs and the most recent ArtLight Server crash dump for issue reports.",
+      "message": "I18n expression uses an English fallback literal: Download logs and the most recent ArtLight Server crash dump for issue reports."
     },
     {
       "fingerprint": "fallback-literal|Troubleshooting.vue||troubleshooting.export_crash_bundle_preparing|Preparing Crash Bundle...||",
@@ -94,13 +94,13 @@
       "message": "I18n fallback literal should be represented in en.json: Playnite"
     },
     {
-      "fingerprint": "fallback-literal|Troubleshooting.vue||troubleshooting.logs_source_sunshine|Vibepollo||",
+      "fingerprint": "fallback-literal|Troubleshooting.vue||troubleshooting.logs_source_sunshine|ArtLight Server||",
       "rule": "fallback-literal",
       "file": "Troubleshooting.vue",
       "locale": null,
       "key": "troubleshooting.logs_source_sunshine",
-      "value": "Vibepollo",
-      "message": "I18n fallback literal should be represented in en.json: Vibepollo"
+      "value": "ArtLight Server",
+      "message": "I18n fallback literal should be represented in en.json: ArtLight Server"
     },
     {
       "fingerprint": "fallback-literal|Troubleshooting.vue||troubleshooting.logs_source_wgc|WGC helper||",

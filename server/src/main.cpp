@@ -297,7 +297,7 @@ int main(int argc, char *argv[]) {
                   << ", display_version=" << windows_version.display_version
                   << ", build=" << windows_version.current_build;
   if (windows_version.build_number.has_value() && *windows_version.build_number < 22000) {
-    BOOST_LOG(warning) << "Windows 10 detected; HDR will not work on the Vibepollo Virtual Display.";
+    BOOST_LOG(warning) << "Windows 10 detected; HDR will not work on the ArtLight Server Virtual Display.";
   }
 #endif
   if (version_compare::is_prerelease_channel(PROJECT_VERSION)) {
@@ -523,7 +523,7 @@ int main(int argc, char *argv[]) {
     shutdown_signal_requested.store(true, std::memory_order_relaxed);
     BOOST_LOG(info) << "Interrupt handler called"sv;
 
-    // Preserve Vibepollo's eager application cleanup; the owned deadline above
+    // Preserve ArtLight Server's eager application cleanup; the owned deadline above
     // replaces the detached task-pool watchdog that used to follow it.
     proc::proc.terminate();
     // Break out of the main loop

@@ -203,7 +203,7 @@
       "group": "build"
     },
     {
-      "label": "install: Vibepollo",
+      "label": "install: ArtLight Server",
       "type": "shell",
       "command": "powershell",
       "args": [
@@ -211,7 +211,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        "${workspaceFolder}/scripts/install_vibepollo.ps1"
+        "${workspaceFolder}/scripts/install_artlightserver.ps1"
       ],
       "problemMatcher": []
     },
@@ -235,7 +235,7 @@
         "symbols: cv2pdb sunshine",
         "symbols: copy to ProgramData",
         "cpack: custom installer",
-        "install: Vibepollo"
+        "install: ArtLight Server"
       ],
       "problemMatcher": [],
       "group": {
@@ -273,7 +273,7 @@
       "dependsOrder": "sequence",
       "dependsOn": [
         "pipeline: build + pack",
-        "install: Vibepollo"
+        "install: ArtLight Server"
       ],
       "problemMatcher": [],
       "group": {
@@ -286,7 +286,7 @@
       "dependsOrder": "sequence",
       "dependsOn": [
         "cpack: custom installer",
-        "install: Vibepollo"
+        "install: ArtLight Server"
       ],
       "problemMatcher": [],
       "group": {

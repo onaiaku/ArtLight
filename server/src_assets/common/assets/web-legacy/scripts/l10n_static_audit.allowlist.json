@@ -80,7 +80,7 @@
     "(^|/)scripts/l10n_static_audit\\.(allowlist|baseline)\\.json$"
   ],
   "issueFingerprints": [
-    "locale-mojibake|public/assets/locale/vi.json|vi|config.notify_pre_releases_desc|Có muốn nhận thông báo về các phiên bản thử nghiệm mới của Vibepollo không?||",
+    "locale-mojibake|public/assets/locale/vi.json|vi|config.notify_pre_releases_desc|Có muốn nhận thông báo về các phiên bản thử nghiệm mới của ArtLight Server không?||",
     "locale-untranslated-value|public/assets/locale/cs.json||cs|config.rtx_hdr_title|RTX HDR (AI SDR → HDR)||",
     "locale-untranslated-value|public/assets/locale/ja.json||ja|config.rtx_hdr_title|RTX HDR (AI SDR → HDR)||",
     "locale-untranslated-value|public/assets/locale/pl.json||pl|config.rtx_hdr_title|RTX HDR (AI SDR → HDR)||",

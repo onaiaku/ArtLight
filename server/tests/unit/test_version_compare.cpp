@@ -1,6 +1,6 @@
 /**
  * @file tests/unit/test_version_compare.cpp
- * @brief Unit tests for Vibepollo's semver comparison rules.
+ * @brief Unit tests for ArtLight Server's semver comparison rules.
  */
 
 #include <gtest/gtest.h>

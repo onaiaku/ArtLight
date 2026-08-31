@@ -375,7 +375,7 @@ namespace display_device {
       using hdr_option_e = config::video_t::dd_t::hdr_option_e;
 
       if (rtsp_stream::rtx_hdr_enabled(video_config)) {
-        BOOST_LOG(info) << "RTX HDR: enabled for this app; forcing the source display to SDR so Vibepollo does not enable host HDR.";
+        BOOST_LOG(info) << "RTX HDR: enabled for this app; forcing the source display to SDR so ArtLight Server does not enable host HDR.";
         return HdrState::Disabled;
       }
 

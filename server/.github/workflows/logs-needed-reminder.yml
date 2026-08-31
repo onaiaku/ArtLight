@@ -95,9 +95,9 @@ jobs:
 
             Thank you for the report. We need logs in order to troubleshoot this issue.
 
-            Please collect them from Vibepollo:
+            Please collect them from ArtLight Server:
             1. Open the system tray icon for Apollo.
-            2. Click **Open Vibepollo**.
+            2. Click **Open ArtLight Server**.
             3. If required, log into the Web UI.
             4. Open the **Troubleshooting** tab.
             5. Click **Export Logs**.

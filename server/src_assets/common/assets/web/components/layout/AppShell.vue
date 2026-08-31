@@ -87,7 +87,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
       </button>
       <RouterLink class="mobile-brand" to="/" :aria-label="t('ui.shell.brand_overview')">
         <img src="/images/logo-apollo-45.png" alt="" width="28" height="28" />
-        <span>Vibepollo</span>
+        <span>ArtLight Server</span>
       </RouterLink>
       <span class="mobile-status" :data-state="system.health">{{ statusText }}</span>
     </header>
@@ -104,7 +104,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
       <div class="sidebar__header">
         <RouterLink class="brand" to="/" :aria-label="t('ui.shell.brand_overview')">
           <img src="/images/logo-apollo-45.png" alt="" width="32" height="32" />
-          <span class="sidebar__label brand__name">Vibepollo</span>
+          <span class="sidebar__label brand__name">ArtLight Server</span>
         </RouterLink>
         <button
           class="icon-button sidebar__close"

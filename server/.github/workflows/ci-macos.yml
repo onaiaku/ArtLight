@@ -128,7 +128,7 @@ jobs:
           fi
 
           mkdir -p artifacts
-          dmg_path="$(find build/cpack_artifacts -maxdepth 1 -name 'Vibepollo*.dmg' -print -quit)"
+          dmg_path="$(find build/cpack_artifacts -maxdepth 1 -name 'ArtLight Server*.dmg' -print -quit)"
           if [[ -z "${dmg_path}" ]]; then
             dmg_path="$(find build/cpack_artifacts -maxdepth 1 -name '*.dmg' -print -quit)"
           fi
@@ -136,7 +136,7 @@ jobs:
             echo "No DMG produced in build/cpack_artifacts"
             exit 1
           fi
-          cp "${dmg_path}" "artifacts/Vibepollo-${MATRIX_NAME}.dmg"
+          cp "${dmg_path}" "artifacts/ArtLight Server-${MATRIX_NAME}.dmg"
 
       - name: Submit for notarization
         id: notarize_submit
@@ -149,9 +149,9 @@ jobs:
         run: |
           # Notarizing allows the signed .app to run on any Mac with no prompts.
           # If you don't notarize, users must jump through the "Open Anyway" hoop as well as run
-          # `xattr -cr /Applications/Vibepollo.app` to remove quarantine.
+          # `xattr -cr /Applications/ArtLight Server.app` to remove quarantine.
           if [[ -n "${APPLE_NOTARYTOOL_PASSWORD}" ]]; then
-            dmg_path="$(find build/cpack_artifacts -maxdepth 1 -name 'Vibepollo*.dmg' -print -quit)"
+            dmg_path="$(find build/cpack_artifacts -maxdepth 1 -name 'ArtLight Server*.dmg' -print -quit)"
             if [[ -z "${dmg_path}" ]]; then
               dmg_path="$(find build/cpack_artifacts -maxdepth 1 -name '*.dmg' -print -quit)"
             fi
@@ -253,7 +253,7 @@ jobs:
             sleep 30
           done
 
-          xcrun stapler staple -v "artifacts/Vibepollo-${MATRIX_NAME}.dmg"
+          xcrun stapler staple -v "artifacts/ArtLight Server-${MATRIX_NAME}.dmg"
 
       - name: Upload stapled artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1

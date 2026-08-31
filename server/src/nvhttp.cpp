@@ -1972,7 +1972,7 @@ namespace nvhttp {
           if (!parse_unsigned(refresh_text, kMaxRefreshMillihz, raw_refresh)) {
             return std::nullopt;
           }
-          // Vibepollo's legacy mode values at or above 1000 are already millihertz.
+          // ArtLight Server's legacy mode values at or above 1000 are already millihertz.
           refresh_millihz = raw_refresh >= 1000 ? raw_refresh : raw_refresh * 1000;
         } else {
           if (refresh_text.find('.', decimal_point + 1) != std::string_view::npos) {
@@ -2488,7 +2488,7 @@ namespace nvhttp {
       msg.reserve(160);
       msg += "Permission denied: this device lacks the \"";
       msg += perm_label;
-      msg += "\" permission. Enable it on the host in the Vibepollo Web UI under Client Management.";
+      msg += "\" permission. Enable it on the host in the ArtLight Server Web UI under Client Management.";
       return msg;
     }
 

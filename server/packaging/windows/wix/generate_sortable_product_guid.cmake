@@ -2,7 +2,7 @@
 # Keep the UpgradeCode stable, but generate a new ProductCode for every MSI so
 # same-numeric-version prereleases can be ordered by canonical UUID text.
 
-function(_vibepollo_generate_sortable_product_guid _output_variable)
+function(_artlightserver_generate_sortable_product_guid _output_variable)
   set(_guid "")
 
   if(CMAKE_HOST_WIN32)
@@ -53,8 +53,8 @@ function(_vibepollo_generate_sortable_product_guid _output_variable)
   set(${_output_variable} "${_guid}" PARENT_SCOPE)
 endfunction()
 
-_vibepollo_generate_sortable_product_guid(_vibepollo_product_guid)
-set(CPACK_WIX_PRODUCT_GUID "${_vibepollo_product_guid}")
+_artlightserver_generate_sortable_product_guid(_artlightserver_product_guid)
+set(CPACK_WIX_PRODUCT_GUID "${_artlightserver_product_guid}")
 message(STATUS "CPACK_WIX_PRODUCT_GUID = ${CPACK_WIX_PRODUCT_GUID} (sortable per-package ProductCode)")
 
 # CPack's WiX generator reuses its staging tree between invocations.  That is
@@ -63,11 +63,11 @@ message(STATUS "CPACK_WIX_PRODUCT_GUID = ${CPACK_WIX_PRODUCT_GUID} (sortable per
 # EXEs.  Clear only the generator's transient staging directory so every MSI is
 # built from the current CMake install output.
 if(DEFINED CPACK_PACKAGE_DIRECTORY AND DEFINED CPACK_SYSTEM_NAME AND DEFINED CPACK_GENERATOR)
-  set(_vibepollo_wix_stage
+  set(_artlightserver_wix_stage
     "${CPACK_PACKAGE_DIRECTORY}/_CPack_Packages/${CPACK_SYSTEM_NAME}/${CPACK_GENERATOR}"
   )
-  if(EXISTS "${_vibepollo_wix_stage}")
-    file(REMOVE_RECURSE "${_vibepollo_wix_stage}")
-    message(STATUS "Removed stale CPack WiX staging directory: ${_vibepollo_wix_stage}")
+  if(EXISTS "${_artlightserver_wix_stage}")
+    file(REMOVE_RECURSE "${_artlightserver_wix_stage}")
+    message(STATUS "Removed stale CPack WiX staging directory: ${_artlightserver_wix_stage}")
   endif()
 endif()

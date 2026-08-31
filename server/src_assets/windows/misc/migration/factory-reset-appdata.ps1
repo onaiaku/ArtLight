@@ -73,7 +73,7 @@ if (-not (Test-SafeInstallRoot -Path $root)) {
 
 $config = Join-Path -Path $root -ChildPath 'config'
 
-# Factory reset removes only known Vibepollo data. It intentionally does not
+# Factory reset removes only known ArtLight Server data. It intentionally does not
 # recurse through the install root or config directory looking for arbitrary
 # files, so user-created files added after install are preserved.
 $knownConfigItems = @(
@@ -95,7 +95,7 @@ foreach ($item in $knownConfigItems) {
     Remove-KnownItem -BasePath $config -Name $item
 }
 
-# Older Sunshine/Vibepollo versions could keep app data directly under the
+# Older Sunshine/ArtLight Server versions could keep app data directly under the
 # install root. Remove only those known legacy locations during factory reset.
 foreach ($item in $knownConfigItems) {
     Remove-KnownItem -BasePath $root -Name $item

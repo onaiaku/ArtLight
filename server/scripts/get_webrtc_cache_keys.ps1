@@ -242,7 +242,7 @@ $outputInputHash = Get-OutputInputHash -LibWebrtcDir (Join-Path $RootDir "third-
 # whole build script. Keep this list aligned with the GN args and copied
 # artifacts in build_mingw_webrtc.ps1; bump/edit it only when the produced
 # include/ or lib/ WebRTC artifacts should no longer be considered cache
-# compatible between Vibeshine and Vibepollo.
+# compatible between Vibeshine and ArtLight Server.
 $binaryRecipeName = "win-x64-mingw-libwebrtc-dll"
 $binaryRecipeInputs = @(
   "schema=$cacheSchema",

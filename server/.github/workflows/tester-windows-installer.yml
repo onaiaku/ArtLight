@@ -28,7 +28,7 @@ jobs:
       release_commit: ${{ github.sha }}
       release_version: ${{ inputs.build_version || '0.0.0' }}
       release_tag: ''
-      symbol_product_name: Vibepollo
+      symbol_product_name: ArtLight Server
       symbol_release_prefix: polo
       publish_symbols: false
       upload_symbols_artifact: false

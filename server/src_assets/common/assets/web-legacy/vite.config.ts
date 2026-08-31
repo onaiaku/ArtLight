@@ -91,7 +91,7 @@ function getManualChunk(id: string): string | undefined {
 
 function bundledChangelogPlugin(repoRoot: string): Plugin {
   return {
-    name: 'vibepollo-bundled-changelog',
+    name: 'artlightserver-bundled-changelog',
     generateBundle() {
       const releaseNotesDir = resolve(repoRoot, 'release_notes');
       const releases = fs.existsSync(releaseNotesDir)

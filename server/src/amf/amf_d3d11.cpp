@@ -43,7 +43,7 @@ namespace amf {
   // Stamped onto every AMF wrapper at creation; checked on release so a
   // driver-delayed callback from an old wrapper cannot free the slot's next
   // occupant while the VCN may still be reading it.
-  static const wchar_t *const kSlotGenerationProperty = L"VibepolloSlotGeneration";
+  static const wchar_t *const kSlotGenerationProperty = L"ArtLight ServerSlotGeneration";
 
   void AMF_STD_CALL
   amf_d3d11::input_surface_release_observer_t::OnSurfaceDataRelease(::amf::AMFSurface *surface) {

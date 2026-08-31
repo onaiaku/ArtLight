@@ -52,7 +52,7 @@ if (-not $ArtifactDir) {
   $ArtifactDir = Join-Path $RootDir ".tmp\webrtc-release"
 }
 if (-not $ReleaseRepository) {
-  $ReleaseRepository = if ($env:GITHUB_REPOSITORY) { $env:GITHUB_REPOSITORY } else { "Nonary/vibepollo" }
+  $ReleaseRepository = if ($env:GITHUB_REPOSITORY) { $env:GITHUB_REPOSITORY } else { "Nonary/libwebrtc" }
 }
 
 Require-Path (Join-Path $OutDir "include\libwebrtc.h")
@@ -147,7 +147,7 @@ $pinnedManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPa
 
 $notesPath = Join-Path $ArtifactDir "release-notes.md"
 @"
-Pinned Windows x64 WebRTC artifacts for Vibepollo.
+Pinned Windows x64 WebRTC artifacts for ArtLight Server.
 
 - WebRTC ref: ``$WebrtcRef``
 - WebRTC revision: ``$($keys["webrtc-source-revision"])``
