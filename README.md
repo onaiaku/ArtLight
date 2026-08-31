@@ -44,7 +44,7 @@ Both are designed to be set up once and forgotten: install, pair your client, pl
 
 - Windows 10 / 11 (x64)
 - NVIDIA, AMD, or Intel GPU with hardware encoding
-- A Moonlight client on the device you stream to
+- A Moonlight client on the device you stream to — we recommend our own [**ArtMoon**](https://github.com/onaiaku/ArtMoon), built to pair with ArtLight out of the box
 
 ## Quick start
 
