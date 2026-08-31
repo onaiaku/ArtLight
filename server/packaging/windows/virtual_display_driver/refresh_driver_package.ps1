@@ -105,7 +105,13 @@ function Resolve-VsDevCmd {
 
     $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
     if (Test-Path -LiteralPath $vswhere -PathType Leaf) {
-        $installationPaths = @(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath 2>$null)
+        $previousEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $installationPaths = @(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath 2>$null)
+        } finally {
+            $ErrorActionPreference = $previousEap
+        }
         foreach ($installationPath in $installationPaths) {
             if (-not [string]::IsNullOrWhiteSpace($installationPath)) {
                 $candidates.Add((Join-Path $installationPath 'Common7\Tools\VsDevCmd.bat'))
@@ -182,7 +188,18 @@ function Resolve-PackageVersionFromGit {
         return ''
     }
 
-    $describe = & $git.Source -C $Path describe --tags --long --match 'v[0-9]*' 2>$null
+    # Windows PowerShell 5.1 turns any native stderr output into a terminating error
+    # while ErrorActionPreference is 'Stop' (even when redirected with 2>$null).
+    # Shallow submodule checkouts have no tags, so git describe legitimately fails
+    # here — relax the preference around the call and let exit-code handling decide.
+    $previousEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $describe = & $git.Source -C $Path describe --tags --long --match 'v[0-9]*' 2>$null
+        $dirty = & $git.Source -C $Path status --porcelain 2>$null
+    } finally {
+        $ErrorActionPreference = $previousEap
+    }
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($describe)) {
         return ''
     }
@@ -190,7 +207,6 @@ function Resolve-PackageVersionFromGit {
     if ($describe -match '^v?([0-9]+\.[0-9]+\.[0-9]+)(?:-([0-9]+)-g[0-9a-f]+)?(?:-.+)?$') {
         $baseVersion = $Matches[1]
         $commitsSinceTag = if ($Matches.Count -gt 2 -and $Matches[2]) { [int]$Matches[2] } else { 0 }
-        $dirty = & $git.Source -C $Path status --porcelain 2>$null
         if ($LASTEXITCODE -eq 0 -and $dirty) {
             $commitsSinceTag++
         }
@@ -238,7 +254,13 @@ function Resolve-NextLocalDirtyPackageVersion {
         return $Version
     }
 
-    $dirty = & $git.Source -C $LibRoot status --porcelain 2>$null
+    $previousEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $dirty = & $git.Source -C $LibRoot status --porcelain 2>$null
+    } finally {
+        $ErrorActionPreference = $previousEap
+    }
     if ($LASTEXITCODE -ne 0 -or -not $dirty -or
         [string]::IsNullOrWhiteSpace($ExistingInfPath) -or
         -not (Test-Path -LiteralPath $ExistingInfPath -PathType Leaf)) {
@@ -291,7 +313,14 @@ function Resolve-DriverVerDateFromGit {
 
     $git = Get-Command git -ErrorAction SilentlyContinue
     if ($git) {
-        $date = & $git.Source -C $Path log -1 '--format=%cd' '--date=format:%m/%d/%Y' 2>$null
+        # Same PS 5.1 stderr-as-terminating-error guard as Resolve-PackageVersionFromGit.
+        $previousEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $date = & $git.Source -C $Path log -1 '--format=%cd' '--date=format:%m/%d/%Y' 2>$null
+        } finally {
+            $ErrorActionPreference = $previousEap
+        }
         if ($LASTEXITCODE -eq 0 -and $date -match '^[0-9][0-9]/[0-9][0-9]/[0-9][0-9][0-9][0-9]$') {
             return $date
         }
