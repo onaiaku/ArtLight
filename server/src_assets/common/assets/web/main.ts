@@ -2,7 +2,7 @@ import { createPinia } from 'pinia';
 import { createApp } from 'vue';
 
 import App from '@/App.vue';
-import { createArtLight ServerI18n } from '@/i18n';
+import { createArtLightServerI18n } from '@/i18n';
 import router from '@/router';
 import '@/styles/tokens.css';
 import '@/styles/base.css';
@@ -10,7 +10,7 @@ import '@/styles/components.css';
 import '@/styles/shell.css';
 import '@/styles/views.css';
 
-const i18n = await createArtLight ServerI18n();
+const i18n = await createArtLightServerI18n();
 
 router.afterEach((route) => {
   const key = typeof route.meta.titleKey === 'string' ? route.meta.titleKey : 'ui.nav.overview';

@@ -68,7 +68,7 @@ function browserLocaleTag(locale: string): string {
   return locale.replace(/_/g, '-');
 }
 
-export async function createArtLight ServerI18n() {
+export async function createArtLightServerI18n() {
   const configured = await configuredLocale();
   let activeLocale = 'en';
   const english = await loadMessages('en');

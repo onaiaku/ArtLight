@@ -21,7 +21,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 
-namespace ArtLight ServerInstaller {
+namespace ArtLightServerInstaller {
   internal static class BuildFlavor {
 #if UNINSTALL_ONLY
     public static readonly bool IsUninstallOnly = true;
@@ -164,7 +164,7 @@ namespace ArtLight ServerInstaller {
       _arguments = arguments;
       _bundleVersion = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0, 0, 0);
       _licenseText = LoadEmbeddedLicenseText();
-      _installedProduct = InstallerRunner.GetInstalledArtLight ServerProduct();
+      _installedProduct = InstallerRunner.GetInstalledArtLightServerProduct();
       _legacySunshineProduct = InstallerRunner.GetInstalledSunshineProduct();
       _legacySunshineRegistration = InstallerRunner.GetLegacySunshineRegistration();
       _legacyApolloRegistration = InstallerRunner.GetLegacyApolloRegistration();
@@ -2468,7 +2468,7 @@ namespace ArtLight ServerInstaller {
         .FirstOrDefault();
     }
 
-    public static InstalledProductInfo GetInstalledArtLight ServerProduct() {
+    public static InstalledProductInfo GetInstalledArtLightServerProduct() {
       return GetInstalledProducts(false)
         .Where(product => product.Kind == InstalledProductKind.ArtLight Server)
         .OrderByDescending(product => product.Version ?? new Version(0, 0, 0, 0))
@@ -6187,7 +6187,7 @@ namespace ArtLight ServerInstaller {
       }
 
       foreach (var installedProduct in new[] {
-        GetInstalledArtLight ServerProduct(),
+        GetInstalledArtLightServerProduct(),
         GetInstalledVibeshineProduct(),
         GetInstalledSunshineProduct(),
         GetInstalledApolloProduct()
@@ -6389,7 +6389,7 @@ namespace ArtLight ServerInstaller {
       }
 
       try {
-        if (GetInstalledArtLight ServerProduct() != null || GetInstalledVibeshineProduct() != null) {
+        if (GetInstalledArtLightServerProduct() != null || GetInstalledVibeshineProduct() != null) {
           // A product is still (or again) registered; leave it alone.
           return null;
         }
@@ -6412,7 +6412,7 @@ namespace ArtLight ServerInstaller {
 
         AppendInstallerLogMessage(logPath, "Restoring previously installed version from stashed package: " + stashedPayload.MsiPath);
         var exitCode = RunMsiexec(args, true, false);
-        if ((exitCode == 0 || exitCode == 3010) && (GetInstalledArtLight ServerProduct() != null || GetInstalledVibeshineProduct() != null)) {
+        if ((exitCode == 0 || exitCode == 3010) && (GetInstalledArtLightServerProduct() != null || GetInstalledVibeshineProduct() != null)) {
           return "The previously installed version was automatically restored. Restore log: " + logPath;
         }
 
@@ -6450,12 +6450,12 @@ namespace ArtLight ServerInstaller {
           ? restoreMessage
           : installResult.Message.TrimEnd() + " " + restoreMessage;
       }
-      var restoredArtLight Server = GetInstalledArtLight ServerProduct();
+      var restoredArtLightServer = GetInstalledArtLightServerProduct();
       var restoredVibeshine = GetInstalledVibeshineProduct();
       var restoredExactProduct =
-        (restoredArtLight Server != null
+        (restoredArtLightServer != null
           && string.Equals(
-            NormalizeProductCode(restoredArtLight Server.ProductCode),
+            NormalizeProductCode(restoredArtLightServer.ProductCode),
             NormalizeProductCode(stashedPayload.ProductCode),
             StringComparison.OrdinalIgnoreCase))
         || (restoredVibeshine != null
@@ -6505,14 +6505,14 @@ namespace ArtLight ServerInstaller {
       bool requestElevationIfNeeded,
       out StashedVibeshinePayload stashedPayload) {
       stashedPayload = null;
-      var installedArtLight Server = GetInstalledArtLight ServerProduct();
-      if (!RequiresPreUninstallUpgradeWorkaround(installedArtLight Server)) {
+      var installedArtLightServer = GetInstalledArtLightServerProduct();
+      if (!RequiresPreUninstallUpgradeWorkaround(installedArtLightServer)) {
         return null;
       }
 
-      stashedPayload = TryStashInstalledProductPayload(installedArtLight Server, logPhase + "_stash");
+      stashedPayload = TryStashInstalledProductPayload(installedArtLightServer, logPhase + "_stash");
       if (stashedPayload == null) {
-        return BuildRollbackPreservationFailure(installedArtLight Server);
+        return BuildRollbackPreservationFailure(installedArtLightServer);
       }
       return UninstallInstalledProducts(
         logPhase,
