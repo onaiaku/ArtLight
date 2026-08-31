@@ -1405,11 +1405,13 @@ namespace ArtLightServerInstaller {
     }
 
     private string ResolvePreferredInstallDirectory() {
+      // Only a genuine ArtLight Server installation upgrades in place.
+      // Legacy products (Apollo, Sunshine, Vibeshine) keep their own folders;
+      // a fresh ArtLight install always defaults to the branded directory.
       var candidates = new[] {
-        _installedProduct == null ? null : _installedProduct.InstallLocation,
-        _legacySunshineProduct == null ? null : _legacySunshineProduct.InstallLocation,
-        _legacySunshineRegistration == null ? null : _legacySunshineRegistration.InstallLocation,
-        _legacyApolloRegistration == null ? null : _legacyApolloRegistration.InstallLocation
+        _installedProduct != null && _installedProduct.Kind == InstalledProductKind.ArtLightServer
+          ? _installedProduct.InstallLocation
+          : null
       };
 
       foreach (var candidate in candidates) {
@@ -2369,7 +2371,7 @@ namespace ArtLightServerInstaller {
       get {
         return Path.Combine(
           Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-          "Apollo");
+          "ArtLight Server");
       }
     }
 
