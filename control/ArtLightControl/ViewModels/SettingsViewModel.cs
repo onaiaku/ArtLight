@@ -62,6 +62,7 @@ namespace ArtLightControl.ViewModels
 
         private static readonly Dictionary<string, string> _serverRepos = new(StringComparer.OrdinalIgnoreCase)
         {
+            ["ArtLight Server"] = "https://github.com/onaiaku/ArtLight",
             ["Sunshine"]  = "https://github.com/LizardByte/Sunshine",
             ["Apollo"]    = "https://github.com/ClassicOldSong/Apollo",
             ["Vibeshine"] = "https://github.com/Nonary/vibeshine",
