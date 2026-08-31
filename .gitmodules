@@ -1,0 +1,90 @@
+[submodule "packaging/linux/flatpak/deps/flatpak-builder-tools"]
+	path = server/packaging/linux/flatpak/deps/flatpak-builder-tools
+	url = https://github.com/flatpak/flatpak-builder-tools.git
+	branch = master
+[submodule "packaging/linux/flatpak/deps/shared-modules"]
+	path = server/packaging/linux/flatpak/deps/shared-modules
+	url = https://github.com/flathub/shared-modules.git
+	branch = master
+[submodule "third-party/build-deps"]
+	path = server/third-party/build-deps
+	url = https://github.com/LizardByte/build-deps.git
+	branch = master
+[submodule "third-party/doxyconfig"]
+	path = server/third-party/doxyconfig
+	url = https://github.com/LizardByte/doxyconfig.git
+	branch = master
+[submodule "third-party/glad"]
+	path = server/third-party/glad
+	url = https://github.com/Dav1dde/glad.git
+[submodule "third-party/googletest"]
+	path = server/third-party/googletest
+	url = https://github.com/google/googletest.git
+	branch = main
+[submodule "third-party/inputtino"]
+	path = server/third-party/inputtino
+	url = https://github.com/games-on-whales/inputtino.git
+	branch = stable
+[submodule "third-party/libdisplaydevice"]
+	path = server/third-party/libdisplaydevice
+	url = https://github.com/Nonary/libdisplaydevice.git
+	branch = display_rework_v2
+[submodule "third-party/nanors"]
+	path = server/third-party/nanors
+	url = https://github.com/sleepybishop/nanors.git
+	branch = master
+[submodule "third-party/nv-codec-headers"]
+	path = server/third-party/nv-codec-headers
+	url = https://github.com/FFmpeg/nv-codec-headers.git
+	branch = master
+[submodule "third-party/nvapi-open-source-sdk"]
+	path = server/third-party/nvapi-open-source-sdk
+	url = https://github.com/LizardByte/nvapi-open-source-sdk.git
+	branch = sdk
+[submodule "third-party/nvapi"]
+	path = server/third-party/nvapi
+	url = https://github.com/NVIDIA/nvapi.git
+	branch = main
+[submodule "third-party/plasma-wayland-protocols"]
+	path = server/third-party/plasma-wayland-protocols
+	url = https://github.com/KDE/plasma-wayland-protocols.git
+	branch = master
+[submodule "third-party/Simple-Web-Server"]
+	path = server/third-party/Simple-Web-Server
+	url = https://github.com/LizardByte-infrastructure/Simple-Web-Server.git
+	branch = master
+[submodule "third-party/TPCircularBuffer"]
+	path = server/third-party/TPCircularBuffer
+	url = https://github.com/michaeltyson/TPCircularBuffer.git
+	branch = master
+[submodule "third-party/ViGEmClient"]
+	path = server/third-party/ViGEmClient
+	url = https://github.com/LizardByte/Virtual-Gamepad-Emulation-Client.git
+	branch = master
+[submodule "third-party/wayland-protocols"]
+	path = server/third-party/wayland-protocols
+	url = https://github.com/LizardByte-infrastructure/wayland-protocols.git
+	branch = main
+[submodule "third-party/wlr-protocols"]
+	path = server/third-party/wlr-protocols
+	url = https://github.com/LizardByte-infrastructure/wlr-protocols.git
+	branch = master
+[submodule "third-party/moonlight-common-c"]
+	path = server/third-party/moonlight-common-c
+	url = https://github.com/moonlight-stream/moonlight-common-c.git
+	branch = master
+[submodule "third-party/tray"]
+	path = server/third-party/tray
+	url = https://github.com/Nonary/tray
+	branch = master
+[submodule "third-party/libwebrtc"]
+	path = server/third-party/libwebrtc
+	url = https://github.com/Nonary/libwebrtc
+	branch = feat/upgrade-to-m137
+[submodule "third-party/depot_tools"]
+	path = server/third-party/depot_tools
+	url = https://chromium.googlesource.com/chromium/tools/depot_tools.git
+[submodule "third-party/libvirtualdisplay"]
+	path = server/third-party/libvirtualdisplay
+	url = https://github.com/Nonary/libvirtualdisplay.git
+	branch = master
