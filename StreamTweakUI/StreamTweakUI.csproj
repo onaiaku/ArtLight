@@ -43,14 +43,6 @@
   <ItemGroup>
     <ProjectReference Include="..\StreamTweak.Core\StreamTweak.Core.csproj" />
   </ItemGroup>
-
-  <PropertyGroup>
-    <!-- Self-contained deployment: bundle the Windows App SDK runtime with the app
-         instead of resolving it from installed runtimes (DDLM). The shared-runtime
-         path crashes at startup on machines whose installed XAML doesn't match what
-         the app expects; carrying our own copy removes that dependency entirely. -->
-    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
-  </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.3.1" />
     <PackageReference Include="H.NotifyIcon.WinUI" Version="2.1.0" />
