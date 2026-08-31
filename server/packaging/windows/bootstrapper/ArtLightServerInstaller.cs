@@ -2267,7 +2267,7 @@ namespace ArtLightServerInstaller {
     };
     private static readonly InstalledProductKind[] MsiRegistrationRecoveryKinds = {
       InstalledProductKind.Vibeshine,
-      InstalledProductKind.ArtLight Server
+      InstalledProductKind.ArtLightServer
     };
     private static readonly string[] MsiCacheFailureLogMarkers = {
       "This installation source for this product is not available",
@@ -2360,7 +2360,7 @@ namespace ArtLightServerInstaller {
     internal enum InstalledProductKind {
       Unknown,
       Vibeshine,
-      ArtLight Server,
+      ArtLightServer,
       Apollo,
       Sunshine
     }
@@ -2470,7 +2470,7 @@ namespace ArtLightServerInstaller {
 
     public static InstalledProductInfo GetInstalledArtLightServerProduct() {
       return GetInstalledProducts(false)
-        .Where(product => product.Kind == InstalledProductKind.ArtLight Server)
+        .Where(product => product.Kind == InstalledProductKind.ArtLightServer)
         .OrderByDescending(product => product.Version ?? new Version(0, 0, 0, 0))
         .FirstOrDefault();
     }
@@ -2484,7 +2484,7 @@ namespace ArtLightServerInstaller {
 
     public static List<InstalledProductInfo> GetInstalledApolloFamilyProducts() {
       return GetInstalledProductRegistrations(true)
-        .Where(product => product.Kind == InstalledProductKind.Apollo || product.Kind == InstalledProductKind.ArtLight Server)
+        .Where(product => product.Kind == InstalledProductKind.Apollo || product.Kind == InstalledProductKind.ArtLightServer)
         .GroupBy(BuildProductRegistrationIdentity, StringComparer.OrdinalIgnoreCase)
         .Select(MergeInstalledProductGroup)
         .OrderByDescending(product => product.Version ?? new Version(0, 0, 0, 0))
@@ -2781,7 +2781,7 @@ namespace ArtLightServerInstaller {
         return InstalledProductKind.Vibeshine;
       }
       if (string.Equals(trimmedDisplayName, "ArtLight Server", StringComparison.OrdinalIgnoreCase)) {
-        return InstalledProductKind.ArtLight Server;
+        return InstalledProductKind.ArtLightServer;
       }
       // Apollo is also a common prefix in unrelated software titles, so only
       // the exact streaming-host product name is considered a conflict.
@@ -3324,7 +3324,7 @@ namespace ArtLightServerInstaller {
         string recoveryDetail;
         if (TryRepairBustedMsiRegistration(
           uninstallCompetingProductsResult,
-          new[] { InstalledProductKind.ArtLight Server },
+          new[] { InstalledProductKind.ArtLightServer },
           "competing product pre-uninstall",
           out recoveryDetail)) {
           recoveryDetails.Add(recoveryDetail);
@@ -3382,7 +3382,7 @@ namespace ArtLightServerInstaller {
           string recoveryDetail;
           if (TryRepairBustedMsiRegistration(
             uninstallUpgradeSourceResult,
-            new[] { InstalledProductKind.ArtLight Server },
+            new[] { InstalledProductKind.ArtLightServer },
             "upgrade source pre-uninstall",
             out recoveryDetail)) {
             recoveryDetails.Add(recoveryDetail);
@@ -3548,7 +3548,7 @@ namespace ArtLightServerInstaller {
       TryStopRelatedServicesAndProcesses(logPath);
 
       var registrationRecoveryProduct =
-        TryGetUnambiguousMsiRegistrationRecoveryProduct(InstalledProductKind.ArtLight Server);
+        TryGetUnambiguousMsiRegistrationRecoveryProduct(InstalledProductKind.ArtLightServer);
       var exitCode = RunMsiexec(args, true, false);
       exitCode = RetryInstallWithSameProductReinstallIfNeeded(exitCode, args, msiPath, true, false);
       if (exitCode == 0 && competingProductsRequireRestart) {
@@ -4356,7 +4356,7 @@ namespace ArtLightServerInstaller {
           + retryLogPath;
         AppendInstallerLogMessage(retryLogPath, recoveryDetail);
         if (preserveOriginalPayload
-            && product.Kind == InstalledProductKind.ArtLight Server
+            && product.Kind == InstalledProductKind.ArtLightServer
             && (retryExitCode == 0 || retryExitCode == 3010 || retryExitCode == 1605)) {
           stashedPayload = new StashedVibeshinePayload {
             MsiPath = originalMsiPath,
@@ -4634,7 +4634,7 @@ namespace ArtLightServerInstaller {
       if (!LooksLikeProductCode(productCode)) {
         return;
       }
-      if (product.Kind != InstalledProductKind.Vibeshine && product.Kind != InstalledProductKind.ArtLight Server) {
+      if (product.Kind != InstalledProductKind.Vibeshine && product.Kind != InstalledProductKind.ArtLightServer) {
         return;
       }
       if (seen.Contains(productCode)) {
@@ -4648,7 +4648,7 @@ namespace ArtLightServerInstaller {
     private static bool IsRecoveryKindAllowed(
       InstalledProductKind kind,
       IReadOnlyCollection<InstalledProductKind> allowedKinds) {
-      if (kind != InstalledProductKind.Vibeshine && kind != InstalledProductKind.ArtLight Server) {
+      if (kind != InstalledProductKind.Vibeshine && kind != InstalledProductKind.ArtLightServer) {
         return false;
       }
       if (allowedKinds == null || allowedKinds.Count == 0) {
@@ -5360,7 +5360,7 @@ namespace ArtLightServerInstaller {
         factoryResetAppData,
         removeVirtualDisplayDriver,
         true,
-        new[] { InstalledProductKind.ArtLight Server });
+        new[] { InstalledProductKind.ArtLightServer });
       uninstallResult.Operation = InstallerOperation.Uninstall;
       return uninstallResult;
     }
@@ -5450,13 +5450,13 @@ namespace ArtLightServerInstaller {
           arguments.IsCliQuietMode(),
           true);
         if (!uninstallCompetingProductsResult.Succeeded) {
-          if (ShouldRerunCliElevatedForMsiRecovery(uninstallCompetingProductsResult, new[] { InstalledProductKind.ArtLight Server })) {
+          if (ShouldRerunCliElevatedForMsiRecovery(uninstallCompetingProductsResult, new[] { InstalledProductKind.ArtLightServer })) {
             return RunElevatedBootstrapperCli(arguments);
           }
           string recoveryDetail;
           if (TryRepairBustedMsiRegistration(
             uninstallCompetingProductsResult,
-            new[] { InstalledProductKind.ArtLight Server },
+            new[] { InstalledProductKind.ArtLightServer },
             "CLI competing product pre-uninstall",
             out recoveryDetail)) {
             recoveryDetails.Add(recoveryDetail);
@@ -5482,7 +5482,7 @@ namespace ArtLightServerInstaller {
         AdoptStashedPayload(ref stashedPreviousPayload, upgradeSourceStash);
         if (uninstallUpgradeSourceResult != null) {
           if (!uninstallUpgradeSourceResult.Succeeded) {
-            if (ShouldRerunCliElevatedForMsiRecovery(uninstallUpgradeSourceResult, new[] { InstalledProductKind.ArtLight Server })) {
+            if (ShouldRerunCliElevatedForMsiRecovery(uninstallUpgradeSourceResult, new[] { InstalledProductKind.ArtLightServer })) {
               return ApplyStashedPayloadRecovery(
                 RunElevatedBootstrapperCli(arguments),
                 stashedPreviousPayload,
@@ -5491,7 +5491,7 @@ namespace ArtLightServerInstaller {
             string recoveryDetail;
             if (TryRepairBustedMsiRegistration(
               uninstallUpgradeSourceResult,
-              new[] { InstalledProductKind.ArtLight Server },
+              new[] { InstalledProductKind.ArtLightServer },
               "CLI upgrade source pre-uninstall",
               out recoveryDetail)) {
               recoveryDetails.Add(recoveryDetail);
@@ -5593,7 +5593,7 @@ namespace ArtLightServerInstaller {
       TryStopRelatedServicesAndProcesses(logPath);
 
       var registrationRecoveryProduct = isInstallOperation
-        ? TryGetUnambiguousMsiRegistrationRecoveryProduct(InstalledProductKind.ArtLight Server)
+        ? TryGetUnambiguousMsiRegistrationRecoveryProduct(InstalledProductKind.ArtLightServer)
         : null;
       var exitCode = RunMsiexec(cliArgs, arguments.IsCliQuietMode(), true);
       if (isInstallOperation) {
@@ -6521,7 +6521,7 @@ namespace ArtLightServerInstaller {
         false,
         false,
         false,
-        new[] { InstalledProductKind.ArtLight Server });
+        new[] { InstalledProductKind.ArtLightServer });
     }
 
     private static bool RequiresPreUninstallDowngradeWorkaround(InstalledProductInfo installedProduct, string msiPath) {
@@ -6568,7 +6568,7 @@ namespace ArtLightServerInstaller {
     }
 
     private static bool RequiresPreUninstallUpgradeWorkaround(InstalledProductInfo installedProduct) {
-      if (installedProduct == null || installedProduct.Kind != InstalledProductKind.ArtLight Server || installedProduct.Version == null) {
+      if (installedProduct == null || installedProduct.Kind != InstalledProductKind.ArtLightServer || installedProduct.Version == null) {
         return false;
       }
 
@@ -6592,7 +6592,7 @@ namespace ArtLightServerInstaller {
       var installedProducts = GetInstalledProductRegistrations(true)
         .Where(product =>
           product.Kind == InstalledProductKind.Apollo
-          || product.Kind == InstalledProductKind.ArtLight Server
+          || product.Kind == InstalledProductKind.ArtLightServer
           || product.Kind == InstalledProductKind.Sunshine)
         .GroupBy(BuildProductRegistrationIdentity, StringComparer.OrdinalIgnoreCase)
         .Select(MergeInstalledProductGroup)
