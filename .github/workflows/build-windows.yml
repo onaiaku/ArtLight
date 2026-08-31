@@ -1,0 +1,47 @@
+name: Build Windows installer
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish StreamTweakService (win-x64)
+        run: dotnet publish StreamTweakService\StreamTweakService.csproj -c Release -r win-x64 --self-contained false -o StreamTweakService\bin\x64\Release\net8.0-windows\win-x64
+
+      - name: Publish StreamTweakUI (win-x64)
+        run: dotnet publish StreamTweakUI\StreamTweakUI.csproj -c Release -r win-x64 --self-contained false -o StreamTweakUI\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64
+
+      - name: Install Inno Setup 7 (SetupArchitecture needs 7+)
+        shell: pwsh
+        run: |
+          $url = "https://github.com/jrsoftware/issrc/releases/download/is-7_1_0/innosetup-7.1.0-x64.exe"
+          Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\innosetup7.exe"
+          Start-Process -FilePath "$env:TEMP\innosetup7.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
+
+      - name: Build installer with Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = Get-ChildItem "C:\Program Files (x86)\Inno Setup 7\ISCC.exe", "C:\Program Files\Inno Setup 7\ISCC.exe", "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          Write-Host "Using ISCC: $($iscc.FullName)"
+          & $iscc.FullName Installer.iss
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StreamTweak-installer
+          path: Output/*.exe
+          if-no-files-found: error
