@@ -19,10 +19,19 @@ namespace ArtLightControl
             StreamStopped
         }
 
-        // Known app names to look for in the registry and Program Files
+        // Known app names to look for in the registry and Program Files.
+        // "ArtLight Server" first: when several are present, prefer our own build.
         private static readonly string[] KnownAppNames =
         {
-            "Vibepollo", "Vibeshine", "Apollo", "Sunshine"
+            "ArtLight Server", "Vibepollo", "Vibeshine", "Apollo", "Sunshine"
+        };
+
+        // Friendly name shown in the UI: legacy install folders (Apollo/Vibepollo/Vibeshine)
+        // are all our fork now, so present them under the ArtLight Server brand.
+        public static string ToDisplayName(string appName) => appName switch
+        {
+            "Vibepollo" or "Vibeshine" or "Apollo" => "ArtLight Server",
+            _ => appName
         };
 
         public static StreamingEvent ParseLogLine(string logLine)
@@ -457,7 +466,7 @@ namespace ArtLightControl
 
         private static StreamingAppInfo? BuildStreamingAppInfo(string appName, string installDir)
         {
-            var info = new StreamingAppInfo { AppName = appName };
+            var info = new StreamingAppInfo { AppName = ToDisplayName(appName) };
 
             try
             {

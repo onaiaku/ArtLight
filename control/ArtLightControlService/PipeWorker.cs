@@ -58,7 +58,7 @@ public class PipeWorker : BackgroundService
         _logger.LogInformation("ArtLightControlService pipe worker stopped.");
     }
 
-    private static readonly string[] _allowedAppNames = { "Sunshine", "Apollo", "Vibeshine", "Vibepollo" };
+    private static readonly string[] _allowedAppNames = { "ArtLight Server", "Sunshine", "Apollo", "Vibeshine", "Vibepollo" };
 
     private async Task HandleClientAsync(NamedPipeServerStream server, CancellationToken ct)
     {
