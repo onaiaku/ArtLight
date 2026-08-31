@@ -1022,7 +1022,7 @@
     "dd_manual_enforcement_notice": "Overrides below are disabled while manual resolution or refresh rate is enforced. Manual refresh rates are applied forcefully and override game-aware refresh switching on virtual displays."
   },
   "index": {
-    "description": "ArtLight Server is a self-hosted game stream host for Moonlight.",
+    "description": "ArtLight Server is a self-hosted game stream host for ArtMoon.",
     "download": "Download",
     "installed_version_not_stable": "You are running a pre-release version of ArtLight Server. You may experience bugs or other issues. Please report any issues you encounter. Thank you for helping to make ArtLight Server a better software!",
     "loading_latest": "Loading latest release...",

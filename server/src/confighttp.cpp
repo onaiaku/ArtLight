@@ -1541,7 +1541,6 @@ namespace confighttp {
       return;
     }
 
-    const bool is_v2_route = path_view == "/v2" || path_view.starts_with("/v2/");
     const bool is_v2_static_path = path_view == "/v2/assets" || path_view.starts_with("/v2/assets/") ||
                                    path_view == "/v2/images" || path_view.starts_with("/v2/images/");
     if (is_v2_static_path) {
@@ -1555,7 +1554,7 @@ namespace confighttp {
       not_found(response, request);
       return;
     }
-    serve_web_file(std::move(response), std::move(request), is_v2_route ? "v2/index.html" : "index.html");
+    serve_web_file(std::move(response), std::move(request), "v2/index.html");
   }
 
   /**

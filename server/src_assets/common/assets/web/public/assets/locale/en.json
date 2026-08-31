@@ -1072,7 +1072,7 @@
     "packetsize": "Network packet size"
   },
   "index": {
-    "description": "ArtLight Server is a self-hosted game stream host for Moonlight.",
+    "description": "ArtLight Server is a self-hosted game stream host for ArtMoon.",
     "download": "Download",
     "view_notes": "Release Notes",
     "hide_notes": "Hide Notes",
