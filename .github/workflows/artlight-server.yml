@@ -20,7 +20,9 @@ on:
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
-  cancel-in-progress: true
+  # Only PRs supersede each other. Pushes and manual dispatches must never
+  # cancel an in-flight release build (learned the hard way — twice).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   release-candidate:
