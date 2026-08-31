@@ -5,27 +5,49 @@ ArtLight Control - Changelog
 https://github.com/onaiaku/ArtLight
 
 -----------------------------------------------
-Version 0.1.0 - "The Awakening" (31/08/2026)
+Version 0.1.0 (31/08/2026)
 -----------------------------------------------
+First public release of ArtLight Control — a host dashboard for your
+streaming PC, designed to pair with the ArtMoon client.
 
-🌙 FIRST RELEASE:
-• ArtLight Control is born — our own host dashboard, forked from the
-  StreamTweak project and reborn under the ArtLight name with a full
-  rebrand: new identity, new icon, new installer art
+✨ FEATURES:
 
-🎨 BRANDING:
-• Every trace of the old name is gone — publisher, links, app identity
-  and installer all belong to onaiaku now
-• The gold moon: new application icon in the window, the taskbar and
-  the installer, with matching installer wizard artwork
+• Live Dashboard — real-time view of your host while streaming: FPS,
+  round-trip time, bitrate, frame drops and host latency, refreshed
+  every second. When idle, the same panel monitors GPU temperature,
+  load, VRAM, CPU and network so you can check the host is cool and
+  ready before you start
 
-🌉 ARTMOON BRIDGE:
-• Full compatibility with the ArtMoon client — same bridge protocol
-  and port (47998), authenticated pairing, live per-second session
-  telemetry (fps, RTT, jitter, drops) on the Dashboard
-• Client identity is preserved across the rename, so existing pairings
-  keep working
+• Session history — every stream is recorded with quality grades,
+  full charts (RTT, latency, host compute), detected games and cover
+  art. Compare any two sessions side by side
 
-🩹 FIXES:
-• Telemetry one-shot bug fixed: every stream now populates the live
-  dashboard, not just the first one after a restart
+• Game Library — automatic game detection with high-resolution cover
+  art fetched from Steam, GOG, Epic and more. Developer and release
+  info included
+
+• Managed apps — add, remove and restart streaming apps from the
+  client, with automatic syncing to the streaming server
+
+• NVIDIA Sentinel — snapshot your NVIDIA driver profile and have it
+  automatically restored within seconds whenever NVIDIA App resets it
+
+• Link-speed switch — the client negotiates the fastest stable link
+  speed before connecting and restores it afterwards, with your
+  permission
+
+• Remote power & updates — shut down, restart or install Windows
+  updates on the host straight from the client. Ideal for headless
+  setups
+
+🔒 SECURITY:
+
+• Authenticated bridge — every client command is signed with the
+  client's Moonlight certificate and approved once via a 4-digit PIN.
+  Unauthorized devices can still stream, but cannot control the host
+
+ℹ️ NOTES:
+
+• Requires Windows 10 20H1 or later
+• Pairs with the ArtMoon client for the full feature set; streaming
+  works with any Moonlight-compatible client
