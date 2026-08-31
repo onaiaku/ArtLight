@@ -21,7 +21,7 @@
       <RegistrySearch Id="Search_ViGEmBus_Service64" Root="HKLM" Key="SYSTEM\CurrentControlSet\Services\ViGEmBus" Name="DisplayName" Type="raw" Win64="yes"/>
       <RegistrySearch Id="Search_ViGEmBus_Service32" Root="HKLM" Key="SYSTEM\CurrentControlSet\Services\ViGEmBus" Name="DisplayName" Type="raw"/>
     </Property>
-    <Feature Id="ArtLight ServerExtras" Title="ArtLight Server Components" Level="1" Absent="disallow">
+    <Feature Id="ArtLightServerExtras" Title="ArtLight Server Components" Level="1" Absent="disallow">
       <ComponentRef Id="CtlStopApolloLegacy"/>
       <ComponentRef Id="ApolloSvc"/>
       <ComponentRef Id="RemoveLegacyApolloUninstallKey"/>
