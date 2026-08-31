@@ -1409,7 +1409,7 @@ namespace ArtLightServerInstaller {
       // Legacy products (Apollo, Sunshine, Vibeshine) keep their own folders;
       // a fresh ArtLight install always defaults to the branded directory.
       var candidates = new[] {
-        _installedProduct != null && _installedProduct.Kind == InstalledProductKind.ArtLightServer
+        _installedProduct != null && _installedProduct.Kind == InstallerRunner.InstalledProductKind.ArtLightServer
           ? _installedProduct.InstallLocation
           : null
       };
