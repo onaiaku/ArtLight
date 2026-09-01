@@ -1,9 +1,9 @@
 ; =====================================================
-; ArtLightControl v0.1.0 - GitHub Release Installer
+; ArtLightControl v0.1.1 - GitHub Release Installer
 ; WinUI 3 (Windows App SDK 2.3) unpackaged deployment
 ; =====================================================
 #define MyAppName "ArtLight Control"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.1.1"
 #define MyAppPublisher "onaiaku"
 #define MyAppExeName "ArtLightControl.exe"
 #define MyAppURL "https://github.com/onaiaku/ArtLight"

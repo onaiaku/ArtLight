@@ -5,6 +5,13 @@ ArtLight Control - Changelog
 https://github.com/onaiaku/ArtLight
 
 -----------------------------------------------
+Version 0.1.1 (01/09/2026)
+-----------------------------------------------
+Purple tray and app icons in every size — the 0.1.0 icons were built
+from an earlier red-burgundy art variant, which is what the system tray
+was showing.
+
+-----------------------------------------------
 Version 0.1.0 (31/08/2026)
 -----------------------------------------------
 First public release of ArtLight Control — a host dashboard for your

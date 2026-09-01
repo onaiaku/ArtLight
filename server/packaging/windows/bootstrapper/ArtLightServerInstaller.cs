@@ -202,9 +202,9 @@ namespace ArtLightServerInstaller {
       var displayVersion = GetTargetVersionText();
       Title = (BuildFlavor.IsUninstallOnly ? "ArtLight Server Uninstaller v" : "ArtLight Server Installer v") + displayVersion;
       Width = 720;
-      Height = showInstallOptions ? 720 : useCompactUpdateLayout ? 430 : 500;
+      Height = showInstallOptions ? 840 : useCompactUpdateLayout ? 430 : 500;
       MinWidth = 690;
-      MinHeight = showInstallOptions ? 700 : useCompactUpdateLayout ? 410 : 470;
+      MinHeight = showInstallOptions ? 800 : useCompactUpdateLayout ? 410 : 470;
       WindowStartupLocation = WindowStartupLocation.CenterScreen;
       ResizeMode = ResizeMode.CanMinimize;
       WindowStyle = WindowStyle.None;
@@ -282,6 +282,10 @@ namespace ArtLightServerInstaller {
       Grid.SetColumn(_titleCloseButton, 2);
       titleGrid.Children.Add(_titleCloseButton);
 
+      // Content card: stretched to fill row 1 (was Top-aligned). A Top-aligned
+      // card shorter than the row wastes window space and lets the button row
+      // hug the window edge; stretching gives the scroll-wrapped content the
+      // full row height and keeps the buttons anchored inside the card.
       var card = new Border {
         CornerRadius = new CornerRadius(18),
         Margin = new Thickness(20, 10, 20, 12),
@@ -289,7 +293,7 @@ namespace ArtLightServerInstaller {
         Background = new SolidColorBrush(Color.FromArgb(238, 14, 20, 36)),
         BorderBrush = new SolidColorBrush(Color.FromArgb(145, 99, 102, 241)),
         BorderThickness = new Thickness(1.2),
-        VerticalAlignment = VerticalAlignment.Top
+        VerticalAlignment = VerticalAlignment.Stretch
       };
       Grid.SetRow(card, 1);
       root.Children.Add(card);
@@ -430,15 +434,28 @@ namespace ArtLightServerInstaller {
       overlayButtons.Children.Add(_overlayPrimaryButton);
 
       var cardGrid = new Grid();
-      cardGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+      // Row 0 = scrollable content area (Star: fills all space the footer
+      // doesn't claim; required for the ScrollViewer to engage instead of
+      // growing unbounded), row 1 = footer (progress bar + buttons).
+      cardGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
       cardGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
       card.Child = cardGrid;
 
       var contentStack = new StackPanel {
         Orientation = Orientation.Vertical
       };
-      Grid.SetRow(contentStack, 0);
-      cardGrid.Children.Add(contentStack);
+
+      // Scroll-wrapped options area: every wizard page's content lives in
+      // contentStack; wrapping it in a ScrollViewer guarantees the footer
+      // buttons stay visible and clickable even if the content outgrows the
+      // window (small displays, 150%+ DPI scaling).
+      var contentScroll = new ScrollViewer {
+        VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+      };
+      contentScroll.Content = contentStack;
+      Grid.SetRow(contentScroll, 0);
+      cardGrid.Children.Add(contentScroll);
 
       _installSection = new Border {
         CornerRadius = new CornerRadius(10),
@@ -5819,6 +5836,17 @@ namespace ArtLightServerInstaller {
                 InstallLocation = Convert.ToString(productKey.GetValue("InstallLocation")) ?? innoAppPath
               };
               if (!string.IsNullOrWhiteSpace(state.UninstallString)) {
+                // Ghost check: a leftover registry entry whose uninstaller no
+                // longer exists on disk cannot uninstall or upgrade anything.
+                // Treating it as installed made the version probe skip a real
+                // install (observed: unins000.exe deleted, "0.1.0" still
+                // registered, fresh installer skipped Control entirely).
+                string ghostExecutablePath;
+                string ghostArguments;
+                if (!TrySplitExecutableAndArguments(state.UninstallString, out ghostExecutablePath, out ghostArguments)
+                    || !System.IO.File.Exists(ghostExecutablePath)) {
+                  continue;
+                }
                 return state;
               }
             } finally {
