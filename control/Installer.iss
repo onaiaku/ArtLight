@@ -1,5 +1,5 @@
 ; =====================================================
-; ArtLightControl v0.1.1 - GitHub Release Installer
+; ArtLightControl v1.0.0 - GitHub Release Installer
 ; WinUI 3 (Windows App SDK 2.3) unpackaged deployment
 ; =====================================================
 #define MyAppName "ArtLight Control"
