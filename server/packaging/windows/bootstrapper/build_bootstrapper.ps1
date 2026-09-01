@@ -3,6 +3,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$BuildDir,
     [string]$MsiPath = "",
+    [string]$ControlInstallerPath = "",
     [string]$OutputName = "",
     [switch]$UninstallOnly,
     [switch]$SignWithSignPath,
@@ -327,6 +328,11 @@ if ($UninstallOnly) {
     $args += "/define:UNINSTALL_ONLY"
 } else {
     $args += "/resource:$MsiPath,Payload.msi"
+    if (-not [string]::IsNullOrWhiteSpace($ControlInstallerPath)) {
+        $controlPath = Resolve-PathStrict $ControlInstallerPath
+        Write-Host "[bootstrapper] Embedding Control payload: $controlPath"
+        $args += "/resource:$controlPath,Payload.control.exe"
+    }
 }
 
 foreach ($reference in $references) {

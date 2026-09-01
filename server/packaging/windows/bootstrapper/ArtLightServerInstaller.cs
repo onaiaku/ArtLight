@@ -69,6 +69,14 @@ namespace ArtLightServerInstaller {
           parsed.InternalInstallVirtualDisplay,
           parsed.InternalInstallSaveLogs,
           false);
+        if (internalInstall.Succeeded && parsed.InternalInstallControl) {
+          var controlResult = InstallerRunner.InstallControlPayload(parsed, installPath);
+          if (!controlResult.Succeeded) {
+            internalInstall.ComponentFailures = internalInstall.ComponentFailures ?? new List<string>();
+            internalInstall.ComponentFailures.Add(
+              "ArtLight Control: " + (string.IsNullOrWhiteSpace(controlResult.Message) ? "silent install failed (exit " + controlResult.ExitCode + ")" : controlResult.Message));
+          }
+        }
         InstallerRunner.TryWriteInternalInstallResult(parsed.InternalInstallResultPath, internalInstall);
         return internalInstall.ExitCode;
       }
@@ -78,8 +86,10 @@ namespace ArtLightServerInstaller {
           parsed,
           parsed.InternalUninstallFactoryReset,
           parsed.InternalUninstallRemoveVirtualDisplayDriver,
-          false);
-        return internalUninstall.ExitCode;
+          false,
+          parsed.InternalUninstallRemoveServer,
+          parsed.InternalUninstallRemoveControl);
+        return internalUninstall.ExitCode == 1605 ? 0 : internalUninstall.ExitCode;
       }
 
       if (!parsed.ShowUi) {
@@ -106,6 +116,8 @@ namespace ArtLightServerInstaller {
     private readonly InstallerArguments _arguments;
     private readonly Border _installSection;
     private readonly Border _installVirtualDisplaySection;
+    private System.Windows.Controls.CheckBox _installControlCheckBox;
+    private Border _installControlSection;
     private readonly TextBlock _installLocationTitleText;
     private readonly TextBlock _installLocationHintText;
     private readonly Grid _installPathGrid;
@@ -602,6 +614,40 @@ namespace ArtLightServerInstaller {
       driverStack.Children.Add(_virtualDisplayDriverComboBox);
       driverStack.Children.Add(installVirtualDisplayHintText);
 
+      // ── ArtLight Control ────────────────────────────────────────────────
+      _installControlSection = new Border {
+        CornerRadius = new CornerRadius(10),
+        Padding = new Thickness(16),
+        Margin = new Thickness(0, 0, 0, 10),
+        Background = new SolidColorBrush(Color.FromArgb(44, 99, 102, 241)),
+        BorderBrush = new SolidColorBrush(Color.FromArgb(112, 128, 133, 255)),
+        BorderThickness = new Thickness(1)
+      };
+      var controlStack = new StackPanel { Orientation = Orientation.Vertical };
+      _installControlSection.Child = controlStack;
+      var controlHeader = new StackPanel { Orientation = Orientation.Horizontal };
+      _installControlCheckBox = new System.Windows.Controls.CheckBox {
+        IsChecked = true,
+        VerticalAlignment = VerticalAlignment.Center,
+        Content = new TextBlock {
+          Text = "Install ArtLight Control",
+          FontSize = 13,
+          FontWeight = FontWeights.SemiBold,
+          Foreground = new SolidColorBrush(Color.FromRgb(226, 235, 250))
+        }
+      };
+      controlHeader.Children.Add(_installControlCheckBox);
+      controlStack.Children.Add(controlHeader);
+      controlStack.Children.Add(new TextBlock {
+        Text = "Adds the ArtLight Control companion app (stream dashboard and session control). It is installed alongside ArtLight Server and removed with it.",
+        FontSize = 12.5,
+        Foreground = new SolidColorBrush(Color.FromRgb(209, 222, 241)),
+        Margin = new Thickness(0, 6, 0, 0),
+        TextWrapping = TextWrapping.Wrap
+      });
+      contentStack.Children.Add(_installControlSection);
+      _installControlSection.Visibility = HasEmbeddedControlPayload() ? Visibility.Visible : Visibility.Collapsed;
+
       var divider = new System.Windows.Shapes.Rectangle {
         Height = 1,
         Fill = new SolidColorBrush(Color.FromArgb(120, 88, 104, 124)),
@@ -1080,12 +1126,18 @@ namespace ArtLightServerInstaller {
 
       await RunOperationAsync(async () => {
         var installVirtualDisplayDriver = ShouldInstallVirtualDisplayDriver();
-        return await Task.Run(() => InstallerRunner.RunInteractiveInstall(
+        var installControl = _installControlCheckBox == null || _installControlCheckBox.IsChecked == true;
+        var serverDir = GetServerDirectoryForRoot(selectedPath);
+        _arguments.InternalInstallControl = installControl;
+        _lastInstallIncludedControl = installControl && HasEmbeddedControlPayload();
+        _lastServerInstallDirectory = serverDir;
+        var result = await Task.Run(() => InstallerRunner.RunInteractiveInstall(
           _arguments,
-          selectedPath,
+          serverDir,
           installVirtualDisplayDriver,
           false));
-      }, "Install", "Installing or updating ArtLight Server...", "ArtLight Server installation completed.");
+        return result;
+      }, "Install", "Installing ArtLight Server and ArtLight Control...", "ArtLight installation completed.");
     }
 
     private bool ShouldInstallVirtualDisplayDriver() {
@@ -1105,14 +1157,18 @@ namespace ArtLightServerInstaller {
         return;
       }
 
+      var removingServer = uninstallOptions.Value.RemoveServer;
       await RunOperationAsync(
         () => Task.Run(() => InstallerRunner.RunInteractiveUninstall(
           _arguments,
           uninstallOptions.Value.FactoryResetAppData,
-          uninstallOptions.Value.RemoveVirtualDisplayDriver)),
+          uninstallOptions.Value.RemoveVirtualDisplayDriver,
+          true,
+          removingServer,
+          uninstallOptions.Value.RemoveControl)),
         "Uninstall",
-        "Removing ArtLight Server...",
-        "ArtLight Server uninstall completed.");
+        removingServer ? "Removing ArtLight Server and ArtLight Control..." : "Removing ArtLight Control...",
+        removingServer ? "ArtLight uninstall completed." : "ArtLight Control uninstall completed.");
     }
 
     private async Task RunOperationAsync(Func<Task<InstallerResult>> actionFactory, string actionLabel, string inProgressText, string successText) {
@@ -1153,7 +1209,11 @@ namespace ArtLightServerInstaller {
             detail += "\n" + result.UserDetail;
           }
           SetStatus(successText, detail, _statusSuccessBrush);
-          await ShowOverlayInfoAsync("Complete", _statusText.Text);
+          if (result.Operation == InstallerOperation.Install && result.ExitCode != 3010) {
+            await ShowInstallDonePageAsync(result);
+          } else {
+            await ShowOverlayInfoAsync("Complete", _statusText.Text);
+          }
           Close();
           return;
         }
@@ -1408,10 +1468,14 @@ namespace ArtLightServerInstaller {
       // Only a genuine ArtLight Server installation upgrades in place.
       // Legacy products (Apollo, Sunshine, Vibeshine) keep their own folders;
       // a fresh ArtLight install always defaults to the branded directory.
+      // The picker edits the ArtLight ROOT. If a genuine ArtLight Server
+      // install already exists, prefill with its parent root so an upgrade
+      // lands in the same tree.
+      var existingServerRoot = _installedProduct != null && _installedProduct.Kind == InstallerRunner.InstalledProductKind.ArtLightServer
+        ? GetArtLightRootFromServerDirectory(_installedProduct.InstallLocation)
+        : null;
       var candidates = new[] {
-        _installedProduct != null && _installedProduct.Kind == InstallerRunner.InstalledProductKind.ArtLightServer
-          ? _installedProduct.InstallLocation
-          : null
+        existingServerRoot
       };
 
       foreach (var candidate in candidates) {
@@ -1421,6 +1485,47 @@ namespace ArtLightServerInstaller {
       }
 
       return InstallerRunner.DefaultInstallDirectory;
+    }
+
+    private string GetServerDirectoryForRoot(string selectedRoot) {
+      // Upgrading an existing genuine ArtLight Server: install at its recorded
+      // path so the MSI major-upgrade transaction replaces it in place.
+      if (_installedProduct != null && _installedProduct.Kind == InstallerRunner.InstalledProductKind.ArtLightServer
+          && !string.IsNullOrWhiteSpace(_installedProduct.InstallLocation)) {
+        return EnsureTrailingSeparatorTrimmed(_installedProduct.InstallLocation);
+      }
+      return Path.Combine(EnsureTrailingSeparatorTrimmed(selectedRoot), "ArtLight Server");
+    }
+
+    private static string GetArtLightRootFromServerDirectory(string serverInstallLocation) {
+      if (string.IsNullOrWhiteSpace(serverInstallLocation)) {
+        return null;
+      }
+      var trimmed = serverInstallLocation.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+      var leaf = Path.GetFileName(trimmed);
+      if (string.Equals(leaf, "ArtLight Server", StringComparison.OrdinalIgnoreCase)) {
+        return Path.GetDirectoryName(trimmed);
+      }
+      // Legacy flat layout (C:\Program Files\ArtLight Server without the
+      // ArtLight root) — treat its parent as the root so the nested layout
+      // still lands beside it. The name check above covers true upgrades;
+      // anything else keeps the default root.
+      if (string.Equals(leaf, "ArtLight", StringComparison.OrdinalIgnoreCase)) {
+        return trimmed;
+      }
+      return null;
+    }
+
+    internal static string BuildServerInstallDirectory(string artLightRoot) {
+      return Path.Combine(
+        artLightDirectoryRoot(artLightRoot),
+        "ArtLight Server");
+    }
+
+    private static string artLightDirectoryRoot(string artLightRoot) {
+      return EnsureTrailingSeparatorTrimmed(string.IsNullOrWhiteSpace(artLightRoot)
+        ? DefaultInstallDirectory
+        : artLightRoot);
     }
 
     private static bool IsSudoVdaSelectedInConfiguration(string installDirectory) {
@@ -1507,6 +1612,9 @@ namespace ArtLightServerInstaller {
         _browseButton.IsEnabled = false;
         _installSection.Visibility = Visibility.Collapsed;
         _installVirtualDisplaySection.Visibility = Visibility.Collapsed;
+        if (_installControlSection != null) {
+          _installControlSection.Visibility = Visibility.Collapsed;
+        }
         _continueButton.Visibility = Visibility.Collapsed;
         _uninstallButton.Visibility = Visibility.Visible;
         _uninstallButton.IsEnabled = allowUninstall;
@@ -1516,6 +1624,10 @@ namespace ArtLightServerInstaller {
       var allowInstallInputs = !_isBusy;
       var hasInstalledProduct = _installedProduct != null;
       var showInstallLocation = !hasInstalledProduct;
+      if (_installControlCheckBox != null) {
+        _installControlCheckBox.IsEnabled = allowInstallInputs;
+        _installControlSection.Visibility = HasEmbeddedControlPayload() ? Visibility.Visible : Visibility.Collapsed;
+      }
       _installLocationTitleText.Visibility = showInstallLocation ? Visibility.Visible : Visibility.Collapsed;
       _installLocationHintText.Visibility = showInstallLocation ? Visibility.Visible : Visibility.Collapsed;
       _installPathGrid.Visibility = showInstallLocation ? Visibility.Visible : Visibility.Collapsed;
@@ -1673,11 +1785,30 @@ namespace ArtLightServerInstaller {
     }
 
     private struct UninstallOptions {
+      public bool RemoveServer;
+      public bool RemoveControl;
       public bool RemoveVirtualDisplayDriver;
       public bool FactoryResetAppData;
     }
 
     private async Task<UninstallOptions?> ShowOverlayUninstallOptionsAsync() {
+      var installedControl = InstallerRunner.TryGetInstalledControlState() != null;
+      var hasServerCheckBox = installedServer || _installedProduct != null;
+
+      var removeServerCheckBox = new CheckBox {
+        Content = "Uninstall ArtLight Server",
+        FontSize = 13,
+        Foreground = new SolidColorBrush(Color.FromRgb(226, 235, 250)),
+        Margin = new Thickness(0, 0, 0, 8),
+        IsChecked = true
+      };
+      var removeControlCheckBox = new CheckBox {
+        Content = "Uninstall ArtLight Control",
+        FontSize = 13,
+        Foreground = new SolidColorBrush(Color.FromRgb(226, 235, 250)),
+        Margin = new Thickness(0, 0, 0, 8),
+        IsChecked = installedControl
+      };
       var removeDriverCheckBox = new CheckBox {
         Content = "Remove virtual display driver",
         FontSize = 13,
@@ -1693,12 +1824,11 @@ namespace ArtLightServerInstaller {
         IsChecked = false
       };
 
-      var message = "Choose what to remove during uninstall.\n\n"
-        + "Uninstall always removes the ArtLight Server service, firewall rules, and MSI-installed program files. "
+      var message = "Choose what to remove.\n\n"
         + "Files you added after installation are preserved.";
 
       var result = await ShowOverlayAsync(
-        "Uninstall ArtLight Server",
+        "Uninstall ArtLight",
         message,
         "Uninstall",
         "Cancel",
@@ -1706,6 +1836,12 @@ namespace ArtLightServerInstaller {
         new SolidColorBrush(Color.FromRgb(251, 113, 133)),
         true,
         content => {
+          if (hasServerCheckBox) {
+            content.Children.Add(removeServerCheckBox);
+          }
+          if (installedControl) {
+            content.Children.Add(removeControlCheckBox);
+          }
           content.Children.Add(removeDriverCheckBox);
           content.Children.Add(deleteFolderCheckBox);
         },
@@ -1715,10 +1851,83 @@ namespace ArtLightServerInstaller {
         return null;
       }
 
+      var removeServer = hasServerCheckBox && removeServerCheckBox.IsChecked == true;
+      var removeControl = installedControl && removeControlCheckBox.IsChecked == true;
+      var removeDriver = removeDriverCheckBox.IsChecked == true;
+      var factoryReset = deleteFolderCheckBox.IsChecked == true;
+
+      if (!removeServer && !removeControl) {
+        // Nothing selected: treat as cancel, no changes made.
+        return null;
+      }
+
       return new UninstallOptions {
-        RemoveVirtualDisplayDriver = removeDriverCheckBox.IsChecked == true,
-        FactoryResetAppData = deleteFolderCheckBox.IsChecked == true
+        RemoveServer = removeServer,
+        RemoveControl = removeControl,
+        RemoveVirtualDisplayDriver = removeDriver,
+        FactoryResetAppData = factoryReset
       };
+    }
+
+    private async Task ShowInstallDonePageAsync(InstallerResult installResult) {
+      var launchControlCheckBox = new System.Windows.Controls.CheckBox {
+        Content = "Launch ArtLight Control",
+        FontSize = 13,
+        Foreground = new SolidColorBrush(Color.FromRgb(226, 235, 250)),
+        Margin = new Thickness(0, 0, 0, 8),
+        IsChecked = _lastInstallIncludedControl
+      };
+      var openWebUiCheckBox = new System.Windows.Controls.CheckBox {
+        Content = "Open ArtLight Server web UI",
+        FontSize = 13,
+        Foreground = new SolidColorBrush(Color.FromRgb(226, 235, 250)),
+        Margin = new Thickness(0, 0, 0, 0),
+        IsChecked = true
+      };
+
+      var result = await ShowOverlayAsync(
+        "Installation complete",
+        "ArtLight has been installed successfully.\n\n"
+          + "Note: the ArtLight Server web UI becomes available after the service finishes starting (this can take up to a minute).",
+        "Finish",
+        string.Empty,
+        new SolidColorBrush(Color.FromRgb(99, 102, 241)),
+        new SolidColorBrush(Color.FromRgb(165, 180, 252)),
+        false,
+        content => {
+          if (_lastInstallIncludedControl) {
+            content.Children.Add(launchControlCheckBox);
+          }
+          content.Children.Add(openWebUiCheckBox);
+        },
+        0);
+
+      if (!string.Equals(result, "primary", StringComparison.OrdinalIgnoreCase)) {
+        return;
+      }
+
+      var serverRoot = string.IsNullOrWhiteSpace(_lastServerInstallDirectory)
+        ? InstallerRunner.DefaultInstallDirectory
+        : _lastServerInstallDirectory;
+
+      if (launchControlCheckBox.IsChecked == true) {
+        var controlDir = InstallerRunner.BuildControlInstallDirectory(serverRoot);
+        var controlExePath = Path.Combine(controlDir, "ArtLightControl.exe");
+        if (File.Exists(controlExePath)) {
+          try {
+            Process.Start(new ProcessStartInfo {
+              FileName = controlExePath,
+              UseShellExecute = true
+            });
+          } catch {
+            // Non-fatal: the user can launch Control manually.
+          }
+        }
+      }
+
+      if (openWebUiCheckBox.IsChecked == true) {
+        OpenExternalUrl("https://localhost:47990");
+      }
     }
 
     private async Task ShowInstallFailureSupportDialogAsync(string failureDetail, InstallerResult installResult) {
@@ -2089,8 +2298,11 @@ namespace ArtLightServerInstaller {
     private const string InternalInstallVirtualDisplayDriverToken = "--internal-install-virtual-display-driver";
     private const string InternalInstallSaveLogsToken = "--internal-install-save-logs";
     private const string InternalInstallResultPathToken = "--internal-install-result-path";
+    private const string InternalInstallControlToken = "--internal-install-control";
     private const string InternalUninstallDeleteInstallDirToken = "--internal-uninstall-delete-install-dir";
     private const string InternalUninstallFactoryResetToken = "--internal-uninstall-factory-reset";
+    private const string InternalUninstallRemoveServerToken = "--internal-uninstall-remove-server";
+    private const string InternalUninstallRemoveControlToken = "--internal-uninstall-remove-control";
     private const string InternalUninstallRemoveVirtualDisplayDriverToken = "--internal-uninstall-remove-virtual-display-driver";
 
     public bool ShowUi { get; set; }
@@ -2100,14 +2312,20 @@ namespace ArtLightServerInstaller {
     public string InternalInstallPath { get; set; }
     public bool InternalInstallVirtualDisplay { get; set; }
     public bool InternalInstallSaveLogs { get; set; }
+    public bool InternalInstallControl { get; set; }
     public string InternalInstallResultPath { get; set; }
     public bool InternalUninstallFactoryReset { get; set; }
+    public bool InternalUninstallRemoveServer { get; set; }
+    public bool InternalUninstallRemoveControl { get; set; }
     public bool InternalUninstallRemoveVirtualDisplayDriver { get; set; }
     public string MsiPathOverride { get; set; }
     public List<string> ForwardedArguments { get; private set; }
 
     public InstallerArguments() {
       InternalInstallVirtualDisplay = true;
+      InternalInstallControl = true;
+      InternalUninstallRemoveServer = true;
+      InternalUninstallRemoveControl = true;
       ForwardedArguments = new List<string>();
     }
 
@@ -2158,6 +2376,10 @@ namespace ArtLightServerInstaller {
           parsed.InternalInstallResultPath = args[++index];
           continue;
         }
+        if (string.Equals(arg, InternalInstallControlToken, StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length) {
+          parsed.InternalInstallControl = ParseBooleanToken(args[++index]);
+          continue;
+        }
         if ((string.Equals(arg, InternalUninstallFactoryResetToken, StringComparison.OrdinalIgnoreCase)
           || string.Equals(arg, InternalUninstallDeleteInstallDirToken, StringComparison.OrdinalIgnoreCase))
           && index + 1 < args.Length) {
@@ -2166,6 +2388,14 @@ namespace ArtLightServerInstaller {
         }
         if (string.Equals(arg, InternalUninstallRemoveVirtualDisplayDriverToken, StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length) {
           parsed.InternalUninstallRemoveVirtualDisplayDriver = ParseBooleanToken(args[++index]);
+          continue;
+        }
+        if (string.Equals(arg, InternalUninstallRemoveServerToken, StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length) {
+          parsed.InternalUninstallRemoveServer = ParseBooleanToken(args[++index]);
+          continue;
+        }
+        if (string.Equals(arg, InternalUninstallRemoveControlToken, StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length) {
+          parsed.InternalUninstallRemoveControl = ParseBooleanToken(args[++index]);
           continue;
         }
         if (string.Equals(arg, "--msi", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length) {
@@ -2369,9 +2599,11 @@ namespace ArtLightServerInstaller {
 
     public static string DefaultInstallDirectory {
       get {
+        // The picker edits the shared ArtLight root; Server and Control each
+        // install into nested subfolders beneath it.
         return Path.Combine(
           Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-          "ArtLight Server");
+          "ArtLight");
       }
     }
 
@@ -3614,6 +3846,147 @@ namespace ArtLightServerInstaller {
       };
       AttachMsiRegistrationRecoveryProduct(result, registrationRecoveryProduct);
       return result;
+    }
+
+    // ── ArtLight Control chained payload ────────────────────────────────────
+    // The combined ArtLightSetup.exe embeds Control's Inno Setup installer as
+    // "Payload.control.exe" alongside the server MSI. After the server MSI
+    // succeeds, Control is installed silently (or upgraded in place if a
+    // newer build is embedded). Skipped when the checkbox was unticked or no
+    // payload was embedded (standalone ServerSetup.exe builds).
+
+    private static bool HasEmbeddedControlPayload() {
+      using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Payload.control.exe")) {
+        return stream != null;
+      }
+    }
+
+    private static string ExtractEmbeddedControlInstaller() {
+      using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Payload.control.exe")) {
+        if (stream == null) {
+          return null;
+        }
+        var extractRoot = GetEmbeddedControlExtractRoot();
+        Directory.CreateDirectory(extractRoot);
+        var exePath = Path.Combine(extractRoot, "ArtLightControl_Installer.exe");
+        WriteStreamAtomically(stream, exePath);
+        return exePath;
+      }
+    }
+
+    private static string GetEmbeddedControlExtractRoot() {
+      if (IsProcessElevated()) {
+        var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        if (!string.IsNullOrWhiteSpace(programData)) {
+          return Path.Combine(programData, "ArtLight Server", "InstallerCache", "Control");
+        }
+      }
+      return Path.Combine(Path.GetTempPath(), "ArtLight ServerInstaller", "Control");
+    }
+
+    internal static InstallerResult InstallControlPayload(
+      InstallerArguments arguments,
+      string serverInstallDirectory) {
+      var result = new InstallerResult {
+        Operation = InstallerOperation.Install
+      };
+      if (!HasEmbeddedControlPayload()) {
+        result.ExitCode = 0;
+        result.Message = "No Control payload embedded; skipping.";
+        return result;
+      }
+
+      // Upgrade-or-skip: read the installed Control version from its Inno
+      // uninstall registry key (same key its uninstaller is registered under).
+      var embeddedVersion = GetBundleVersion();
+      var installedVersion = TryGetInstalledControlVersion();
+      if (installedVersion != null && embeddedVersion != null
+          && installedVersion >= embeddedVersion) {
+        result.ExitCode = 0;
+        result.Message = "ArtLight Control " + installedVersion + " is already up to date; skipping.";
+        return result;
+      }
+
+      string controlExePath;
+      try {
+        controlExePath = ExtractEmbeddedControlInstaller();
+        if (string.IsNullOrWhiteSpace(controlExePath) || !File.Exists(controlExePath)) {
+          result.ExitCode = 1603;
+          result.Message = "The embedded ArtLight Control payload could not be extracted.";
+          return result;
+        }
+      } catch (Exception ex) {
+        result.ExitCode = 1603;
+        result.Message = "Failed to extract the ArtLight Control payload: " + ex.Message;
+        return result;
+      }
+
+      // Silent install; Control follows the server into the nested ArtLight
+      // root so both products share C:\Program Files\ArtLight\.
+      var controlDir = BuildControlInstallDirectory(serverInstallDirectory);
+      var args = new List<string> {
+        "/VERYSILENT",
+        "/SUPPRESSMSGBOXES",
+        "/NORESTART",
+        "/NOCANCEL",
+        "/CLOSEAPPLICATIONS",
+        "/DIR=" + controlDir
+      };
+      var startInfo = new ProcessStartInfo {
+        FileName = controlExePath,
+        Arguments = string.Join(" ", args),
+        UseShellExecute = false,
+        CreateNoWindow = true
+      };
+      int exitCode;
+      try {
+        using (var process = Process.Start(startInfo)) {
+          process.WaitForExit();
+          exitCode = process.ExitCode;
+        }
+      } catch (Exception ex) {
+        result.ExitCode = 1603;
+        result.Message = "Failed to launch the ArtLight Control installer: " + ex.Message;
+        return result;
+      }
+
+      result.ExitCode = exitCode;
+      result.Message = exitCode == 0
+        ? "ArtLight Control installed to " + controlDir + "."
+        : "ArtLight Control installer exited with code " + exitCode + ".";
+      return result;
+    }
+
+    internal static string BuildControlInstallDirectory(string serverInstallDirectory) {
+      // serverInstallDirectory is typically <root>\ArtLight Server; the
+      // Control install mirrors it under the same root.
+      var root = Path.GetDirectoryName(EnsureTrailingSeparatorTrimmed(serverInstallDirectory));
+      if (string.IsNullOrWhiteSpace(root)) {
+        return Path.Combine(
+          Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+          "ArtLight", "ArtLight Control");
+      }
+      return Path.Combine(root, "ArtLight Control");
+    }
+
+    private static string EnsureTrailingSeparatorTrimmed(string path) {
+      if (string.IsNullOrEmpty(path)) {
+        return path;
+      }
+      return path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    }
+
+    private static Version GetBundleVersion() {
+      return Assembly.GetExecutingAssembly().GetName().Version;
+    }
+
+    private static Version TryGetInstalledControlVersion() {
+      var state = TryGetInstalledControlState();
+      if (state == null || string.IsNullOrWhiteSpace(state.DisplayVersion)) {
+        return null;
+      }
+      Version parsed;
+      return Version.TryParse(state.DisplayVersion, out parsed) ? parsed : null;
     }
 
     private static InstallerResult UninstallLegacySunshineRegistration() {
@@ -5348,23 +5721,153 @@ namespace ArtLightServerInstaller {
       InstallerArguments arguments,
       bool factoryResetAppData = false,
       bool removeVirtualDisplayDriver = false,
-      bool allowSelfElevation = true) {
+      bool allowSelfElevation = true,
+      bool removeServer = true,
+      bool removeControl = true) {
       if (allowSelfElevation && !IsProcessElevated()) {
-        return RunElevatedBootstrapperUninstall(arguments, factoryResetAppData, removeVirtualDisplayDriver);
+        return RunElevatedBootstrapperUninstall(arguments, factoryResetAppData, removeVirtualDisplayDriver, removeServer, removeControl);
       }
 
       SweepStaleInstallerRecoveryDirectories();
 
-      var uninstallResult = UninstallInstalledProducts(
-        "uninstall",
-        true,
-        false,
-        factoryResetAppData,
-        removeVirtualDisplayDriver,
-        true,
-        new[] { InstalledProductKind.ArtLightServer });
-      uninstallResult.Operation = InstallerOperation.Uninstall;
+      var componentFailures = new List<string>();
+      InstallerResult uninstallResult;
+      if (removeServer) {
+        uninstallResult = UninstallInstalledProducts(
+          "uninstall",
+          true,
+          false,
+          factoryResetAppData,
+          removeVirtualDisplayDriver,
+          true,
+          new[] { InstalledProductKind.ArtLightServer });
+        uninstallResult.Operation = InstallerOperation.Uninstall;
+      } else {
+        // Server kept: report a clean no-op for the server leg.
+        uninstallResult = new InstallerResult {
+          Operation = InstallerOperation.Uninstall,
+          ExitCode = 0,
+          Message = "ArtLight Server was kept installed."
+        };
+      }
+
+      if (removeControl) {
+        var controlResult = UninstallControlProduct();
+        if (!controlResult.Succeeded && controlResult.ExitCode != 1605) {
+          componentFailures.Add(
+            "ArtLight Control: " + (string.IsNullOrWhiteSpace(controlResult.Message) ? "uninstaller exited with code " + controlResult.ExitCode : controlResult.Message));
+        }
+      }
+
+      if (componentFailures.Count > 0) {
+        uninstallResult.ComponentFailures = componentFailures;
+      }
       return uninstallResult;
+    }
+
+    // ── ArtLight Control selective uninstall ────────────────────────────────
+    internal sealed class InstalledControlState {
+      public string UninstallString;
+      public string DisplayVersion;
+      public string InstallLocation;
+    }
+
+    internal static InstalledControlState TryGetInstalledControlState() {
+      var uninstallRoots = new[] {
+        @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+      };
+      foreach (var rootKey in uninstallRoots) {
+        Microsoft.Win32.RegistryKey key = null;
+        try {
+          key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(rootKey);
+          if (key == null) {
+            continue;
+          }
+          foreach (var subKeyName in key.GetSubKeyNames()) {
+            Microsoft.Win32.RegistryKey productKey = null;
+            try {
+              productKey = key.OpenSubKey(subKeyName);
+              if (productKey == null) {
+                continue;
+              }
+              var innoAppPath = Convert.ToString(productKey.GetValue("Inno Setup: App Path"));
+              if (string.IsNullOrWhiteSpace(innoAppPath)) {
+                continue;
+              }
+              var displayName = Convert.ToString(productKey.GetValue("DisplayName")) ?? string.Empty;
+              if (displayName.IndexOf("ArtLight Control", StringComparison.OrdinalIgnoreCase) < 0) {
+                continue;
+              }
+              var state = new InstalledControlState {
+                UninstallString = Convert.ToString(productKey.GetValue("UninstallString")),
+                DisplayVersion = Convert.ToString(productKey.GetValue("DisplayVersion")),
+                InstallLocation = Convert.ToString(productKey.GetValue("InstallLocation")) ?? innoAppPath
+              };
+              if (!string.IsNullOrWhiteSpace(state.UninstallString)) {
+                return state;
+              }
+            } finally {
+              if (productKey != null) {
+                productKey.Dispose();
+              }
+            }
+          }
+        } catch {
+          // Registry read failures simply mean "not detected".
+        } finally {
+          if (key != null) {
+            key.Dispose();
+          }
+        }
+      }
+      return null;
+    }
+
+    internal static InstallerResult UninstallControlProduct() {
+      var result = new InstallerResult {
+        Operation = InstallerOperation.Uninstall
+      };
+      var state = TryGetInstalledControlState();
+      if (state == null) {
+        // Not installed: nothing to do, treat as success (exit 1605 is also
+        // tolerated by the caller, this is just tidier).
+        result.ExitCode = 0;
+        result.Message = "ArtLight Control is not installed; nothing to remove.";
+        return result;
+      }
+
+      string executablePath;
+      string uninstallArguments;
+      if (!TrySplitExecutableAndArguments(state.UninstallString, out executablePath, out uninstallArguments)) {
+        result.ExitCode = 1603;
+        result.Message = "Could not parse the ArtLight Control uninstall command: " + state.UninstallString;
+        return result;
+      }
+
+      var silentArguments = (string.IsNullOrWhiteSpace(uninstallArguments) ? string.Empty : uninstallArguments + " ")
+        + "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART";
+      var startInfo = new ProcessStartInfo {
+        FileName = executablePath,
+        Arguments = silentArguments,
+        UseShellExecute = false,
+        CreateNoWindow = true
+      };
+      try {
+        using (var process = Process.Start(startInfo)) {
+          process.WaitForExit();
+          result.ExitCode = process.ExitCode;
+        }
+      } catch (Exception ex) {
+        result.ExitCode = 1603;
+        result.Message = "Failed to launch the ArtLight Control uninstaller: " + ex.Message;
+        return result;
+      }
+
+      result.Message = result.ExitCode == 0
+        ? "ArtLight Control was removed."
+        : "ArtLight Control uninstaller exited with code " + result.ExitCode + ".";
+      return result;
     }
 
     public static InstallerResult RunCli(InstallerArguments arguments) {
@@ -7653,6 +8156,8 @@ namespace ArtLightServerInstaller {
         installVirtualDisplayDriver ? "1" : "0",
         "--internal-install-save-logs",
         saveInstallLogs ? "1" : "0",
+        "--internal-install-control",
+        arguments.InternalInstallControl ? "1" : "0",
         "--internal-install-result-path",
         resultPath
       };
@@ -7732,13 +8237,19 @@ namespace ArtLightServerInstaller {
     private static InstallerResult RunElevatedBootstrapperUninstall(
       InstallerArguments arguments,
       bool factoryResetAppData,
-      bool removeVirtualDisplayDriver) {
+      bool removeVirtualDisplayDriver,
+      bool removeServer = true,
+      bool removeControl = true) {
       var elevatedArgs = new List<string> {
         "--internal-elevated-uninstall",
         "--internal-uninstall-factory-reset",
         factoryResetAppData ? "1" : "0",
         "--internal-uninstall-remove-virtual-display-driver",
-        removeVirtualDisplayDriver ? "1" : "0"
+        removeVirtualDisplayDriver ? "1" : "0",
+        "--internal-uninstall-remove-server",
+        removeServer ? "1" : "0",
+        "--internal-uninstall-remove-control",
+        removeControl ? "1" : "0"
       };
       if (!string.IsNullOrWhiteSpace(arguments.MsiPathOverride)) {
         elevatedArgs.Add("--msi");

@@ -942,6 +942,39 @@ jobs:
           path: build/generated_versioninfo
           run-id: ${{ needs.release_artifacts.outputs.source_run_id }}
 
+      - name: Setup .NET 8 for ArtLight Control
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish ArtLightControlService (win-x64)
+        working-directory: control
+        run: dotnet publish ArtLightControlService\ArtLightControlService.csproj -c Release -r win-x64 --self-contained false -o ArtLightControlService\bin\x64\Release\net8.0-windows\win-x64
+
+      - name: Publish ArtLightControl (win-x64)
+        working-directory: control
+        run: dotnet publish ArtLightControl\ArtLightControl.csproj -c Release -r win-x64 --self-contained false -o ArtLightControl\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64
+
+      - name: Install Inno Setup 7 (SetupArchitecture needs 7+)
+        shell: pwsh
+        run: |
+          $url = "https://github.com/jrsoftware/issrc/releases/download/is-7_1_0/innosetup-7.1.0-x64.exe"
+          Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\innosetup7.exe"
+          Start-Process -FilePath "$env:TEMP\innosetup7.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
+
+      - name: Build ArtLight Control installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $iscc = Get-ChildItem "C:\Program Files (x86)\Inno Setup 7\ISCC.exe", "C:\Program Files\Inno Setup 7\ISCC.exe", "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $iscc) { throw "Inno Setup compiler (ISCC.exe) was not found" }
+          Write-Host "Using ISCC: $($iscc.FullName)"
+          & $iscc.FullName control\Installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed with exit code $LASTEXITCODE" }
+          $controlExe = Get-ChildItem "control/Output/*.exe" | Select-Object -First 1
+          if (-not $controlExe) { throw "Control installer was not produced in control/Output" }
+          Write-Host "Control installer ready: $($controlExe.FullName)"
+
       - name: Package Windows
         id: package-windows
         shell: pwsh
@@ -958,10 +991,12 @@ jobs:
           }
 
           New-Item -ItemType Directory -Path (Join-Path $PWD 'build') -Force | Out-Null
+          $controlInstaller = (Get-ChildItem "control/Output/*.exe" | Select-Object -First 1).FullName
           & (Join-Path $PWD 'server/packaging/windows/bootstrapper/build_bootstrapper.ps1') `
             -BuildDir (Join-Path $PWD 'build') `
             -MsiPath $signedMsi `
             -OutputName $installerName `
+            -ControlInstallerPath $controlInstaller `
             -DisableSignPath
 
           $installerExe = Join-Path (Join-Path $PWD 'build/cpack_artifacts') $installerName
