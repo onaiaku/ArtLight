@@ -600,7 +600,7 @@ namespace ArtLightServerInstaller {
       });
 
       tipsStack.Children.Add(new TextBox {
-        Text = "ArtLight ServerSetup.exe /qn /norestart",
+        Text = "ArtLight Setup.exe /qn /norestart",
         IsReadOnly = true,
         FontFamily = new FontFamily("Consolas"),
         FontSize = 12.5,
@@ -2473,8 +2473,8 @@ namespace ArtLightServerInstaller {
       Console.WriteLine("  Self-hosted game streaming server — stream your PC to any device.");
       Console.WriteLine();
       Console.WriteLine("Usage:");
-      Console.WriteLine("  ArtLight ServerSetup.exe                Launch graphical installer UI");
-      Console.WriteLine("  ArtLight ServerSetup.exe [MSI options]  Pass options to msiexec");
+      Console.WriteLine("  ArtLight Setup.exe                Launch graphical installer UI");
+      Console.WriteLine("  ArtLight Setup.exe [MSI options]  Pass options to msiexec");
       Console.WriteLine();
       Console.WriteLine("Wrapper options:");
       Console.WriteLine("  --msi <path>    Use a specific MSI payload instead of the embedded one");
@@ -2489,13 +2489,13 @@ namespace ArtLightServerInstaller {
       Console.WriteLine("  INSTALL_VIRTUAL_DISPLAY_DRIVER=0  Use SudoVDA instead of the default ArtLight Server Display Driver");
       Console.WriteLine();
       Console.WriteLine("Examples:");
-      Console.WriteLine("  ArtLight ServerSetup.exe /qn");
-      Console.WriteLine("  ArtLight ServerSetup.exe /qn INSTALL_ROOT=\"D:\\ArtLight Server\"");
-      Console.WriteLine("  ArtLight ServerSetup.exe /x {PRODUCT-CODE} /qn");
-      Console.WriteLine("  ArtLight ServerSetup.exe /qn INSTALL_VIRTUAL_DISPLAY_DRIVER=0");
-      Console.WriteLine("  ArtLight ServerSetup.exe /uninstall");
-      Console.WriteLine("  ArtLight ServerSetup.exe /uninstall /quiet");
-      Console.WriteLine("  ArtLight ServerSetup.exe --msi C:\\temp\\ArtLight Server.msi /passive");
+      Console.WriteLine("  ArtLight Setup.exe /qn");
+      Console.WriteLine("  ArtLight Setup.exe /qn INSTALL_ROOT=\"D:\\ArtLight Server\"");
+      Console.WriteLine("  ArtLight Setup.exe /x {PRODUCT-CODE} /qn");
+      Console.WriteLine("  ArtLight Setup.exe /qn INSTALL_VIRTUAL_DISPLAY_DRIVER=0");
+      Console.WriteLine("  ArtLight Setup.exe /uninstall");
+      Console.WriteLine("  ArtLight Setup.exe /uninstall /quiet");
+      Console.WriteLine("  ArtLight Setup.exe --msi C:\\temp\\ArtLight Server.msi /passive");
 #endif
     }
 
@@ -3884,7 +3884,7 @@ namespace ArtLightServerInstaller {
     // "Payload.control.exe" alongside the server MSI. After the server MSI
     // succeeds, Control is installed silently (or upgraded in place if a
     // newer build is embedded). Skipped when the checkbox was unticked or no
-    // payload was embedded (standalone ServerSetup.exe builds).
+    // payload was embedded (standalone Setup.exe builds).
 
     internal static bool HasEmbeddedControlPayload() {
       using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Payload.control.exe")) {

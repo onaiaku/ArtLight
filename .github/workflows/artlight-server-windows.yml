@@ -98,7 +98,7 @@ on:
       signpath_artifact_configuration_slug:
         required: false
         type: string
-        # Setup-EXE (outer ArtLight ServerSetup.exe) artifact configuration slug.
+        # Setup-EXE (outer ArtLight Setup.exe) artifact configuration slug.
         # See docs/signpath/setup-exe.artifact-config.xml.
         default: setup-exe
       signpath_msi_artifact_configuration_slug:
@@ -984,7 +984,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
 
-          $installerName = "$($env:SYMBOL_PRODUCT_NAME)Setup.exe"
+          $installerName = "ArtLight Setup.exe"
           $signedMsi = Join-Path (Join-Path $PWD 'signed-msi') $env:MSI_NAME
           if (-not (Test-Path -LiteralPath $signedMsi)) {
             throw "MSI artifact was not downloaded: $signedMsi"

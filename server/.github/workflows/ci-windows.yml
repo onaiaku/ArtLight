@@ -98,7 +98,7 @@ on:
       signpath_artifact_configuration_slug:
         required: false
         type: string
-        # Setup-EXE (outer ArtLight ServerSetup.exe) artifact configuration slug.
+        # Setup-EXE (outer ArtLight Setup.exe) artifact configuration slug.
         # See docs/signpath/setup-exe.artifact-config.xml.
         default: setup-exe
       signpath_msi_artifact_configuration_slug:

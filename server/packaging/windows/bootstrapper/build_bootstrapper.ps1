@@ -231,7 +231,7 @@ if ([string]::IsNullOrWhiteSpace($OutputName)) {
     if ($UninstallOnly) {
         $OutputName = "uninstall.exe"
     } else {
-        $OutputName = "ArtLight ServerSetup.exe"
+        $OutputName = "ArtLight Setup.exe"
     }
 }
 

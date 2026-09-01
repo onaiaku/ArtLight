@@ -385,7 +385,7 @@ jobs:
           $artifactRoot = Join-Path $PWD 'artifacts'
           $manifestPath = Join-Path $artifactRoot 'release-provenance.json'
           $assets = @(Get-ChildItem -LiteralPath $artifactRoot -File | Where-Object { $_.Name -ne 'release-provenance.json' })
-          $setups = @($assets | Where-Object { $_.Name -like 'ArtLight ServerSetup*.exe' })
+          $setups = @($assets | Where-Object { $_.Name -like 'ArtLight Setup*.exe' })
           if ($setups.Count -ne 1) {
             throw "Expected exactly one finalized ArtLight Server setup executable; found $($setups.Count)."
           }
