@@ -155,6 +155,13 @@ namespace ArtLightServerInstaller {
     private readonly Brush _statusErrorBrush = new SolidColorBrush(Color.FromRgb(255, 178, 196));
     private readonly Version _bundleVersion;
     private readonly InstallerRunner.InstalledProductInfo _installedProduct;
+    private bool _lastInstallIncludedControl;
+    private string _lastServerInstallDirectory;
+
+    private static bool HasEmbeddedControlPayload() {
+      return InstallerRunner.HasEmbeddedControlPayload();
+    }
+
     private readonly InstallerRunner.InstalledProductInfo _legacySunshineProduct;
     private readonly InstallerRunner.LegacySunshineRegistration _legacySunshineRegistration;
     private readonly InstallerRunner.LegacySunshineRegistration _legacyApolloRegistration;
@@ -1497,6 +1504,13 @@ namespace ArtLightServerInstaller {
       return Path.Combine(EnsureTrailingSeparatorTrimmed(selectedRoot), "ArtLight Server");
     }
 
+    private static string EnsureTrailingSeparatorTrimmed(string path) {
+      if (string.IsNullOrEmpty(path)) {
+        return path;
+      }
+      return path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    }
+
     private static string GetArtLightRootFromServerDirectory(string serverInstallLocation) {
       if (string.IsNullOrWhiteSpace(serverInstallLocation)) {
         return null;
@@ -1524,7 +1538,7 @@ namespace ArtLightServerInstaller {
 
     private static string artLightDirectoryRoot(string artLightRoot) {
       return EnsureTrailingSeparatorTrimmed(string.IsNullOrWhiteSpace(artLightRoot)
-        ? DefaultInstallDirectory
+        ? InstallerRunner.DefaultInstallDirectory
         : artLightRoot);
     }
 
@@ -1793,7 +1807,7 @@ namespace ArtLightServerInstaller {
 
     private async Task<UninstallOptions?> ShowOverlayUninstallOptionsAsync() {
       var installedControl = InstallerRunner.TryGetInstalledControlState() != null;
-      var hasServerCheckBox = installedServer || _installedProduct != null;
+      var hasServerCheckBox = _installedProduct != null;
 
       var removeServerCheckBox = new CheckBox {
         Content = "Uninstall ArtLight Server",
@@ -3855,7 +3869,7 @@ namespace ArtLightServerInstaller {
     // newer build is embedded). Skipped when the checkbox was unticked or no
     // payload was embedded (standalone ServerSetup.exe builds).
 
-    private static bool HasEmbeddedControlPayload() {
+    internal static bool HasEmbeddedControlPayload() {
       using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Payload.control.exe")) {
         return stream != null;
       }
