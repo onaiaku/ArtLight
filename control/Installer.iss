@@ -3,7 +3,7 @@
 ; WinUI 3 (Windows App SDK 2.3) unpackaged deployment
 ; =====================================================
 #define MyAppName "ArtLight Control"
-#define MyAppVersion "0.1.1"
+#define MyAppVersion "1.0.0"
 #define MyAppPublisher "onaiaku"
 #define MyAppExeName "ArtLightControl.exe"
 #define MyAppURL "https://github.com/onaiaku/ArtLight"
@@ -16,6 +16,7 @@
 AppId={{D37D0ED6-5E8D-4131-B2C1-30A5840AC97B}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+UninstallDisplayName={#MyAppName}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\ArtLight\{#MyAppName}
 DefaultGroupName={#MyAppName}

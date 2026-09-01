@@ -2028,7 +2028,7 @@
   "client_card": {
     "clients": "Clients",
     "clients_desc": "Download a Moonlight-compatible client to connect to ArtLight Server.",
-    "generic_moonlight_clients_desc": "Generic Moonlight clients may work, but Artemis clients are recommended for ArtLight Server."
+    "generic_moonlight_clients_desc": "Generic Moonlight clients may work, but ArtMoon clients are recommended for ArtLight Server."
   },
   "stats": {
     "config_desc": "Collect realtime host and session metrics for dashboards and history views.",

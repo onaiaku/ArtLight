@@ -399,7 +399,7 @@
         "no_displays": "No displays were reported by this host",
         "no_hdr_profiles": "No installed HDR color profiles",
         "physical_display_description": "Choose the host display for this client. Inactive dummy plugs remain available.",
-        "permissions_description": "Choose exactly what this paired Artemis client may do on the host. Removing both View stream and Launch applications blocks streaming while keeping the device paired.",
+        "permissions_description": "Choose exactly what this paired ArtMoon client may do on the host. Removing both View stream and Launch applications blocks streaming while keeping the device paired.",
         "permissions_title": "Client permissions",
         "prefer_10bit_description": "When this client requests HDR, send a 10-bit SDR stream instead. HEVC or AV1 Main10 is required.",
         "route_target": "Route this client to",
@@ -414,7 +414,7 @@
       "common_settings_title": "Common host settings unavailable",
       "common_settings_unavailable": "The common host settings could not be loaded. Existing client overrides are preserved, but inherited values may be incomplete.",
       "empty": {
-        "description": "Start pairing from Artemis, then enter its PIN here to approve the device.",
+        "description": "Start pairing from ArtMoon, then enter its PIN here to approve the device.",
         "filtered_description": "Try a different device name or ID.",
         "filtered_title": "No matching devices",
         "title": "No paired devices"
@@ -984,7 +984,6 @@
         "pairDevice": "Pair a device",
         "reportBug": "Report a bug",
         "startBrowserStream": "Start browser stream",
-        "useLegacyWebUi": "Use legacy Web UI",
         "viewAll": "View all"
       },
       "activeSessions": {
@@ -1004,7 +1003,7 @@
           "one": "{count} connected now",
           "other": "{count} connected now"
         },
-        "emptyDescription": "Pair an Artemis client to begin streaming.",
+        "emptyDescription": "Pair an ArtMoon client to begin streaming.",
         "emptyTitle": "No paired devices",
         "title": "Paired devices"
       },
@@ -1097,8 +1096,8 @@
       },
       "error": {
         "name_required": "Enter a name for this device.",
-        "pin_invalid": "Enter the one- to four-digit PIN shown by Artemis.",
-        "pin_rejected": "No pending Artemis request accepted that PIN. Start pairing on the client and try again.",
+        "pin_invalid": "Enter the one- to four-digit PIN shown by ArtMoon.",
+        "pin_rejected": "No pending ArtMoon request accepted that PIN. Start pairing on the client and try again.",
         "submit": "Unable to pair this device."
       },
       "form": {
@@ -1106,7 +1105,7 @@
         "name_helper": "Choose a name you will recognize later.",
         "name_placeholder": "Living room TV",
         "pin_helper": "Enter up to four digits.",
-        "pin_label": "Artemis PIN",
+        "pin_label": "ArtMoon PIN",
         "pin_placeholder": "0000",
         "pin_submit_as": "Will submit as {pin}",
         "title": "Approve client"
@@ -1115,7 +1114,7 @@
         "connected": "{name} can now connect to this host."
       },
       "page": {
-        "description": "Approve an Artemis client with the PIN it displays. Pairing only authorizes this host; it does not start a stream.",
+        "description": "Approve an ArtMoon client with the PIN it displays. Pairing only authorizes this host; it does not start a stream.",
         "local_approval": "Local approval",
         "title": "Pair a device"
       },
@@ -1124,9 +1123,9 @@
         "approve_description": "Short PINs are submitted as four digits, including leading zeroes.",
         "approve_title": "Approve it here",
         "number": "{number}",
-        "open_moonlight_description": "Select this ArtLight Server host from the Artemis client you want to authorize.",
-        "open_moonlight_title": "Open Artemis",
-        "start_pairing_description": "Keep Artemis open while its numeric PIN is visible.",
+        "open_moonlight_description": "Select this ArtLight Server host from the ArtMoon client you want to authorize.",
+        "open_moonlight_title": "Open ArtMoon",
+        "start_pairing_description": "Keep ArtMoon open while its numeric PIN is visible.",
         "start_pairing_title": "Start pairing",
         "title": "Before you enter the PIN"
       }
@@ -1140,7 +1139,7 @@
         "working": "Working"
       },
       "active": {
-        "empty_description": "Sessions appear here as soon as an Artemis or browser client connects.",
+        "empty_description": "Sessions appear here as soon as an ArtMoon or browser client connects.",
         "list_aria_label": "Active streaming sessions",
         "refresh_description": "Auto-refreshes every four seconds while this tab is visible.",
         "title": "Active sessions"
@@ -1199,7 +1198,7 @@
         "stop_webrtc": "The browser stream was stopped."
       },
       "page": {
-        "description": "See active Artemis and browser streams, inspect diagnostics, and review recent session outcomes. Live values update without moving rows.",
+        "description": "See active ArtMoon and browser streams, inspect diagnostics, and review recent session outcomes. Live values update without moving rows.",
         "title": "Sessions"
       },
       "protocol": {
@@ -1229,7 +1228,7 @@
         "frame_count": "No frames | {count} frame | {count} frames",
         "milliseconds": "{value} ms",
         "milliseconds_ago": "{value} ms ago",
-        "moonlight_client": "Artemis client",
+        "moonlight_client": "ArtMoon client",
         "negotiating_codec": "Negotiating codec",
         "not_reported": "Not reported",
         "streamed_application": "The streamed application",
