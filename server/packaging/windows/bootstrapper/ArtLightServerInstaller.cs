@@ -202,9 +202,9 @@ namespace ArtLightServerInstaller {
       var displayVersion = GetTargetVersionText();
       Title = (BuildFlavor.IsUninstallOnly ? "ArtLight Server Uninstaller v" : "ArtLight Server Installer v") + displayVersion;
       Width = 720;
-      Height = showInstallOptions ? 620 : useCompactUpdateLayout ? 430 : 500;
+      Height = showInstallOptions ? 720 : useCompactUpdateLayout ? 430 : 500;
       MinWidth = 690;
-      MinHeight = showInstallOptions ? 580 : useCompactUpdateLayout ? 410 : 470;
+      MinHeight = showInstallOptions ? 700 : useCompactUpdateLayout ? 410 : 470;
       WindowStartupLocation = WindowStartupLocation.CenterScreen;
       ResizeMode = ResizeMode.CanMinimize;
       WindowStyle = WindowStyle.None;
