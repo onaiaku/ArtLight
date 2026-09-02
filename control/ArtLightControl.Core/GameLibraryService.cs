@@ -47,7 +47,7 @@ namespace ArtLightControl
                 // 1. Find Sunshine
                 string? appsJson = SunshineSync.FindAppsJsonPath();
                 if (appsJson == null)
-                    return $"{HostAppName} not found. Make sure Sunshine, Apollo, Vibeshine or Vibepollo is installed.";
+                    return $"{HostAppName} not found. Make sure ArtLight Server, Sunshine, Apollo, Vibeshine or Vibepollo is installed.";
 
                 var state = GameLibraryState.Current;
 

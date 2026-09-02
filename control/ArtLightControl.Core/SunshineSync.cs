@@ -52,6 +52,12 @@ namespace ArtLightControl
                     Path.Combine(progData,    app, "apps.json"),
                     Path.Combine(progFiles,   app, "config", "apps.json"),
                     Path.Combine(progFiles86, app, "config", "apps.json"),
+                    // ArtLight combined-installer nested layout:
+                    // C:\Program Files\ArtLight\<app>\config\apps.json
+                    // (the server's platf::appdata() is <exe dir>\config, and the
+                    // server exe lives in ArtLight\ArtLight Server\)
+                    Path.Combine(progFiles,   "ArtLight", app, "config", "apps.json"),
+                    Path.Combine(progFiles86, "ArtLight", app, "config", "apps.json"),
                 };
 
                 foreach (var candidate in candidates)
@@ -68,6 +74,17 @@ namespace ArtLightControl
                             ?.GetValue("InstallLocation") as string
                         ?? Registry.LocalMachine.OpenSubKey($@"SOFTWARE\WOW6432Node\{app}")
                             ?.GetValue("InstallLocation") as string;
+
+                    // WiX/Inno write InstallLocation under the ARP Uninstall key —
+                    // ArtLight Server has no SOFTWARE\<app> key at all.
+                    if (string.IsNullOrEmpty(installDir))
+                    {
+                        installDir =
+                            Registry.LocalMachine.OpenSubKey($@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{app}")
+                                ?.GetValue("InstallLocation") as string
+                            ?? Registry.LocalMachine.OpenSubKey($@"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{app}")
+                                ?.GetValue("InstallLocation") as string;
+                    }
 
                     if (!string.IsNullOrEmpty(installDir))
                     {
