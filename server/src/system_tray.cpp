@@ -418,10 +418,17 @@ namespace system_tray {
   static std::string s_tooltip;
   static std::string s_notification_text;
   static std::string s_last_playing_app;
+  // Client name recorded when a client connects, consumed by the next
+  // update_tray_playing() so stream start shows ONE combined notification
+  // instead of two separate toasts.
+  static std::string s_last_connected_client;
 
   void update_tray_playing(std::string app_name) {
     run_on_tray_thread([app_name = std::move(app_name)]() mutable {
       if (!app_name.empty() && app_name == s_last_playing_app && tray.icon && std::strcmp(tray.icon, TRAY_ICON_PLAYING) == 0) {
+        // Already playing this app; drop any remembered client name so it
+        // cannot leak into a future notification.
+        s_last_connected_client.clear();
         return;
       }
 
@@ -443,7 +450,23 @@ namespace system_tray {
       strncpy(force_close_msg, force_msg_acp.c_str(), std::size(force_close_msg) - 1);
       force_close_msg[std::size(force_close_msg) - 1] = '\0';
   #endif
-      s_notification_text = msg;
+      // Fold the connecting client into this single notification. If a
+      // "Client Connected" toast was about to fire separately, it is
+      // suppressed here in favour of one combined message.
+      if (!s_last_connected_client.empty()) {
+        char client_msg[256];
+        snprintf(client_msg, std::size(client_msg), "%s launched (%s connected)", app_name.c_str(), s_last_connected_client.c_str());
+  #ifdef _WIN32
+        auto client_msg_acp = utf8ToAcp(client_msg);
+        strncpy(client_msg, client_msg_acp.c_str(), std::size(client_msg) - 1);
+        client_msg[std::size(client_msg) - 1] = '\0';
+  #endif
+        s_notification_text = client_msg;
+        s_last_connected_client.clear();
+      }
+      else {
+        s_notification_text = msg;
+      }
       s_tooltip = "Streaming started for " + app_name;
       tray.notification_title = "App launched";
       tray.notification_text = s_notification_text.c_str();
@@ -581,27 +604,12 @@ namespace system_tray {
 
   void
     update_tray_client_connected(std::string client_name) {
+    // Record the client name instead of raising a second toast. The next
+    // update_tray_playing() call folds it into the single "App launched"
+    // notification, so a stream connect produces ONE tray notification.
+    // Deliberately no tray_update() here — nothing visual changes.
     run_on_tray_thread([client_name = std::move(client_name)]() {
-      tray.notification_title = nullptr;
-      tray.notification_text = nullptr;
-      tray.notification_cb = nullptr;
-      tray.notification_icon = nullptr;
-      tray.icon = TRAY_ICON;
-
-      char msg[256];
-      snprintf(msg, std::size(msg), "%s has connected to the session.", client_name.c_str());
-  #ifdef _WIN32
-      auto msg_acp = utf8ToAcp(msg);
-      strncpy(msg, msg_acp.c_str(), std::size(msg) - 1);
-      msg[std::size(msg) - 1] = '\0';
-  #endif
-      tray.notification_title = "Client Connected";
-      static std::string s_client_text;
-      s_client_text = msg;
-      tray.notification_text = s_client_text.c_str();
-      tray.notification_icon = TRAY_ICON;
-      tray.tooltip = PROJECT_NAME;
-      tray_update(&tray);
+      s_last_connected_client = client_name;
     });
   }
 

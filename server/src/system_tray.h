@@ -87,7 +87,13 @@ namespace system_tray {
 
   void update_tray_paired(std::string device_name);
 
+  /**
+   * @brief Records the connecting client's name. No separate notification is
+   * raised; update_tray_playing() folds the name into the single
+   * "App launched" toast so a stream connect shows one notification.
+   */
   void update_tray_client_connected(std::string client_name);
+
   /**
    * @brief Spawns a notification when ViGEm is missing.
    * Clicking it opens the Web UI Dashboard for more information.
