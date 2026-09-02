@@ -3965,7 +3965,11 @@ namespace ArtLightServerInstaller {
       };
       var startInfo = new ProcessStartInfo {
         FileName = controlExePath,
-        Arguments = string.Join(" ", args),
+        // QuoteArgument is required here: without it, "C:\Program Files\..."
+        // splits at the space and Inno reads /DIR=C:\Program, installing
+        // Control into a stray "C:\program" folder (and the Finish page's
+        // launch checkbox then finds no ArtLightControl.exe and skips).
+        Arguments = BuildCommandLine(args),
         UseShellExecute = false,
         CreateNoWindow = true
       };
