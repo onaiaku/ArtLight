@@ -1080,6 +1080,29 @@
           "detail": "{app} has no connected stream.",
           "title": "Application is still running"
         }
+      },
+      "changelog": {
+        "title": "Changelog",
+        "description": "Release notes for this installed ArtLight Server build ({version}) and nearby releases.",
+        "installedBadge": "Installed: {version}",
+        "latestBadge": "Latest: {version}",
+        "latestBadgeShort": "Latest",
+        "bundledBadge": "Bundled notes only",
+        "githubError": "GitHub unreachable",
+        "githubErrorDetail": "Could not reach GitHub releases. Showing bundled release notes only.",
+        "filterLabel": "Filter releases",
+        "filter_current": "Current version",
+        "filter_line": "Release line",
+        "filter_all": "All releases",
+        "loading": "Loading release notes",
+        "noReleases": "No release notes found.",
+        "currentBadge": "Installed",
+        "openGithub": "Open GitHub release",
+        "channel_stable": "Stable",
+        "channel_alpha": "Alpha",
+        "channel_beta": "Beta",
+        "channel_rc": "Release candidate",
+        "channel_other": "Prerelease"
       }
     },
     "pair": {

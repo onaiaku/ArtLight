@@ -17,6 +17,7 @@ import type { HostInfo, HostStatsSnapshot } from '@/types/host';
 import type { SessionStatus } from '@/types/sessions';
 import { useSystemStore } from '@/stores/system';
 import { formatBytes } from '@/utils/format';
+import ChangelogPanel from '@/components/updates/ChangelogPanel.vue';
 
 interface OverviewWarning {
   key: string;
@@ -395,6 +396,8 @@ onBeforeUnmount(() => {
           </a>
         </section>
       </div>
+
+      <ChangelogPanel />
     </template>
   </div>
 </template>
