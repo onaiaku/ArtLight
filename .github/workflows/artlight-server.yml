@@ -161,6 +161,15 @@ jobs:
             key = version_key(tag)
             if key is None:
               continue
+            cmake_version = cmake_project_version()
+            tag_numeric = VERSION_RE.match(tag)
+            if cmake_version and tag_numeric and tag_numeric.group(1) != cmake_version:
+              print(
+                f"Skipping {tag}: version does not match server/CMakeLists.txt "
+                f"({cmake_version}). CMakeLists is the single version source: "
+                "bump project(ArtLightServer VERSION ...) and tag the same version."
+              )
+              continue
             legacy_tag = f"v{tag}"
             existing_release_tag = next(
               (candidate for candidate in (tag, legacy_tag) if candidate in release_tags),
