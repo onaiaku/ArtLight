@@ -942,6 +942,33 @@ jobs:
           path: build/generated_versioninfo
           run-id: ${{ needs.release_artifacts.outputs.source_run_id }}
 
+      - name: Stamp Control version from CMakeLists (single source of truth)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cmake = Get-Content server/CMakeLists.txt -Raw
+          if ($cmake -notmatch 'project\(ArtLightServer\s+VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)') {
+            throw "Could not read project VERSION from server/CMakeLists.txt"
+          }
+          $version = $Matches[1]
+          Write-Host "Stamping ArtLight Control version $version (from server/CMakeLists.txt)"
+
+          # csproj: Version / AssemblyVersion / FileVersion
+          $csproj = 'control/ArtLightControl/ArtLightControl.csproj'
+          (Get-Content $csproj -Raw) `
+            -replace '<Version>[^<]*</Version>', "<Version>$version</Version>" `
+            -replace '<AssemblyVersion>[^<]*</AssemblyVersion>', "<AssemblyVersion>$version.0</AssemblyVersion>" `
+            -replace '<FileVersion>[^<]*</FileVersion>', "<FileVersion>$version.0</FileVersion>" |
+            Set-Content $csproj -NoNewline
+
+          # Installer.iss: MyAppVersion define
+          $iss = 'control/Installer.iss'
+          (Get-Content $iss -Raw) `
+            -replace '#define MyAppVersion "[^"]*"', "#define MyAppVersion `"$version`"" |
+            Set-Content $iss -NoNewline
+
+          Write-Host "Stamped csproj + Installer.iss to $version"
+
       - name: Setup .NET 8 for ArtLight Control
         uses: actions/setup-dotnet@v4
         with:
