@@ -70,8 +70,22 @@ jobs:
 
           def skip(reason):
             print(f"::notice::{reason}")
-            output(should_release="false", tag_name="", release_version="", release_commit="")
+            # Even a non-release build must carry the real project version:
+            # reading it from CMakeLists keeps installed builds reporting the
+            # same version as tagged releases (avoids false update prompts).
+            output(should_release="false", tag_name="", release_version=cmake_project_version(), release_commit="")
             sys.exit(0)
+
+          def cmake_project_version():
+            try:
+              text = Path("server/CMakeLists.txt").read_text(encoding="utf-8")
+            except OSError:
+              return ""
+            match = re.search(
+              r"project\s*\(\s*ArtLightServer\s+VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)",
+              text,
+            )
+            return match.group(1) if match else ""
 
           def version_key(tag):
             match = VERSION_RE.match(tag)
@@ -214,7 +228,9 @@ jobs:
       build_only: ${{ needs.release-candidate.outputs.should_release == 'true' }}
       build_tests: ${{ needs.release-candidate.outputs.should_release != 'true' }}
       release_commit: ${{ needs.release-candidate.outputs.release_commit || github.sha }}
-      release_version: ${{ needs.release-candidate.outputs.release_version || '0.1.0' }}
+      # Fallback for non-release builds: CMakeLists is the single source of
+      # truth for the project version (the tag path overrides this anyway).
+      release_version: ${{ needs.release-candidate.outputs.release_version }}
       release_tag: ${{ needs.release-candidate.outputs.tag_name }}
       release_artifact_retention_days: ${{ needs.release-candidate.outputs.should_release == 'true' && 14 || 3 }}
       symbol_product_name: ArtLight Server
