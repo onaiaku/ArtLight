@@ -11,7 +11,8 @@ Self-hosted game streaming: your PC plays, your screen anywhere.
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/onaiaku/ArtLight?include_prereleases)](https://github.com/onaiaku/ArtLight/releases)
 [![Build](https://img.shields.io/github/actions/workflow/status/onaiaku/ArtLight/artlight-server.yml?branch=main)](https://github.com/onaiaku/ArtLight/actions)
-[![Signed with](https://img.shields.io/badge/Code_signing-SignPath_Foundation-4c1)](https://signpath.org)
+
+---
 
 </div>
 
@@ -54,7 +55,7 @@ Both are designed to be set up once and forgotten: install, pair your client, pl
 
 ## Download & code signing
 
-Windows release binaries (installer, MSI, and bundled executables) are code-signed through the **[SignPath Foundation](https://signpath.org)** — build provenance is verified from this public GitHub repository before signing.
+Windows release binaries are **not yet code-signed**. An application to the SignPath Foundation was submitted and is awaiting broader project adoption before approval; signing will be added in a future release once approved. Until then, verify downloads by building from source or checking CI artifacts against this repository.
 
 ## Privacy
 
