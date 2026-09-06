@@ -388,8 +388,12 @@ namespace ArtLightControl
         {
             try
             {
-                if (_isDebugModeActive) return;
-                if (!_isAutoSessionActive) return;
+                if (_isDebugModeActive) { DebugLogger.Log("[Session] HandleAutoStreamStop skipped — debug mode active"); return; }
+                if (!_isAutoSessionActive)
+                {
+                    DebugLogger.Log("[Session] HandleAutoStreamStop skipped — no auto session active");
+                    return;
+                }
 
                 // The link goes back on its own: LinkSpeedManager arms a grace period so a
                 // client reconnecting within a minute doesn't pay for a second renegotiation.
@@ -613,7 +617,11 @@ namespace ArtLightControl
             _heartbeatWatchdog.Tick += (_, _) =>
             {
                 if (_isDebugModeActive) return;                          // debug feed bypasses the bridge
-                if (!_isAutoSessionActive) return;                      // no session → nothing to end
+                if (!_isAutoSessionActive)
+                {
+                    DebugLogger.Log("[Session] heartbeat watchdog: session flag already down — nothing to end");
+                    return;                      // no session → nothing to end
+                }
                 if (_lastSessionDataUtc == DateTime.MinValue) return;   // no SESSIONDATA seen yet this session
                 if ((DateTime.UtcNow - _lastSessionDataUtc).TotalMilliseconds < CLIENT_HEARTBEAT_TIMEOUT_MS) return;
 
@@ -651,6 +659,7 @@ namespace ArtLightControl
                 _inactivityTimer.Tick += (_, _) =>
                 {
                     StopInactivityTimer();
+                    DebugLogger.Log($"[Session] inactivity timer ticked ({INACTIVITY_TIMEOUT_MS / 1000}s after disconnect), sessionActive={_isAutoSessionActive}");
                     if (_isAutoSessionActive)
                         _ = HandleAutoStreamStop("Disconnected");
                 };

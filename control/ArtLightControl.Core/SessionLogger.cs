@@ -514,13 +514,53 @@ namespace ArtLightControl
             // (e.g. App_SessionEnding on the OS thread + HandleAutoStreamStop on the UI thread)
             // cannot both proceed past the null check.
             string? sessionId = System.Threading.Interlocked.Exchange(ref _activeSessionId, null);
-            if (sessionId == null) return;
+            if (sessionId == null)
+            {
+                // Orphan rescue: a session row is open in the file but nobody owns it any
+                // more (the in-process id was lost without a matching EndSession). Close
+                // the newest open row so history does not strand it until the next restart.
+                try
+                {
+                    lock (_fileLock)
+                    {
+                        var sessions = Load();
+                        var orphan = sessions.FirstOrDefault(s => s.EndTime == null);
+                        if (orphan != null)
+                        {
+                            orphan.EndTime = DateTime.Now;
+                            orphan.EndReason = endReason;
+
+                            if ((orphan.EndTime.Value - orphan.StartTime).TotalSeconds < MinSessionSeconds)
+                            {
+                                sessions.Remove(orphan);
+                                Save(sessions);
+                                DeleteCheckpoint();
+                                DebugLogger.Log($"SessionLogger: EndSession({endReason}) — no active id, discarded orphaned open session shorter than {MinSessionSeconds}s");
+                                return;
+                            }
+
+                            Save(sessions);
+                            DebugLogger.Log($"SessionLogger: EndSession({endReason}) — no active id, closed orphaned open session started {orphan.StartTime:HH:mm:ss}");
+                        }
+                        else
+                        {
+                            DebugLogger.Log($"SessionLogger: EndSession({endReason}) — no active id and no open session row (nothing to do)");
+                        }
+                    }
+                }
+                catch (Exception ex) { DebugLogger.Log($"SessionLogger: orphan rescue failed: {ex}"); }
+                return;
+            }
             try
             {
                 lock (_fileLock)
                 {
                     var sessions = Load();
                     var entry = sessions.FirstOrDefault(s => s.Id == sessionId);
+                    if (entry == null)
+                        DebugLogger.Log($"SessionLogger: EndSession({endReason}) — id {sessionId} NOT FOUND in file ({sessions.Count} rows, {sessions.Count(s => s.EndTime == null)} open)");
+                    else if (entry.EndTime != null)
+                        DebugLogger.Log($"SessionLogger: EndSession({endReason}) — id {sessionId} already ended at {entry.EndTime:HH:mm:ss}");
                     if (entry?.EndTime == null)
                     {
                         entry!.EndTime = DateTime.Now;
