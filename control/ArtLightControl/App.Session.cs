@@ -660,8 +660,7 @@ namespace ArtLightControl
                 {
                     StopInactivityTimer();
                     DebugLogger.Log($"[Session] inactivity timer ticked ({INACTIVITY_TIMEOUT_MS / 1000}s after disconnect), sessionActive={_isAutoSessionActive}");
-                    if (_isAutoSessionActive)
-                        _ = HandleAutoStreamStop("Disconnected");
+                _ = HandleAutoStreamStop("Disconnected");
                 };
             }
             _inactivityTimer.Stop();

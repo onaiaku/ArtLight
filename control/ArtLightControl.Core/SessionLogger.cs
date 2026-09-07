@@ -598,25 +598,42 @@ namespace ArtLightControl
                             // Snapshot cover paths while GameLibraryState is still intact.
                             // This ensures covers remain visible in the session card even after
                             // a game is later uninstalled or removed from the library.
-                            if (gamesDetected.Count > 0)
+                            //
+                            // Non-fatal BY DESIGN: this is cosmetic enrichment, and it used to be
+                            // able to throw (duplicate game names in the library made ToDictionary
+                            // raise "same key already added"), which killed EndSession before
+                            // Save() ran — the session row stayed open forever. The first-wins
+                            // map below cannot throw on duplicates, and any other failure here
+                            // must never prevent the row from being closed and saved.
+                            try
                             {
-                                var gameMap = GameLibraryState.Current.Games
-                                    .ToDictionary(g => g.Name, g => g, StringComparer.OrdinalIgnoreCase);
-                                var coverPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                                foreach (var name in gamesDetected)
+                                if (gamesDetected.Count > 0)
                                 {
-                                    if (gameMap.TryGetValue(name, out var g) && g.CoverImagePath != null)
-                                        coverPaths[name] = g.CoverImagePath;
+                                    var gameMap = new Dictionary<string, GameLibraryEntry>(StringComparer.OrdinalIgnoreCase);
+                                    foreach (var g in GameLibraryState.Current.Games)
+                                        if (g.Name != null && !gameMap.ContainsKey(g.Name))
+                                            gameMap[g.Name] = g;
+                                    var coverPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                                    foreach (var name in gamesDetected)
+                                    {
+                                        if (gameMap.TryGetValue(name, out var g) && g.CoverImagePath != null)
+                                            coverPaths[name] = g.CoverImagePath;
+                                    }
+                                    if (coverPaths.Count > 0)
+                                        entry.GamesDetectedCoverPaths = coverPaths;
                                 }
-                                if (coverPaths.Count > 0)
-                                    entry.GamesDetectedCoverPaths = coverPaths;
+                            }
+                            catch (Exception ex)
+                            {
+                                DebugLogger.Log($"SessionLogger: cover snapshot skipped (non-fatal): {ex.Message}");
                             }
                         }
                         Save(sessions);
+                        DebugLogger.Log($"SessionLogger: EndSession({endReason}) — closed session started {entry.StartTime:HH:mm:ss} (duration {(DateTime.Now - entry.StartTime).TotalMinutes:F1} min)");
                     }
                 }
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.Log($"SessionLogger: EndSession({endReason}) FAILED: {ex}"); }
         }
 
         public static List<SessionEntry> Load()
