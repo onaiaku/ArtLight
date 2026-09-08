@@ -3,7 +3,7 @@
 ; WinUI 3 (Windows App SDK 2.3) unpackaged deployment
 ; =====================================================
 #define MyAppName "ArtLight Control"
-#define MyAppVersion "1.2.1"
+#define MyAppVersion "1.2.2"
 #define MyAppPublisher "onaiaku"
 #define MyAppExeName "ArtLightControl.exe"
 #define MyAppURL "https://github.com/onaiaku/ArtLight"
@@ -56,6 +56,15 @@ DisableWelcomePage=no
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[Tasks]
+; Start-with-Windows is ON by default. UsePreviousTasks (Inno default) remembers
+; the user's choice on upgrades, so a user who unticked it stays unticked.
+; The value written here is exactly what the in-app toggle writes
+; (SettingsViewModel.StartWithWindows): "<exe>" --minimized — the app reads the
+; Run key directly, so installer and app stay in sync. --minimized launches the
+; app into the tray (App.xaml.cs skips window activation on that flag).
+Name: "autostart"; Description: "Start ArtLight Control when Windows starts (runs minimized in the tray)"; GroupDescription: "Startup:"
+
 [Messages]
 WelcomeLabel1=Welcome to the ArtLight Control Setup Wizard
 WelcomeLabel2=
@@ -84,6 +93,12 @@ Source: "installer\resources\artlightcontrol.png"; Flags: dontcopy
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+
+; Autostart on by default (task "autostart", checked). Same value the in-app
+; toggle writes, so the Settings page reflects ON after install with no drift.
+[Registry]
+Root: HKCU; Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "ArtLightControl"; \
+    ValueData: """{app}\{#MyAppExeName}"" --minimized"; Flags: uninsdeletevalue; Tasks: autostart
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: postinstall skipifsilent nowait

@@ -4,9 +4,18 @@ ArtLight Control - Changelog
 
 https://github.com/onaiaku/ArtLight
 
------------------------------------------------
+------------------------------------------------
+Version 1.2.2 (08/09/2026)
+------------------------------------------------
+Start with Windows is now enabled by default — the installer adds a
+checked "Start ArtLight Control when Windows starts" option which
+launches the app minimized to the system tray (no window at boot).
+Untick it during setup to opt out; your choice is remembered on
+upgrades. The in-app Settings toggle works as before.
+
+------------------------------------------------
 Version 1.2.1 (08/09/2026)
------------------------------------------------
+------------------------------------------------
 Version parity release — Control is bumped to 1.2.1 in lockstep with
 ArtLight Server 1.2.1 so both report the same version. No Control
 functionality changes in this release.
