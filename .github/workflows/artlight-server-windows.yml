@@ -557,6 +557,11 @@ jobs:
             Copy-Item -LiteralPath $sunshineSvc -Destination $sunshineSvcPayload -Force
           }
 
+          # pwsh propagates the last native command's exit code as the process
+          # exit code. cv2pdb legitimately exits 1 for exes without debug info
+          # (guarded above), so exit explicitly as success when we got here.
+          exit 0
+
       - name: Package Windows Symbols
         if: startsWith(github.ref, 'refs/tags/') || inputs.publish_symbols || inputs.upload_symbols_artifact
         id: package-windows-symbols
