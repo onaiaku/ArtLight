@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n';
 import { AppButton, EmptyState, InlineAlert, LoadingSkeleton, StatusBadge } from '@/components/ui';
 import { loadChangelog } from '@/services/changelog';
 import type { ChangelogEntry } from '@/utils/changelog';
-import { parseChangelogVersion } from '@/utils/changelog';
+import { compareChangelogTags, parseChangelogVersion } from '@/utils/changelog';
 
 type FilterMode = 'current' | 'line' | 'all';
 
@@ -20,6 +20,13 @@ const refreshing = ref(false);
 const filter = ref<FilterMode>('line');
 
 const installedInfo = computed(() => parseChangelogVersion(installedVersion.value));
+
+/** True when the newest available release is newer than the installed one. */
+const updateAvailable = computed(() => {
+  if (!latestAvailable.value) return false;
+  if (isInstalled(latestAvailable.value)) return false;
+  return compareChangelogTags(latestAvailable.value.tag, installedVersion.value) > 0;
+});
 
 const filteredReleases = computed(() => {
   if (filter.value === 'all') return releases.value;
@@ -46,11 +53,11 @@ function channelTone(release: ChangelogEntry): 'success' | 'warning' {
   return release.channel === 'stable' ? 'success' : 'warning';
 }
 
-async function refresh(): Promise<void> {
+async function refresh(force = false): Promise<void> {
   if (refreshing.value) return;
   refreshing.value = true;
   try {
-    const result = await loadChangelog();
+    const result = await loadChangelog(force);
     releases.value = result.releases;
     installedVersion.value = result.installedVersion;
     latestAvailable.value = result.latestAvailable;
@@ -124,9 +131,34 @@ onMounted(() => {
         size="compact"
         :busy="refreshing"
         :busy-label="t('ui.overview.refreshing')"
-        @click="refresh()"
+        @click="refresh(true)"
       />
     </div>
+
+    <InlineAlert
+      v-if="updateAvailable && !loading"
+      tone="info"
+      :title="t('ui.overview.changelog.updateAvailable', { version: latestAvailable?.tag ?? '' })"
+    >
+      <div class="changelog-panel__update-actions">
+        <a
+          v-if="latestAvailable?.downloadUrl"
+          class="button button--primary button--compact"
+          :href="latestAvailable.downloadUrl"
+        >
+          {{ t('ui.overview.changelog.downloadLatest') }}
+        </a>
+        <a
+          v-if="latestAvailable?.url"
+          class="button button--secondary button--compact"
+          :href="latestAvailable.url"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {{ t('ui.overview.changelog.viewRelease') }}
+        </a>
+      </div>
+    </InlineAlert>
 
     <LoadingSkeleton
       v-if="loading"
@@ -222,6 +254,13 @@ onMounted(() => {
   justify-content: space-between;
   gap: var(--vs-space-8);
   margin-bottom: var(--vs-space-12);
+}
+
+.changelog-panel__update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vs-space-8);
+  margin-top: var(--vs-space-8);
 }
 
 .changelog-filter {

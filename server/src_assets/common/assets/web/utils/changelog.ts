@@ -18,6 +18,8 @@ export interface ChangelogEntry {
   channel: ChangelogChannel;
   source: ChangelogSource;
   url?: string;
+  /** Direct download URL for the release's primary installer asset, when known. */
+  downloadUrl?: string;
   prerelease?: boolean;
 }
 
@@ -35,6 +37,42 @@ export interface GitHubReleaseLike {
   created_at?: string | null;
   prerelease?: boolean;
   draft?: boolean;
+  assets?: Array<{
+    name?: string | null;
+    browser_download_url?: string | null;
+    content_type?: string | null;
+  } | null>;
+}
+
+/** Installer-like asset names, best first (Windows installers dominate this project). */
+const INSTALLER_ASSET_PRIORITY = [
+  /installer/i,
+  /\.exe$/i,
+  /\.msi$/i,
+  /\.appimage$/i,
+  /\.deb$/i,
+  /\.pkg$/i,
+  /\.dmg$/i,
+  /\.tar\.gz$/i,
+  /\.zip$/i,
+];
+
+export function pickInstallerAssetUrl(release: GitHubReleaseLike): string | undefined {
+  const assets = (release.assets ?? []).filter(
+    (asset): asset is NonNullable<typeof asset> => !!asset && !!asset.browser_download_url,
+  );
+  if (assets.length === 0) return undefined;
+  for (const pattern of INSTALLER_ASSET_PRIORITY) {
+    const match = assets.find((asset) => pattern.test(asset.name ?? ''));
+    if (match) return match.browser_download_url as string;
+  }
+  // Fall back to the browser_download_url GitHub highlights for the release
+  for (const asset of assets) {
+    if (asset.content_type?.includes('application/x-msdownload') || asset.content_type?.includes('octet-stream')) {
+      return asset.browser_download_url as string;
+    }
+  }
+  return (assets[0]?.browser_download_url as string) ?? undefined;
 }
 
 interface VersionInfo {
@@ -233,6 +271,8 @@ export function githubReleaseToChangelogEntry(release: GitHubReleaseLike): Chang
     prerelease: release.prerelease ?? info.channel !== 'stable',
   };
   if (release.html_url) entry.url = release.html_url;
+  const downloadUrl = pickInstallerAssetUrl(release);
+  if (downloadUrl) entry.downloadUrl = downloadUrl;
   return entry;
 }
 
@@ -261,6 +301,9 @@ export function mergeChangelogEntries(
       name: entry.name || existing.name,
       date: entry.date || existing.date,
       ...(entry.url || existing.url ? { url: entry.url || existing.url } : {}),
+      ...(entry.downloadUrl || existing.downloadUrl
+        ? { downloadUrl: entry.downloadUrl || existing.downloadUrl }
+        : {}),
     });
   }
   return sortChangelogEntries(Array.from(byTag.values()));

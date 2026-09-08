@@ -5,6 +5,13 @@ ArtLight Control - Changelog
 https://github.com/onaiaku/ArtLight
 
 -----------------------------------------------
+Version 1.2.1 (08/09/2026)
+-----------------------------------------------
+Version parity release — Control is bumped to 1.2.1 in lockstep with
+ArtLight Server 1.2.1 so both report the same version. No Control
+functionality changes in this release.
+
+-----------------------------------------------
 Version 0.1.1 (01/09/2026)
 -----------------------------------------------
 Purple tray and app icons in every size — the 0.1.0 icons were built

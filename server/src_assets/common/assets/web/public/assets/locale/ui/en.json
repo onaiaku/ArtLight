@@ -1102,7 +1102,10 @@
         "channel_alpha": "Alpha",
         "channel_beta": "Beta",
         "channel_rc": "Release candidate",
-        "channel_other": "Prerelease"
+        "channel_other": "Prerelease",
+        "updateAvailable": "Update available: {version}",
+        "downloadLatest": "Download latest build",
+        "viewRelease": "View release on GitHub"
       }
     },
     "pair": {

@@ -2022,7 +2022,10 @@
     "open_github": "Open GitHub release",
     "all_releases_title": "All releases",
     "release_line_title": "Release line {line}",
-    "current_version_title": "Current version {version}"
+    "current_version_title": "Current version {version}",
+    "update_available": "Update available: {version}",
+    "download_latest": "Download latest build",
+    "view_release": "View release on GitHub"
   },
   "_comment": "Fallback strings copied from English until translated.",
   "client_card": {
