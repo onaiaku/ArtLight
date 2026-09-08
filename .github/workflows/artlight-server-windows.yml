@@ -536,6 +536,13 @@ jobs:
           foreach ($exe in $executables) {
             if (Test-Path -LiteralPath $exe) {
               & cv2pdb64.exe $exe
+              $cv2pdbExit = $LASTEXITCODE
+              # cv2pdb exits 1 with "no debug entries found" for executables built
+              # without DWARF debug info (e.g. the small tool exes). That is a skip,
+              # not a failure - only treat unexpected cv2pdb errors as fatal.
+              if ($cv2pdbExit -gt 1) {
+                throw "cv2pdb64.exe failed on $exe with exit code $cv2pdbExit"
+              }
             }
           }
 
