@@ -522,6 +522,11 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          # pwsh 7.4+ treats ANY nonzero native exit code as a terminating error
+          # when ErrorActionPreference is Stop. cv2pdb exits 1 ("no debug entries
+          # found") for exes built without DWARF info, which is a benign skip -
+          # disable that behavior so our explicit guard below is what decides.
+          $PSNativeCommandUseErrorActionPreference = $false
 
           $executables = @(
             '.\build\sunshine.exe',
