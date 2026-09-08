@@ -802,7 +802,13 @@ jobs:
     name: Sign Windows MSI
     needs:
       - release_artifacts
-    if: always() && !cancelled() && inputs.build_only == false && needs.release_artifacts.result == 'success'
+    # Runs on release builds too (build_only=true): when SignPath is not
+    # configured the job falls through to "SignPath disabled" and simply
+    # re-stages the unsigned MSI, so package_windows can still build the
+    # combined ArtLight Setup.exe bootstrapper. Without this, release builds
+    # skip signing entirely and the combined installer is never produced
+    # (the 1.2.0/1.2.1 regression — releases shipped Control-only exe).
+    if: always() && !cancelled() && needs.release_artifacts.result == 'success'
     runs-on: windows-2022
     timeout-minutes: 20
     outputs:
