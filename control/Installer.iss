@@ -1,6 +1,6 @@
 ; =====================================================
 ; ArtLightControl - GitHub Release Installer
-; WinUI 3 (Windows App SDK 2.3) unpackaged deployment
+; WinUI 3 (Windows App SDK 2.4) unpackaged deployment
 ; =====================================================
 #define MyAppName "ArtLight Control"
 #define MyAppVersion "1.2.2"
@@ -36,7 +36,7 @@ Compression=lzma2
 SolidCompression=yes
 OutputDir=Output
 OutputBaseFilename=ArtLightControl_{#MyAppVersion}_Installer
-; WinUI 3 + Windows App SDK 2.3 require Windows 10 1903+ (build 18362) — the 2.x line
+; WinUI 3 + Windows App SDK 2.4 require Windows 10 1903+ (build 18362) — the 2.x line
 ; raised this from the 1809 (17763) floor of the 1.x line.
 ; ArtLightControl targets 19041 (20H1), which is stricter than both, so nothing changes here.
 MinVersion=10.0.19041
@@ -266,7 +266,7 @@ begin
     '•  Store badges on your synced game covers (Steam, Epic, GOG, Xbox, …)' + #13#10 +
     '•  Per-session quality grading, charts and delivered-vs-target bitrate' + #13#10 +
     '•  This host''s last session shown on the client, cover art included' + #13#10 +
-    '•  Power this host off, or run Windows Update on it, from the client' + #13#10 +
+    '•  Sleep, restart or power this host off, or update it, from the client' + #13#10 +
     '•  Gamepad-first interface: every action reachable from the pad' + #13#10 +
     '•  Per-game and per-host profiles, custom resolutions, live stream settings' + #13#10 +
     '•  Tailscale presence for streaming from outside your network';
@@ -361,6 +361,9 @@ begin
     Exec('sc.exe', 'delete ' + '{#ServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     // Remove autostart registry entry if the user had it enabled in-app
     RegDeleteValue(HKCU, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Run', 'ArtLightControl');
+    // ...and the logon task, if the user chose Priority instead. Without this the task
+    // survives the uninstall and fails at every logon, forever, launching an exe that is gone.
+    Exec('schtasks.exe', '/Delete /TN "ArtLightControl Startup" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   end;
 end;
 
@@ -368,7 +371,7 @@ function InitializeSetup: Boolean;
 begin
   // .NET 8 base runtime (Microsoft.NETCore.App) — WinUI 3 does not need Desktop runtime
   Dependency_AddDotNet80;
-  // Windows App SDK 2.3 runtime — provides the WinUI 3 XAML framework (DDLM package)
-  Dependency_AddWindowsAppRuntime23;
+  // Windows App SDK 2.4 runtime — provides the WinUI 3 XAML framework (DDLM package)
+  Dependency_AddWindowsAppRuntime24;
   Result := True;
 end;

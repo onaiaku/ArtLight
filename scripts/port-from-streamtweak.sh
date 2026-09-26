@@ -108,6 +108,76 @@ port_one() {
 }
 
 echo "porting from $UPSTREAM@HEAD (fork $FORK, $(git -C "$UPSTREAM" rev-list --count "$FORK..HEAD") commits behind)"
+
+# ── completeness guard ──────────────────────────────────────────────────────────────────
+# Added after a real miss: the first run of this script ported 30 files and silently skipped
+# Installer.iss, changelog.txt, README.md and .badges/downloads.svg. Skipping Installer.iss
+# meant the Windows App SDK runtime call site never came across while the csproj's
+# PackageReference did — an installer that lays down the wrong runtime. Nothing failed; the
+# merge was clean. So: never trust a port you haven't proved covered everything.
+#
+# The test is "would merging his changes into ours still change anything?" — NOT "is our file
+# equal to his after rebranding". The second test flags every file we ever edited ourselves,
+# which is most of the fork, and an alarm that always fires is not an alarm.
+check_complete() {
+  local f our base theirs out rc sync=0 conflict=0 absent=0
+  local tmp; tmp=$(mktemp -d)
+  echo
+  echo "── completeness vs his tree ──────────────────────────────────────────"
+  for f in $(git -C "$UPSTREAM" diff --name-only "$FORK" HEAD); do
+    our=$(map_path "$f")
+    if [ ! -f "$OURS/$our" ]; then
+      echo "  ABSENT   $f   (-> $our) — his change not here at all"; absent=$((absent+1)); continue
+    fi
+    git -C "$UPSTREAM" show "$FORK:$f" > "$tmp/base"   2>/dev/null || continue
+    git -C "$UPSTREAM" show "HEAD:$f"  > "$tmp/theirs" 2>/dev/null || continue
+    git merge-file -p "$OURS/$our" "$tmp/base" "$tmp/theirs" > "$tmp/out" 2>/dev/null
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+      # A conflict alone proves nothing — re-merging always conflicts wherever both sides
+      # touched one line, which is most of the fork. What matters is whether his ADDED lines
+      # actually reached our file. This is the check that would have caught the real miss:
+      # his three uninstaller lines were absent while Installer.iss read as "conflict".
+      local missing=0 total=0 relin
+      while IFS= read -r relin; do
+        total=$((total+1))
+        grep -qF -- "$relin" "$OURS/$our" || { missing=$((missing+1)); }
+      done < <(diff "$tmp/base" "$tmp/theirs" 2>/dev/null \
+                 | grep '^> ' | sed 's/^> //' | rebrand | grep -v '^[[:space:]]*$')
+      if [ "$missing" -eq 0 ]; then
+        echo "  ok       $f   (-> $our) — all $total of his added lines are present"
+        sync=$((sync+1))
+      else
+        echo "  MISSING  $f   (-> $our) — $missing of $total of his added lines absent"
+        absent=$((absent+1))
+      fi
+    elif ! cmp -s "$tmp/out" "$OURS/$our"; then
+      echo "  STALE    $f   (-> $our) — his change would still land; port it"
+      absent=$((absent+1))
+    else
+      sync=$((sync+1))
+    fi
+  done
+  for f in $(git -C "$UPSTREAM" diff --name-only --diff-filter=A "$FORK" HEAD); do
+    our=$(map_path "$f")
+    [ -f "$OURS/$our" ] || { echo "  ABSENT   $f   (-> $our, new upstream)"; absent=$((absent+1)); }
+  done
+  rm -rf "$tmp"
+  echo "  ── in sync: $sync   deliberate/conflicting: $conflict   outstanding: $absent"
+  echo
+  if [ "$absent" -eq 0 ]; then
+    echo "  ✓ nothing outstanding. Any CONFLICT line is a divergence we chose — check it is"
+    echo "    listed with a reason in scripts/port-divergences.txt."
+  else
+    echo "  ⚠️  $absent file(s) genuinely outstanding — port them, or record why in"
+    echo "    scripts/port-divergences.txt."
+  fi
+  return 0
+}
+
+if [ "${1:-}" = "--check" ]; then check_complete; exit 0; fi
+
 rc=0
 for f in "$@"; do port_one "$f" || rc=1; done
+check_complete
 exit $rc

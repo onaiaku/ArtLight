@@ -1,0 +1,64 @@
+# Deliberate divergences from upstream StreamTweak
+
+Every line here is one of *his* added lines that is intentionally **not** in our tree.
+`scripts/port-from-streamtweak.sh --check` compares his added lines against ours and flags
+anything absent — this file is where each flag gets its reason, so a real miss can never hide
+among expected ones.
+
+Rule of the file: if a line is absent and it is **not** listed here, that is a bug. Go port it.
+
+Fork point: his `v8.2.0`. Upstream clone: `~/.hermes/cache/scratch/upstream-streamtweak`.
+
+---
+
+## Version numbers — we are not his release line
+
+ArtLight Control versions independently. His versions are provenance, so they stay in **code
+comments** and are out of **everything a user reads** (installer strings, XAML, changelog).
+
+| File | Absent line | Reason |
+|---|---|---|
+| `control/ArtLightControl/ArtLightControl.csproj` | `<Version>8.7.0</Version>`, `<AssemblyVersion>`, `<FileVersion>` | ours is `1.2.2` |
+| `control/Installer.iss` | `; ArtLightControl v8.7.0 — GitHub Release Installer` | ours reads `ArtLight Control`, `1.2.2` |
+| `control/Installer.iss` | `#define MyAppVersion "8.7.0"` | ours is `1.2.2` |
+| `control/ArtLightControl/MainWindow.xaml.cs` | `: "v8.3.0";` | our fallback string is `v0.1.0` (commit `a9611e17`) |
+| `control/ArtLightControl/ViewModels/SettingsViewModel.cs` | `: "8.3.0";` | same fallback, same reason |
+| `control/changelog.txt` | all 87 lines — his 8.3.0 → 8.7.0 entries | different product's release line. Our changelog is ours, from `1.2.2` onward. **His entries are not imported, and this is a standing decision — revisit only if Nik wants a "parity port" entry for the release we actually ship.** |
+
+## Version numbers in user-facing prose
+
+Both of these named the *client's* upstream version. Our users do not see upstream version
+numbers, and the sentence is complete without it.
+
+| File | Absent line | Reason |
+|---|---|---|
+| `control/ArtLightControl/Views/ClientsView.xaml` | `Tip="… The device must turn it on too; ArtMoon 6.3.0 or later."` | trailing clause dropped; every other word kept |
+| `control/ArtLightControl/Views/GlossaryView.xaml` | `Definition="… Needs ArtMoon 6.3.0 or later, with the option turned on there too."` | same |
+
+## Our own branding
+
+| File | Absent line | Reason |
+|---|---|---|
+| `control/ArtLightControl.Core/StartupModeManager.cs` | `td.RegistrationInfo.Author = "FoggyBytes";` | our publisher is `onaiaku` (`control/Installer.iss`) |
+| `control/ArtLightControl.Core/StartupModeManager.cs` | `"…Managed from ArtLightControl's Settings page."` | product name is "ArtLight Control", two words, when it is prose |
+
+## Not ours to carry
+
+| File | Absent line | Reason |
+|---|---|---|
+| `.badges/downloads.svg` | his download counter | counts downloads of *his* repo |
+| `README.md` | all 12 lines — his 8.7.0 "What's New", bridge verb list, `ArtLightControlUI.exe` blurb | ours is ArtLight's own README. ⚠️ **Open question for Nik:** his README does document the clipboard, remote power and startup modes as user-facing feature bullets. Ours may now be behind. Not a code gap. |
+
+---
+
+## Two things to remember about this file
+
+1. **`FoggyBytes.ClipboardSync` is NOT a divergence.** It is in both trees on purpose — his host
+   registers it and our ArtMoon client registers it. It is the handshake between the two halves
+   of one feature, not branding. The `--check` output should never show it as absent; if it does,
+   someone has rebranded it and broken the clipboard.
+2. **These are the *only* reasons a flag is allowed to be ignored.** A new absent line with no row
+   here means the port is incomplete. That is exactly how the Windows App SDK runtime mismatch was
+   caught: `ArtLightControl.csproj` had taken `Microsoft.WindowsAppSDK 2.4.0` through a clean,
+   conflict-free merge while `Installer.iss` was skipped entirely and still installed the 2.3
+   runtime. Nothing failed. The merge was clean.
