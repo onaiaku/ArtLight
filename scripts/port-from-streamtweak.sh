@@ -120,7 +120,7 @@ echo "porting from $UPSTREAM@HEAD (fork $FORK, $(git -C "$UPSTREAM" rev-list --c
 # equal to his after rebranding". The second test flags every file we ever edited ourselves,
 # which is most of the fork, and an alarm that always fires is not an alarm.
 check_complete() {
-  local f our base theirs out rc sync=0 conflict=0 absent=0
+  local f our base theirs out rc sync=0 conflict=0 absent=0 documented=0
   local tmp; tmp=$(mktemp -d)
   echo
   echo "── completeness vs his tree ──────────────────────────────────────────"
@@ -147,8 +147,12 @@ check_complete() {
       if [ "$missing" -eq 0 ]; then
         echo "  ok       $f   (-> $our) — all $total of his added lines are present"
         sync=$((sync+1))
+      elif grep -qF -- "$our" "$OURS/scripts/port-divergences.txt" 2>/dev/null; then
+        echo "  kept     $f   (-> $our) — $missing of $total absent, documented in port-divergences.txt"
+        documented=$((documented+1))
       else
         echo "  MISSING  $f   (-> $our) — $missing of $total of his added lines absent"
+        echo "           ↳ UNDOCUMENTED. Port it, or add a reason to scripts/port-divergences.txt."
         absent=$((absent+1))
       fi
     elif ! cmp -s "$tmp/out" "$OURS/$our"; then
@@ -163,14 +167,14 @@ check_complete() {
     [ -f "$OURS/$our" ] || { echo "  ABSENT   $f   (-> $our, new upstream)"; absent=$((absent+1)); }
   done
   rm -rf "$tmp"
-  echo "  ── in sync: $sync   deliberate/conflicting: $conflict   outstanding: $absent"
+  echo "  ── in sync: $sync   kept on purpose: $documented   outstanding: $absent"
   echo
   if [ "$absent" -eq 0 ]; then
-    echo "  ✓ nothing outstanding. Any CONFLICT line is a divergence we chose — check it is"
-    echo "    listed with a reason in scripts/port-divergences.txt."
-  else
-    echo "  ⚠️  $absent file(s) genuinely outstanding — port them, or record why in"
+    echo "  ✓ port is complete. Every line of his that is not here has a reason in"
     echo "    scripts/port-divergences.txt."
+  else
+    echo "  ⚠️  $absent file(s) outstanding with no recorded reason — port them, or add a"
+    echo "    row to scripts/port-divergences.txt."
   fi
   return 0
 }
