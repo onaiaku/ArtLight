@@ -264,6 +264,22 @@ namespace {
     }
   }
 
+  // A guarded startup step that failed but is NOT fatal.
+  //
+  // Deliberately a separate function with separate wording: startup continues,
+  // so this must never be recorded as a crash.  If it were, a field report would
+  // read as a server that died when it is in fact up and serving.
+  void startup_warning(const char *what, const char *detail) {
+    std::fprintf(stderr, "[ArtLightServer] WARNING: startup step failed, continuing: %s: %s\n", what, detail);
+    std::fflush(stderr);
+    // Safe to attempt once logging is up; a no-op before it.
+    try {
+      BOOST_LOG(warning) << "Startup step failed, continuing: "sv << what << ": "sv << detail;
+    } catch (...) {
+      // Logging is not up yet, or is being torn down.  stderr above is the record.
+    }
+  }
+
   // Run a startup step that the server does not need in order to serve.
   //
   // A throw from any of these used to escape main entirely: the process aborted
