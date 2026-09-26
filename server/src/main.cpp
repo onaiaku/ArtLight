@@ -293,9 +293,9 @@ namespace {
     try {
       fn();
     } catch (const std::exception &e) {
-      startup_failure(name, e.what());
+      startup_warning(name, e.what());
     } catch (...) {
-      startup_failure(name, "(non-std exception)");
+      startup_warning(name, "(non-std exception)");
     }
   }
 }  // namespace
