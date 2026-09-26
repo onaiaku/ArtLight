@@ -7,6 +7,7 @@
 #include <atomic>
 #include <codecvt>
 #include <condition_variable>
+#include <cstdio>
 #include <csignal>
 #include <filesystem>
 #include <fstream>
@@ -238,8 +239,67 @@ WINAPI BOOL ConsoleCtrlHandler(DWORD type) {
 }
 #endif
 
+namespace {
+  // Startup diagnostics.
+  //
+  // An uncaught exception during startup used to kill the process with only
+  // "terminate called after throwing an instance of 'std::system_error'" on
+  // stderr.  Launched from Control or as a service there is nobody reading
+  // stderr, so the crash looked like the server simply never starting and left
+  // no log at all -- the log is only opened further down.  These markers make
+  // both halves visible: how far startup got, and what was thrown.
+  void startup_marker(const char *step) {
+    std::fprintf(stderr, "[ArtLightServer] startup: %s\n", step);
+    std::fflush(stderr);
+  }
+
+  void startup_failure(const char *what, const char *detail) {
+    std::fprintf(stderr, "[ArtLightServer] FATAL: %s: %s\n", what, detail);
+    std::fflush(stderr);
+    // Safe to attempt once logging is up; a no-op before it.
+    try {
+      BOOST_LOG(fatal) << "FATAL during startup: "sv << what << ": "sv << detail;
+    } catch (...) {
+      // Logging is not up yet, or is being torn down.  stderr above is the record.
+    }
+  }
+
+  // Run a startup step that the server does not need in order to serve.
+  //
+  // A throw from any of these used to escape main entirely: the process aborted
+  // before it could listen, and because logging is barely up the crash left no
+  // log and only a stderr line nobody reads.  A failed permissions repair, or a
+  // stale NVCP/RTSS recovery file left behind by an earlier version, was enough
+  // to take the whole server down with it.  Report it and carry on.
+  template<class FN>
+  void startup_step(const char *name, FN &&fn) {
+    startup_marker(name);
+    try {
+      fn();
+    } catch (const std::exception &e) {
+      startup_failure(name, e.what());
+    } catch (...) {
+      startup_failure(name, "(non-std exception)");
+    }
+  }
+}  // namespace
+
+static int real_main(int argc, char *argv[]);
+
 int main(int argc, char *argv[]) {
+  try {
+    return real_main(argc, argv);
+  } catch (const std::exception &e) {
+    startup_failure("uncaught exception escaped startup", e.what());
+  } catch (...) {
+    startup_failure("uncaught non-std exception escaped startup", "(no what())");
+  }
+  return 1;
+}
+
+static int real_main(int argc, char *argv[]) {
   lifetime::argv = argv;
+  startup_marker("enter real_main");
 
 #ifdef _WIN32
   // Avoid searching the PATH in case a user has configured their system insecurely
@@ -251,22 +311,27 @@ int main(int argc, char *argv[]) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   // Use UTF-8 conversion for the default C++ locale (used by boost::log)
+  startup_marker("locale setup");
   std::locale utf8_locale(std::locale(), new std::codecvt_utf8<wchar_t>);
   std::locale::global(utf8_locale);
   boost::filesystem::path::imbue(utf8_locale);
 #pragma GCC diagnostic pop
 
+  startup_marker("create mail manager");
   mail::man = std::make_shared<safe::mail_raw_t>();
 
   // parse config file
+  startup_marker("config::parse");
   if (config::parse(argc, argv)) {
     return 0;
   }
+  startup_marker("config::parse returned");
 
   auto log_deinit_guard = logging::init(config::sunshine.min_log_level, config::sunshine.log_file);
   if (!log_deinit_guard) {
     BOOST_LOG(error) << "Logging failed to initialize"sv;
   }
+  startup_marker("logging initialised");
 
 #ifdef _WIN32
   const auto app_user_model_id_status =
@@ -313,12 +378,18 @@ int main(int argc, char *argv[]) {
   config::modified_config_settings.clear();
 
 #ifdef _WIN32
-  statefile::repair_config_permissions();
-#endif
-
-#ifdef _WIN32
-  platf::frame_limiter_nvcp::restore_pending_overrides();
-  platf::rtss_restore_pending_overrides();
+  // None of these are required to serve a stream, so a failure in any of them
+  // must not take the server down with it.
+  startup_step("statefile::repair_config_permissions", [] {
+    statefile::repair_config_permissions();
+  });
+  startup_step("frame_limiter_nvcp::restore_pending_overrides", [] {
+    platf::frame_limiter_nvcp::restore_pending_overrides();
+  });
+  startup_step("rtss_restore_pending_overrides", [] {
+    platf::rtss_restore_pending_overrides();
+  });
+  startup_marker("display recovery restores done");
 #endif
 
   if (!config::sunshine.cmd.name.empty()) {

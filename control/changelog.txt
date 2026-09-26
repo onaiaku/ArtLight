@@ -5,6 +5,23 @@ ArtLight Control - Changelog
 https://github.com/onaiaku/ArtLight
 
 ------------------------------------------------
+Version 1.3.1 (27/09/2026)
+------------------------------------------------
+Startup can no longer be killed by a step it does not need.
+
+A throw from the config-permission repair, or from restoring a pending
+NVIDIA Control Panel or RTSS override, used to escape main and abort the
+server before it ever started listening. Because logging is barely up at
+that point it died with no log at all and a single stderr line nobody
+reads, which made it look like the server simply refused to start. Those
+three steps are now individually guarded: a failure is logged and startup
+carries on.
+
+Startup also records a marker before each step and wraps main, so any
+future failure reports what was thrown and how far it got instead of
+dying silently.
+
+------------------------------------------------
 Version 1.3.0 (26/09/2026)
 ------------------------------------------------
 Eight releases of host-side work in one go — session detection, session
