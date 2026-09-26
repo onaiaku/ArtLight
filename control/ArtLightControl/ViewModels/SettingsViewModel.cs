@@ -1,7 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Reflection;
-using Microsoft.Win32;
 using ArtLightControl.Services;
 
 namespace ArtLightControl.ViewModels
@@ -90,44 +89,49 @@ namespace ArtLightControl.ViewModels
 
         // ── Behavior ──────────────────────────────────────────────────────────
 
-        private const string RunKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-        private const string RunValueName = "ArtLightControl";
+        // Startup is a three-way choice, not a switch plus a switch: "priority on, autostart
+        // off" is not a state that means anything, and two toggles would let the user build it.
+        // StartupModeManager owns both mechanisms and keeps exactly one of them installed.
 
-        public bool StartWithWindows
+        /// <summary>
+        /// Bound to the ComboBox by index, so it matches <see cref="StartupMode"/> one for one:
+        /// 0 Off, 1 Normal, 2 Priority.
+        /// </summary>
+        public int StartupModeIndex
         {
-            get
-            {
-                try
-                {
-                    using var key = Registry.CurrentUser.OpenSubKey(RunKey);
-                    return key?.GetValue(RunValueName) != null;
-                }
-                catch { return false; }
-            }
+            get => (int)StartupModeManager.Current;
             set
             {
-                try
+                var requested = (StartupMode)value;
+                if (requested == StartupModeManager.Current) return;
+
+                if (StartupModeManager.TryApply(requested, out string error))
                 {
-                    using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
-                    if (key == null) return;
-                    if (value)
+                    ShowStatus(requested switch
                     {
-                        string exe = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
-                        if (!string.IsNullOrEmpty(exe))
-                            key.SetValue(RunValueName, $"\"{exe}\" --minimized");
-                    }
-                    else
-                    {
-                        key.DeleteValue(RunValueName, throwOnMissingValue: false);
-                    }
+                        StartupMode.Priority => "ArtLightControl will start at sign-in, ahead of the startup queue.",
+                        StartupMode.Normal   => "ArtLightControl will start with the other startup apps.",
+                        _                    => "ArtLightControl will no longer start automatically.",
+                    }, isError: false);
                 }
-                catch (Exception ex)
+                else
                 {
-                    ShowStatus($"Could not update startup setting: {ex.Message}", isError: true);
+                    ShowStatus($"Could not update startup setting: {error}", isError: true);
                 }
+
+                // Always re-read: on failure the mode is whatever is still installed, and the
+                // ComboBox must snap back to it rather than show a choice that did not take.
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(StartupModeDescription));
             }
         }
+
+        public string StartupModeDescription => StartupModeManager.Current switch
+        {
+            StartupMode.Priority => "Starts at sign-in, ahead of the Windows startup queue.",
+            StartupMode.Normal   => "Starts with the other startup apps.",
+            _                    => "Does not start automatically.",
+        };
 
         // ── Session history ───────────────────────────────────────────────────
 
@@ -141,6 +145,22 @@ namespace ArtLightControl.ViewModels
                 if (SessionLogger.RecordOnlyGameSessions == value) return;
                 SessionLogger.RecordOnlyGameSessions = value;
                 ConfigService.Set("RecordOnlyGameSessions", value);
+                OnPropertyChanged();
+            }
+        }
+
+        // ── Clipboard shared with ArtMoon (Clients page) ──────────────────
+
+        // Same shape as RecordOnlyGameSessions: the static on ClipboardShare is what the bridge
+        // reads, this only mirrors it and persists the choice.
+        public bool ShareClipboard
+        {
+            get => ClipboardShare.Enabled;
+            set
+            {
+                if (ClipboardShare.Enabled == value) return;
+                ClipboardShare.Enabled = value;
+                ConfigService.Set("ShareClipboard", value);
                 OnPropertyChanged();
             }
         }
@@ -279,7 +299,10 @@ namespace ArtLightControl.ViewModels
                 LogFolderPath = "Not detected";
             }
 
-            OnPropertyChanged(nameof(StartWithWindows));
+            // Both mechanisms live outside the app (Task Scheduler, Task Manager's Startup tab,
+            // regedit), so the mode is re-read here rather than remembered.
+            OnPropertyChanged(nameof(StartupModeIndex));
+            OnPropertyChanged(nameof(StartupModeDescription));
             OnPropertyChanged(nameof(RecordOnlyGameSessions));
 
             // Fetch ArtMoon latest release from GitHub (fire-and-forget)

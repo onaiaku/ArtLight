@@ -134,9 +134,11 @@
                     <Rectangle Height="0.5" Fill="{StaticResource STBorderActive}" Margin="0,0,0,10"/>
 
                     <local:GlossaryRow Term="Bridge"
-                                       Definition="Authenticated TCP channel (port 47998) between ArtMoon and ArtLightControl for the advanced integration — host metrics, link-speed switch, power-off. Streaming itself never uses it."/>
+                                       Definition="Authenticated TCP channel (port 47998) between ArtMoon and ArtLightControl for the advanced integration — host metrics, link-speed switch, and power actions (sleep, restart, shutdown). Streaming itself never uses it."/>
                     <local:GlossaryRow Term="Client approval"
-                                       Definition="A ArtMoon device must be approved once (a 4-digit PIN shown on both sides is compared out of band) before it can use the bridge integration. Its Moonlight certificate then signs every command."/>
+                                       Definition="An ArtMoon device must be approved once (a 4-digit PIN shown on both sides is compared out of band) before it can use the bridge integration. Its Moonlight certificate then signs every command."/>
+                    <local:GlossaryRow Term="Shared clipboard"
+                                       Definition="Text copied on the host can be pasted on an approved ArtMoon device while it streams, and the other way round — up to 32 KB, over the bridge, encrypted with a key that lasts one stream. Passwords marked by a password manager are cleared on the other side when the original is, and within 60 seconds anyway. The device must turn it on too."/>
 
                     <!-- ── STREAMING SERVERS ── -->
                     <TextBlock Text="// STREAMING SERVERS"
@@ -156,7 +158,7 @@
                     <Rectangle Height="0.5" Fill="{StaticResource STBorderActive}" Margin="0,0,0,10"/>
 
                     <local:GlossaryRow Term="Quality Grade"
-                                       Definition="Composite assessment of session quality based on drop rate, RTT, GPU encoder load, and host frame latency: Excellent, Good, or Poor."/>
+                                       Definition="Composite assessment of session quality based on drop rate, RTT, and host frame latency: Excellent, Good, or Poor. Encoder load is shown but not graded."/>
 
                     <!-- ── APP MANAGEMENT ── -->
                     <TextBlock Text="// APP MANAGEMENT"

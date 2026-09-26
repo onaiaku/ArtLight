@@ -56,6 +56,10 @@ namespace ArtLightControl
         private readonly ArtLightBridge _bridge = new();
         private readonly HostMetricsCollector _metricsCollector = new();
 
+        // The clipboard shared with ArtMoon (8.7.0, §79). Always created; its own Enabled
+        // switch (Clients page) decides whether it answers.
+        private readonly ClipboardShare _clipboardShare = new();
+
         // Watches for the launched game's window so the client can hold its launch curtain up
         // until the game is on screen instead of dropping the user into a reconfiguring desktop.
         private readonly LaunchWatcher _launchWatcher = new();
@@ -156,25 +160,18 @@ namespace ArtLightControl
             }
             catch { _nvidiaSentinel = null; }
 
-            // When launched at Windows login via the autostart registry entry the exe
-            // is invoked with --minimized: skip Activate() so the window never appears.
-            // The app runs silently in the background; the tray icon is the entry point.
-            bool startMinimized = Environment.GetCommandLineArgs()
-                .Any(a => a.Equals("--minimized", StringComparison.OrdinalIgnoreCase));
+            // In Priority mode the logon task holds an absolute path to this exe; a reinstall to
+            // another folder would leave it launching something that is not there. Off the
+            // startup thread — it is a COM round-trip, and a feature about starting sooner has
+            // no business adding milliseconds to the start.
+            _ = Task.Run(StartupModeManager.SyncTaskExePath);
 
-            MainWindow = new MainWindow();
-            // Set before Activate(): the pages are constructed and navigated by the window's
-            // own ctor, so their timers consult this on the way up. Under --minimized the
-            // window is never shown, and nothing on it should be polling.
-            AppStateService.Instance.SetMainWindowVisible(!startMinimized);
-            if (!startMinimized)
-                MainWindow.Activate();
-            SetupTrayIcon();
-
-            // GitHub releases poll — populates AppStateService.UpdateAvailable
-            // so the sidebar and Settings can surface "update available" indicators.
-            // Fire-and-forget: silent on network failure, no UI blocking.
-            _ = AppStateService.Instance.CheckForUpdatesAsync();
+            // ⚠️ The window and the tray icon are built LOWER DOWN, after the bridge is
+            // listening — see the block below `_bridge.LockStateProvider`. Do not move them
+            // back up here: measured on a cold boot in Priority mode (05/09/2026), building
+            // MainWindow costs most of a ~3,9 s stretch that the bridge used to wait behind,
+            // and under --minimized that window is never even shown. Nothing between here and
+            // there touches the window or the tray.
 
             // Spatial audio
             _dolbyMonitor.StatusChanged += OnDolbyStatusChanged;
@@ -204,6 +201,7 @@ namespace ArtLightControl
             _bridge.LinkSpeed            = _linkSpeed;
             _bridge.RestoreRequested    += OnBridgeRestoreRequested;
             _bridge.ShutdownRequested   += OnBridgeShutdownRequested;
+            _bridge.PowerRequested      += OnBridgePowerRequested;
             _bridge.SessionDataReceived += OnSessionDataReceived;
 
             // Bridge authentication (7.2.0): mandatory. Only ArtMoon clients the
@@ -214,6 +212,7 @@ namespace ArtLightControl
             AppStateService.Instance.BridgeAuth = bridgeAuth;
             _bridge.AuthService = bridgeAuth;
             _bridge.RequireAuth = true;
+            _bridge.Clipboard   = _clipboardShare;
             bridgeAuth.ApprovalRequested += client =>
                 _dispatcher.TryEnqueue(() => MainWindow?.ShowBridgeApproval(client));
 
@@ -227,6 +226,10 @@ namespace ArtLightControl
                     _stopStreamRequested = false;   // one-shot: consume immediately
                     json = json.TrimEnd('}') + ",\"stop\":1}";
                 }
+                // The clipboard's sequence number: ArtMoon asks CLIPGET when it moves, so the
+                // host never has to push. Absent when sharing is off.
+                if (ClipboardShare.Enabled)
+                    json = json.TrimEnd('}') + $",\"clip\":{ClipboardShare.SequenceNumber}}}";
                 return json;
             };
             _bridge.GameStateProvider  = () => _launchWatcher.ToJson();
@@ -239,6 +242,50 @@ namespace ArtLightControl
             };
             _bridge.UpdateStateProvider = () => WindowsUpdateState.ToJson();
             _bridge.LockStateProvider   = () => LockState.ToJson();
+            _bridge.PowerCapsProvider   = () => HostPowerCapabilities.ToJson(_linkSpeed?.AdapterName);
+
+            // ── UI: window + tray ────────────────────────────────────────────
+            // Deliberately here, AFTER the bridge is listening and its providers are wired.
+            // A client that woke this host by WOL is waiting on port 47998, not on our window,
+            // and building the window is the single most expensive thing in startup: the pages
+            // are constructed and navigated by its own ctor, and under --minimized it is never
+            // shown at all. Nothing above this point touches MainWindow or the tray —
+            // `_trayIcon` is null-guarded at every use, and the one MainWindow reference
+            // (bridgeAuth.ApprovalRequested) is null-conditional inside a dispatcher callback,
+            // which cannot run before this method returns. Even if it somehow did, the client
+            // is already stored as Pending by BridgeAuthService and is approvable from the
+            // Clients page, so nothing is lost.
+            //
+            // ⚠️ This ordering is DELIBERATELY unconditional — it is not gated on --minimized,
+            // and that is a decision, not an oversight. Gating it would give a manual launch its
+            // window back a fraction sooner, but the block that now precedes the window measured
+            // 0,12 s on a cold boot (Dolby at 22.273 → bridge listening at 22.395, 05/09/2026)
+            // and less on a warm machine. Not worth a second init path to keep in step forever.
+            //
+            // When launched at Windows login the exe is invoked with --minimized: skip
+            // Activate() so the window never appears. The tray icon is the entry point.
+            bool startMinimized = Environment.GetCommandLineArgs()
+                .Any(a => a.Equals("--minimized", StringComparison.OrdinalIgnoreCase));
+
+            MainWindow = new MainWindow();
+            // Set before Activate(): the pages are constructed and navigated by the window's
+            // own ctor, so their timers consult this on the way up. Under --minimized the
+            // window is never shown, and nothing on it should be polling.
+            AppStateService.Instance.SetMainWindowVisible(!startMinimized);
+            if (!startMinimized)
+                MainWindow.Activate();
+            SetupTrayIcon();
+            // Startup marker, kept on purpose. The gap between "ArtLightBridge listening"
+            // and this line is the cost of building the window and the tray — measured 0,58 s
+            // and 0,36 s on two cold boots (05/09/2026), which is what settled the question of
+            // deferring MainWindow entirely under --minimized: not worth it. One line per
+            // launch; leave it, it is the only handle on this part of startup.
+            DebugLogger.Log("[Startup] UI ready (window + tray)");
+
+            // GitHub releases poll — populates AppStateService.UpdateAvailable
+            // so the sidebar and Settings can surface "update available" indicators.
+            // Fire-and-forget: silent on network failure, no UI blocking.
+            _ = AppStateService.Instance.CheckForUpdatesAsync();
 
             // The tile guard. Enabled state comes from config rather than from the backup files
             // still sitting in the assets folder: an updater that wipes the folder would take
@@ -335,6 +382,7 @@ namespace ArtLightControl
 
             // Windows session-end cleanup
             Microsoft.Win32.SystemEvents.SessionEnding += OnSystemSessionEnding;
+            RegisterPowerTrace(OnPowerTransition);
         }
 
         // ── Single-instance activation watcher ───────────────────────────────
@@ -460,18 +508,89 @@ namespace ArtLightControl
                     // shell, so a toast would race it. DebugLogger is the trace.
                     DebugLogger.Log($"[Bridge] {(installUpdates ? "SHUTDOWN_UPDATE" : "SHUTDOWN")} requested by approved client — powering off host");
 
-                    // Best-effort: close out any active session so it is not left dangling.
-                    if (_isAutoSessionActive)
-                    {
-                        FinalizeSessionTelemetry();
-                        StopCheckpointTimer();
-                        var games = _sessionProcessMonitor?.GetDetectedGames();
-                        SessionLogger.EndSession("Host Shutdown", games);
-                    }
-
+                    EndSessionForPowerAction("Host Shutdown");
                     ShutdownHost(installUpdates);
                 }
                 catch (Exception ex) { DebugLogger.Log($"[Bridge] OnBridgeShutdownRequested failed: {ex}"); }
+            });
+        }
+
+        // Best-effort: close out any active session so it is not left dangling.
+        private void EndSessionForPowerAction(string reason)
+        {
+            if (!_isAutoSessionActive) return;
+            FinalizeSessionTelemetry();
+            StopCheckpointTimer();
+            var games = _sessionProcessMonitor?.GetDetectedGames();
+            SessionLogger.EndSession(reason, games);
+        }
+
+        // POWER <mode> [UPDATE] from an approved client (8.6.0). The bridge has already checked
+        // the signature, that this machine supports the mode, and written OK back.
+        private void OnBridgePowerRequested(string mode, bool installUpdates)
+        {
+            _dispatcher.TryEnqueue(() =>
+            {
+                try
+                {
+                    DebugLogger.Log($"[Bridge] POWER {mode}{(installUpdates ? " + updates" : "")} requested by approved client");
+                    switch (mode)
+                    {
+                        case HostPowerCapabilities.Shutdown:
+                            EndSessionForPowerAction("Host Shutdown");
+                            ShutdownHost(installUpdates);
+                            break;
+
+                        case HostPowerCapabilities.Restart:
+                            EndSessionForPowerAction("Host Restart");
+                            RestartHost(installUpdates);
+                            break;
+
+                        case HostPowerCapabilities.Sleep:
+                        case HostPowerCapabilities.Hibernate:
+                        {
+                            bool hibernate = mode == HostPowerCapabilities.Hibernate;
+                            EndSessionForPowerAction(hibernate ? "Host Hibernate" : "Host Sleep");
+                            // Off the UI thread: the restore takes seconds (link down, link up,
+                            // settle) and SetSuspendState only returns once the machine resumes.
+                            var link = _linkSpeed;
+                            _ = Task.Run(async () =>
+                            {
+                                if (link != null && link.IsSwitched)
+                                {
+                                    bool restored = await link.RestoreBeforeSuspendAsync(TimeSpan.FromSeconds(40));
+                                    DebugLogger.Log($"[Power] link {(restored ? "restored" : "NOT restored")} before {mode}");
+                                }
+                                SuspendHost(hibernate);
+                            });
+                            break;
+                        }
+                    }
+                }
+                catch (Exception ex) { DebugLogger.Log($"[Bridge] OnBridgePowerRequested failed: {ex}"); }
+            });
+        }
+
+        // Suspend / resume trace (8.6.0). Nothing in ArtLightControl reacted to a resume before
+        // remote sleep existed, and nothing is changed on resume yet: this records what state
+        // the bridge and the link come back in, so a sleep cycle can be read in debug.log
+        // instead of guessed.
+        // ⚠️ Fed by PowerRegisterSuspendResumeNotification (App.Power.cs), not by
+        // SystemEvents.PowerModeChanged: that one was wired first and never fired in this
+        // WinUI process — the first real sleep on 19/09/2026 left no trace at all.
+        private void OnPowerTransition(string what)
+        {
+            DebugLogger.Log($"[Power] {what}: link switched {_linkSpeed?.IsSwitched}, "
+                          + $"link state {_linkSpeed?.State}, {_linkSpeed?.CurrentMbps} Mbps, "
+                          + $"session active {_isAutoSessionActive}");
+            if (what == "Suspend") return;
+            // The adapter is usually still down at the resume notification: log it again once
+            // it has had time to renegotiate.
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(15_000);
+                DebugLogger.Log($"[Power] 15 s after resume: {_linkSpeed?.CurrentMbps} Mbps, "
+                              + $"lock state {LockState.ToJson()}");
             });
         }
 
@@ -570,11 +689,14 @@ namespace ArtLightControl
             {
                 _bridge.RestoreRequested     -= OnBridgeRestoreRequested;
                 _bridge.ShutdownRequested    -= OnBridgeShutdownRequested;
+                _bridge.PowerRequested       -= OnBridgePowerRequested;
                 _bridge.SessionDataReceived  -= OnSessionDataReceived;
                 _bridge.UnlockSessionMarked  -= OnBridgeUnlockSessionMarked;
                 _bridge.Dispose();
             }
             catch { }
+            // After the bridge: no CLIPSET can arrive while a password we hold is being cleared.
+            try { _clipboardShare.Dispose(); } catch { }
             _traySpeedTimer?.Stop();
             _traySpeedTimer = null;
             _metricsCollector.Dispose();
@@ -583,6 +705,7 @@ namespace ArtLightControl
             try { _nvidiaSentinel?.Dispose(); } catch { }
             _nvidiaSentinel = null;
             Microsoft.Win32.SystemEvents.SessionEnding -= OnSystemSessionEnding;
+            UnregisterPowerTrace();
 
             // Release single-instance resources so the watcher thread can exit cleanly.
             _activationEvent?.Set();   // unblocks WatchActivationRequests if waiting

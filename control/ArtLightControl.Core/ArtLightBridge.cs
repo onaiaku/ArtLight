@@ -30,6 +30,14 @@ namespace ArtLightControl
     ///   SHUTDOWN_UPDATE — like SHUTDOWN, but installs any pending Windows updates
     ///              before powering off ("Update and shut down"). Same verified-signature
     ///              requirement as SHUTDOWN.
+    ///   POWERCAPS — which power modes this machine supports, read from the running system
+    ///              (8.6.0): {"v":1,"modes":["sleep","hibernate","restart","shutdown"],
+    ///              "wake_lan":bool}. Read-only, gated like STATS.
+    ///   POWER <mode> [UPDATE] — sleep / hibernate / restart / shutdown (8.6.0). Same verified-
+    ///              signature requirement as SHUTDOWN, but the reply is meant to be READ:
+    ///              OK / ERR_UNSUPPORTED (a mode this machine lacks, or UPDATE with a mode that
+    ///              cannot install updates) / ERR (not authenticated). SHUTDOWN and
+    ///              SHUTDOWN_UPDATE stay for clients that predate it.
     ///   UPDATESTATE — client asks whether the host has updates waiting for a reboot.
     ///              Server replies with {"pending":true|false}.
     ///   UPDATECHECK — client asks the host to start an async Windows-update scan.
@@ -39,6 +47,11 @@ namespace ArtLightControl
     ///              Destructive; requires a verified AUTH1 signature. Replies "OK"/"ERR".
     ///   UPDATEPROGRESS — poll the current update job state. Server replies with JSON
     ///              {"phase":…,"percent":…,"message":…,"updates":[…],"counts":{…}}.
+    ///   CLIPKEY / CLIPSET / CLIPGET / CLIPEND — the shared clipboard (8.7.0), see
+    ///              <see cref="ClipboardShare"/>. All four need a verified AUTH1 signature.
+    ///              CLIPKEY → "KEY &lt;base64&gt;" | ERR_NOT_ALLOWED; CLIPSET + one sealed
+    ///              payload line → OK | ERR_*; CLIPGET → "CLIP &lt;seq&gt; &lt;base64&gt;" | OWN | EMPTY |
+    ///              NOTEXT | ERR_*; CLIPEND → OK. CAPS carries "clip=on|off".
     ///
     /// Each connection is short-lived: client sends one line, server replies "OK",
     /// the speed string, or "ERR".
@@ -181,6 +194,24 @@ namespace ArtLightControl
         public event Action<bool>? ShutdownRequested;
 
         /// <summary>
+        /// Raised for a verified POWER &lt;mode&gt; [UPDATE] (8.6.0): mode is one of the
+        /// <see cref="HostPowerCapabilities"/> constants, already checked against what this
+        /// machine supports; the bool asks for pending updates to be installed first (restart
+        /// and shutdown only). Raised AFTER the reply has been written, so the client learns
+        /// the command was taken before the host goes away.
+        /// </summary>
+        public event Action<string, bool>? PowerRequested;
+
+        /// <summary>POWERCAPS reply. Set in App.xaml.cs; null answers "ERR".</summary>
+        public Func<string>? PowerCapsProvider { get; set; }
+
+        /// <summary>
+        /// The clipboard shared with ArtMoon (8.7.0). Null leaves the CLIP* verbs answering
+        /// "ERR" and CAPS without a "clip=" token, exactly like a host that predates them.
+        /// </summary>
+        public ClipboardShare? Clipboard { get; set; }
+
+        /// <summary>
         /// Raised when an UPDATECHECK command is received: start an async Windows-update
         /// scan on the host. Not destructive; gated by RequireAuth like the read commands.
         /// </summary>
@@ -287,7 +318,11 @@ namespace ArtLightControl
                     // ── CAPS: capability negotiation (always unauthenticated) ──────
                     if (first.Equals("CAPS", StringComparison.OrdinalIgnoreCase))
                     {
-                        await writer.WriteLineAsync($"CAPS1 auth={(RequireAuth ? "required" : "optional")}");
+                        // "clip=" tells ArtMoon's settings whether this host shares its clipboard,
+                        // before any stream: a host without the token predates the feature. Harmless
+                        // to reveal unauthenticated — it is a yes/no about a setting, not the clipboard.
+                        string clip = Clipboard == null ? "" : ClipboardShare.Enabled ? " clip=on" : " clip=off";
+                        await writer.WriteLineAsync($"CAPS1 auth={(RequireAuth ? "required" : "optional")}{clip}");
                         return;
                     }
 
@@ -382,6 +417,11 @@ namespace ArtLightControl
             // verbs and parse failures below stay unconditional.
             DebugLogger.Verbose($"ArtLightBridge received: {command} from {remote}");
 
+            // A streaming client polls STATS every second: any verified command keeps its
+            // clipboard key alive, and silence lets it expire.
+            if (authenticated && clientId != null)
+                Clipboard?.Touch(clientId);
+
             // Split off an optional argument (only UPDATE_NOW carries one). For every other
             // command verb == command, so the existing exact-match cases are unaffected.
             int sp = command.IndexOf(' ');
@@ -454,6 +494,37 @@ namespace ArtLightControl
                     ShutdownRequested?.Invoke(command == "SHUTDOWN_UPDATE");
                     await writer.WriteLineAsync("OK");
                     break;
+
+                case "POWERCAPS":
+                    // Read-only: what the client may offer for this host. Gated like STATS.
+                    await writer.WriteLineAsync(PowerCapsProvider?.Invoke() ?? "ERR");
+                    break;
+
+                case "POWER":
+                {
+                    // Destructive, exactly like SHUTDOWN: never on an unverified signature.
+                    if (!authenticated)
+                    {
+                        DebugLog($"ArtLightBridge: rejected unauthenticated {command} from {remote}");
+                        await writer.WriteLineAsync("ERR");
+                        break;
+                    }
+                    string[] words = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    string mode = words.Length > 0 ? words[0].ToLowerInvariant() : "";
+                    bool withUpdates = words.Length > 1 && words[1] == "UPDATE";
+                    bool canUpdate = mode == HostPowerCapabilities.Restart || mode == HostPowerCapabilities.Shutdown;
+                    if (words.Length > 2 || (words.Length == 2 && !withUpdates)
+                        || !HostPowerCapabilities.IsSupported(mode) || (withUpdates && !canUpdate))
+                    {
+                        DebugLog($"ArtLightBridge: POWER '{arg}' not supported on this host (from {remote})");
+                        await writer.WriteLineAsync("ERR_UNSUPPORTED");
+                        break;
+                    }
+                    // Reply first: the host may be gone a moment later.
+                    await writer.WriteLineAsync("OK");
+                    PowerRequested?.Invoke(mode, withUpdates);
+                    break;
+                }
 
                 case "UPDATESTATE":
                     string updateState = UpdateStateProvider?.Invoke() ?? "{\"pending\":false}";
@@ -583,6 +654,35 @@ namespace ArtLightControl
                         await writer.WriteLineAsync("ERR");
                     }
                     break;
+
+                case "CLIPKEY":
+                case "CLIPSET":
+                case "CLIPGET":
+                case "CLIPEND":
+                {
+                    // CLIPSET's sealed payload is read before any check, so a refusal never
+                    // leaves the line unread on the stream.
+                    string? sealedLine = verb == "CLIPSET"
+                        ? await ReadLineLimitedAsync(reader, MaxPayloadLineLength, token)
+                        : null;
+
+                    // Moves data on and off this machine: a verified signature, always.
+                    if (!authenticated || clientId == null || Clipboard == null || AuthService == null)
+                    {
+                        if (!authenticated) DebugLog($"ArtLightBridge: rejected unauthenticated {verb} from {remote}");
+                        await writer.WriteLineAsync("ERR");
+                        break;
+                    }
+                    string reply = verb switch
+                    {
+                        "CLIPKEY" => Clipboard.HandleKey(clientId, key => AuthService.WrapForClient(clientId, key)),
+                        "CLIPSET" => await Clipboard.HandleSetAsync(clientId, sealedLine),
+                        "CLIPGET" => await Clipboard.HandleGetAsync(clientId),
+                        _         => await Clipboard.HandleEndAsync(clientId),
+                    };
+                    await writer.WriteLineAsync(reply);
+                    break;
+                }
 
                 default:
                     DebugLog($"ArtLightBridge unknown command: {command}");
