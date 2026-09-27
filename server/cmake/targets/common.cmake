@@ -43,6 +43,20 @@ endif()
 
 target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
 
+# Emit a link map next to the binary.
+#
+# The shipped Windows build is stripped: no COFF symbol table, no debug
+# directory, no published symbols. Without a map, a field crash leaves fault
+# addresses that cannot be turned back into function names, so a report like
+# "terminate called after throwing an instance of 'std::system_error'" is
+# unactionable on the one machine where it happens.
+#
+# This is pure link output: it changes nothing about code generation, so it can
+# be added to an existing build and still describe that build's layout exactly.
+if(WIN32 AND NOT MSVC)
+    target_link_options(sunshine PRIVATE "-Wl,-Map=$<TARGET_FILE_DIR:sunshine>/sunshine.map")
+endif()
+
 # docs
 if(BUILD_DOCS)
     add_subdirectory(third-party/doxyconfig docs)

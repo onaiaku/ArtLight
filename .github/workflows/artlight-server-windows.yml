@@ -305,6 +305,53 @@ jobs:
             mingw-w64-${{ matrix.toolchain }}-sqlite3
             mingw-w64-${{ matrix.toolchain }}-tools
 
+      - name: Pin known-good mingw-w64 runtime
+        # The mingw-w64 runtime was rebuilt upstream between the last working
+        # release and now, and binaries built with the new one die before main():
+        #
+        #   terminate called after throwing an instance of 'std::system_error'
+        #     what():  Invalid argument
+        #
+        # exit 0xC0000409, no log, no config error, on every command line. It is
+        # a pthread mutex lock failing inside a C++ static initialiser, i.e. in
+        # the winpthreads runtime.
+        #
+        # Evidence, from the CI logs of the two builds:
+        #   1.2.1/1.2.2 (2026-09-08, release binaries that start): crt/headers/
+        #     winpthreads/libwinpthread = 14.0.0.r353.g6df76fa52
+        #   current (broken):                                        14.0.0.r426.g4564ee4b5
+        #   ...and gcc/gcc-libs 16.2.0-3 -> 16.2.0-4 (gcc-libs split into
+        #   cc-libs/libstdc++/libgcc/libatomic/libquadmath, built 2026-09-20).
+        #
+        # Only the runtime packages are pinned here: same package names either
+        # side of the change, so they downgrade cleanly with no conflicts.
+        # gcc/libstdc++ stay at 16.2.0-4 so this isolates one variable.
+        #
+        # Revert once upstream is understood.
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          MIRROR=https://mirror.msys2.org/mingw/ucrt64
+          REV=14.0.0.r353.g6df76fa52
+          PKGS="
+            mingw-w64-ucrt-x86_64-crt-${REV}-4-any.pkg.tar.zst
+            mingw-w64-ucrt-x86_64-headers-${REV}-2-any.pkg.tar.zst
+            mingw-w64-ucrt-x86_64-winpthreads-${REV}-2-any.pkg.tar.zst
+            mingw-w64-ucrt-x86_64-libwinpthread-${REV}-2-any.pkg.tar.zst
+          "
+          mkdir -p /tmp/pinned
+          for p in $PKGS; do
+            echo "fetching $p"
+            curl -fsSL --retry 3 -o "/tmp/pinned/$p" "$MIRROR/$p"
+          done
+          ls -l /tmp/pinned
+          # gcc may declare a minimum version on crt/headers; fall back to
+          # skipping dependency version checks if pacman blocks the downgrade.
+          pacman -U --noconfirm /tmp/pinned/*.pkg.tar.zst \
+            || pacman -U --noconfirm -dd /tmp/pinned/*.pkg.tar.zst
+          echo "--- resulting runtime versions ---"
+          pacman -Q | grep -E "winpthreads|libwinpthread|^mingw-w64-ucrt-x86_64-crt |^mingw-w64-ucrt-x86_64-headers " || true
+
       - name: Setup dotnet  # needed for wix
         uses: actions/setup-dotnet@baa11fbfe1d6520db94683bd5c7a3818018e4309  # v5.1.0
         with:
@@ -723,6 +770,20 @@ jobs:
           name: windows-versioninfo-${{ matrix.name }}
           path: server/build/generated_versioninfo/windows_versioninfo_generated.h
           if-no-files-found: error
+          retention-days: ${{ inputs.release_artifact_retention_days }}
+          overwrite: true
+
+      # The link map is what turns a fault address from a user's machine back
+      # into a function name. It travels with the symbols because it answers the
+      # same question and is useless later than the binary it describes.
+      - name: Upload Windows link map
+        if: startsWith(github.ref, 'refs/tags/') || inputs.publish_symbols || inputs.upload_symbols_artifact
+        id: upload-windows-linkmap
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: windows-linkmap-${{ matrix.name }}
+          path: server/build/**/sunshine.map
+          if-no-files-found: warn
           retention-days: ${{ inputs.release_artifact_retention_days }}
           overwrite: true
 
@@ -1376,7 +1437,10 @@ jobs:
           overwrite: true
 
       - name: Publish private symbols release
-        if: inputs.publish_symbols || inputs.upload_symbols_artifact
+        # Publication is opt-in on its own: upload_symbols_artifact means "keep the
+        # symbols as a run artifact instead of publishing them", which is the whole
+        # reason it exists, so it must not also trigger a publish.
+        if: startsWith(github.ref, 'refs/tags/') || inputs.publish_symbols
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.symbol_token }}

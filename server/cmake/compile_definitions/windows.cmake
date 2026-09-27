@@ -286,8 +286,22 @@ list(PREPEND PLATFORM_LIBRARIES
         iphlpapi
         ksuser
         libssp.a
-        libstdc++.a
+        # winpthreads brings up the mutex/once runtime in a static initialiser of its
+        # own, and libstdc++'s classic-locale initialiser locks a mutex while it runs.
+        # Static initialisers run in link order, so libwinpthread.a has to be pulled in
+        # before libstdc++.a -- with it after, libstdc++'s own initialisers run first,
+        # pthread_mutex_lock returns EINVAL, libstdc++ throws std::system_error from a
+        # noexcept constructor before main, and the process dies with no log and no
+        # trace, for every command line.
+        #
+        # Naming it first is not enough by itself: nothing has referenced it yet at
+        # that point, so the archive is skipped and resolved later, which puts the
+        # initialiser last again. --whole-archive forces it in here, at the front of
+        # .init_array, where it has to be.
+        -Wl,--whole-archive
         libwinpthread.a
+        -Wl,--no-whole-archive
+        libstdc++.a
         minhook::minhook
         ntdll
         pdh

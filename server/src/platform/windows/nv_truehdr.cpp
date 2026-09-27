@@ -41,10 +41,21 @@ namespace platf::dxgi {
     bool g_resolve_attempted = false;
     // NGX TrueHDR uses process/device global runtime state. Multiple clients may have
     // separate encoder devices, so serialize all shim entry points across the process.
-    std::timed_mutex g_truehdr_mutex;
+    //
+    // Constructed on first use, never at namespace scope. libstdc++'s std::timed_mutex
+    // constructor calls __gthread_mutex_init and throws std::system_error when that
+    // fails, and it fails here: winpthreads brings its own mutex runtime up in a
+    // static initialiser of its own, which in the current link order runs after ours.
+    // A throw during static initialisation happens before main, so nothing can catch
+    // it and nothing logs it -- the process dies with "Invalid argument" and no other
+    // trace, for every command line. First use is well past that window.
+    std::timed_mutex &truehdr_mutex() {
+      static std::timed_mutex mutex;
+      return mutex;
+    }
 
     // Set once a shim call has overrun its budget and been abandoned. The abandoned
-    // call still owns g_truehdr_mutex and may never give it back, so every later
+    // call still owns the TrueHDR mutex and may never give it back, so every later
     // caller has to fail fast rather than queue behind it: one wedged feature create
     // used to freeze the encode loop of every client sharing this process.
     std::atomic<bool> g_shim_wedged {false};
@@ -124,7 +135,7 @@ namespace platf::dxgi {
       std::thread {[device, state = init_state]() {
         void *handle = nullptr;
         {
-          std::scoped_lock lock {g_truehdr_mutex};
+          std::scoped_lock lock {truehdr_mutex()};
           if (resolve_shim_locked()) {
             handle = g_create(device);
           }
@@ -187,7 +198,7 @@ namespace platf::dxgi {
     if (!initialized || !sdr_input || g_shim_wedged.load(std::memory_order_acquire)) {
       return nullptr;
     }
-    std::unique_lock lock {g_truehdr_mutex, std::defer_lock};
+    std::unique_lock lock {truehdr_mutex(), std::defer_lock};
     if (!lock.try_lock_for(kConvertLockTimeout)) {
       // Someone else is inside the shim and not coming out on any schedule we can
       // rely on. Waiting would spread their stall to this client's encode loop.
@@ -217,7 +228,7 @@ namespace platf::dxgi {
       }
     }
 
-    // Snapshot+clear the handle under the lock, then call the shim destroy WITHOUT g_truehdr_mutex
+    // Snapshot+clear the handle under the lock, then call the shim destroy WITHOUT the TrueHDR mutex
     // held. VBSTrueHDR_Destroy releases the encoder's D3D11 device, and on a virtual display whose
     // mode is mid-change (alt-tab) or that is being removed (disconnect), that device's
     // DestroyDriverInstance -> D3DKMTDestroyHwQueue can block in the kernel indefinitely. Holding
@@ -228,7 +239,7 @@ namespace platf::dxgi {
     void *local_handle = nullptr;
     destroy_fn local_destroy = nullptr;
     if (shim_handle) {
-      std::unique_lock lock {g_truehdr_mutex, std::defer_lock};
+      std::unique_lock lock {truehdr_mutex(), std::defer_lock};
       // A wedged shim never returns the mutex, and calling into it would hang this
       // thread too. Drop our own state and leak the feature instead.
       const bool locked = !g_shim_wedged.load(std::memory_order_acquire) &&
