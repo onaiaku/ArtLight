@@ -37,6 +37,8 @@ Both are designed to be set up once and forgotten: install, pair your client, pl
 - **HDR / TrueHDR support** — with the pinned TrueHDR runtime
 - **Hardware encoding** — NVENC and friends, frame pacing tuned for real gameplay
 - **Live telemetry** — Control's dashboard tracks every session as it happens, no more blank stats
+- **Remote power** — sleep, hibernate or restart the host from the dashboard, without walking to it
+- **Shared clipboard** — copy on one side, paste on the other while you stream, off until you switch it on
 - **Game library sync** — Playnite integration so your library is stream-ready
 - **Web UI** — configure the server from a browser, phone included
 - **Works with Moonlight clients** — including our own [ArtMoon](https://github.com/onaiaku/ArtMoon)
