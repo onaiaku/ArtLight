@@ -246,6 +246,9 @@ jobs:
       # No private symbol-repo access: symbols stay as run artifacts instead of
       # being published to Nonary's symbols repository.
       publish_symbols: false
+      # Keep the link map as a run artifact. It is the only way to resolve a
+      # fault address from a shipped build back to a function name.
+      upload_symbols_artifact: true
       symbol_release_prefix: shine
     secrets:
       signpath_api_token: ${{ secrets.SIGNPATH_API_TOKEN }}
