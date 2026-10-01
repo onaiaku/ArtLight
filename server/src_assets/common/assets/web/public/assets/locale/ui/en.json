@@ -2481,8 +2481,7 @@
       "workspace": "Workspace",
       "monitor": "Monitor",
       "manage": "Manage",
-      "host_console": "Host console",
-      "classic_interface": "Classic interface"
+      "host_console": "Host console"
     },
     "status": {
       "needs_attention": "Needs attention",

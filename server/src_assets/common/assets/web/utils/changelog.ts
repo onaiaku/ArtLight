@@ -1,3 +1,16 @@
+// Single source of truth for the project's GitHub coordinates.
+//
+// This literal used to be written out by hand in three places (the changelog
+// service and the two upstream-added release components). Only one of them got
+// rebranded when the fork was renamed, so the dashboard fetched *upstream's*
+// releases and advertised their version number as ours. Import from here
+// instead of typing a repo path anywhere else.
+export const GITHUB_REPO_SLUG = 'onaiaku/ArtLight';
+export const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO_SLUG}`;
+export const GITHUB_RELEASES_API_URL = `https://api.github.com/repos/${GITHUB_REPO_SLUG}/releases`;
+export const GITHUB_RELEASES_PAGE_URL = `${GITHUB_REPO_URL}/releases`;
+export const GITHUB_RELEASE_TAG_URL_PREFIX = `${GITHUB_RELEASES_PAGE_URL}/`;
+
 export type ChangelogSource = 'bundled' | 'github';
 export type ChangelogChannel = 'stable' | 'alpha' | 'beta' | 'rc' | 'other';
 
@@ -68,7 +81,10 @@ export function pickInstallerAssetUrl(release: GitHubReleaseLike): string | unde
   }
   // Fall back to the browser_download_url GitHub highlights for the release
   for (const asset of assets) {
-    if (asset.content_type?.includes('application/x-msdownload') || asset.content_type?.includes('octet-stream')) {
+    if (
+      asset.content_type?.includes('application/x-msdownload') ||
+      asset.content_type?.includes('octet-stream')
+    ) {
       return asset.browser_download_url as string;
     }
   }
@@ -308,4 +324,3 @@ export function mergeChangelogEntries(
   }
   return sortChangelogEntries(Array.from(byTag.values()));
 }
-

@@ -5,7 +5,11 @@ async function host(
   platform = 'linux',
   config: Record<string, unknown> = {},
   ready = true,
-  providers: Record<string, boolean> = { steam: true, lutris: platform === 'linux', mangohud: platform === 'linux' },
+  providers: Record<string, boolean> = {
+    steam: true,
+    lutris: platform === 'linux',
+    mangohud: platform === 'linux',
+  },
 ) {
   const patches: Record<string, unknown>[] = [];
   await page.route('**/api/**', async (route) => {
@@ -887,7 +891,10 @@ for (const platform of ['windows', 'linux']) {
   test(`classic game library setup and search work on ${platform}`, async ({ page }) => {
     const legacyUrl = process.env.VIBEPOLLO_LEGACY_TEST_URL;
     test.skip(!legacyUrl, 'Set VIBEPOLLO_LEGACY_TEST_URL to a served classic UI build.');
-    const patches = await host(page, platform, {}, true, { steam: true, lutris: platform === 'linux' });
+    const patches = await host(page, platform, {}, true, {
+      steam: true,
+      lutris: platform === 'linux',
+    });
     await page.route('**/api/playnite/status', (route) =>
       route.fulfill({ json: { installed: true, active: true } }),
     );
@@ -992,15 +999,21 @@ for (const platform of ['windows', 'linux']) {
 
 test('initial library setup refreshes apps and persists editable settings', async ({ page }) => {
   await host(page, 'windows', {}, true, { steam: true });
-  await page.route('**/api/playnite/status', route => route.fulfill({ json: { installed: false } }));
+  await page.route('**/api/playnite/status', (route) =>
+    route.fulfill({ json: { installed: false } }),
+  );
   let synced = false;
-  await page.route('**/api/steam/force_sync', route => {
+  await page.route('**/api/steam/force_sync', (route) => {
     synced = true;
     return route.fulfill({ json: { status: true } });
   });
-  await page.route('**/api/apps', route => route.fulfill({ json: {
-    apps: synced ? [{ name: 'Synced Steam game', uuid: 'steam-test', 'steam-id': '42' }] : [],
-  } }));
+  await page.route('**/api/apps', (route) =>
+    route.fulfill({
+      json: {
+        apps: synced ? [{ name: 'Synced Steam game', uuid: 'steam-test', 'steam-id': '42' }] : [],
+      },
+    }),
+  );
   await page.goto('/v2/library');
   await page.getByRole('button', { name: 'Setup Game Library Integration', exact: true }).click();
   const dialog = page.getByRole('dialog');
@@ -1010,11 +1023,15 @@ test('initial library setup refreshes apps and persists editable settings', asyn
   await dialog.getByRole('button', { name: 'Save settings', exact: true }).click();
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.getByText('Synced Steam game', { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Setup Game Library Integration', exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Setup Game Library Integration', exact: true }),
+  ).toHaveCount(0);
   await page.reload();
   await page.getByRole('button', { name: 'Library manager settings', exact: true }).click();
   await dialog.getByRole('button', { name: 'Next: Library settings' }).click();
-  await expect(dialog.getByRole('spinbutton', { name: 'Recent games', exact: true })).toHaveValue('6');
+  await expect(dialog.getByRole('spinbutton', { name: 'Recent games', exact: true })).toHaveValue(
+    '6',
+  );
 });
 
 for (const platform of ['linux', 'windows'] as const) {
@@ -1044,7 +1061,7 @@ test('Linux shows an automatic update notice across pages and retries failed che
 }) => {
   await host(page);
   let unavailable = true;
-  await page.route('https://api.github.com/repos/Nonary/Vibepollo/releases', async (route) => {
+  await page.route('https://api.github.com/repos/onaiaku/ArtLight/releases', async (route) => {
     await route.fulfill(
       unavailable
         ? { status: 403, json: { message: 'API rate limit exceeded' } }
@@ -1053,7 +1070,7 @@ test('Linux shows an automatic update notice across pages and retries failed che
               {
                 tag_name: 'v1.1.0',
                 prerelease: false,
-                html_url: 'https://github.com/Nonary/Vibepollo/releases/tag/v1.1.0',
+                html_url: 'https://github.com/onaiaku/ArtLight/releases/tag/v1.1.0',
               },
             ],
           },
@@ -1069,7 +1086,7 @@ test('Linux shows an automatic update notice across pages and retries failed che
   await expect(notice.getByText('Vibepollo 1.1.0 is available')).toBeVisible();
   await expect(notice.getByRole('link', { name: 'Read release notes' })).toHaveAttribute(
     'href',
-    'https://github.com/Nonary/Vibepollo/releases/tag/v1.1.0',
+    'https://github.com/onaiaku/ArtLight/releases/tag/v1.1.0',
   );
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   await expect(notice.getByText('Vibepollo 1.1.0 is available')).toBeVisible();
@@ -1077,10 +1094,10 @@ test('Linux shows an automatic update notice across pages and retries failed che
 
 test('Linux stable install does not advertise a prerelease without opt-in', async ({ page }) => {
   await host(page);
-  await page.route('https://api.github.com/repos/Nonary/Vibepollo/releases', async (route) => {
+  await page.route('https://api.github.com/repos/onaiaku/ArtLight/releases', async (route) => {
     await route.fulfill({ json: [{ tag_name: 'v2.0.0-beta.1', prerelease: true }] });
   });
-  const response = page.waitForResponse('https://api.github.com/repos/Nonary/Vibepollo/releases');
+  const response = page.waitForResponse('https://api.github.com/repos/onaiaku/ArtLight/releases');
   await page.goto('/v2/');
   await response;
   await expect(page.locator('.update-notice')).toHaveCount(0);

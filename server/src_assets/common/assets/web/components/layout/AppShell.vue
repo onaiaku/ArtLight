@@ -260,10 +260,6 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </div>
-        <a class="sidebar__legacy" href="/" :title="t('ui.shell.classic_interface')">
-          <UiIcon name="external-link" :size="16" />
-          <span class="sidebar__label">{{ t('ui.shell.classic_interface') }}</span>
-        </a>
         <div class="sidebar__utility">
           <button
             class="sidebar__logout"

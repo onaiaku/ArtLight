@@ -4,7 +4,12 @@ import { useI18n } from 'vue-i18n';
 import { apiGet } from '@/api/client';
 import { AppButton, InlineAlert } from '@/components/ui';
 import { useSystemStore } from '@/stores/system';
-import type { ChangelogEntry } from '@/utils/changelog';
+import {
+  type ChangelogEntry,
+  GITHUB_RELEASE_TAG_URL_PREFIX,
+  GITHUB_RELEASES_API_URL,
+  GITHUB_RELEASES_PAGE_URL,
+} from '@/utils/changelog';
 import { selectAvailableUpdate } from '@/utils/updates';
 
 const system = useSystemStore();
@@ -33,7 +38,7 @@ async function check(forced = false): Promise<void> {
       failed.value = false;
       return;
     }
-    const response = await fetch('https://api.github.com/repos/Nonary/Vibepollo/releases', {
+    const response = await fetch(GITHUB_RELEASES_API_URL, {
       headers: { Accept: 'application/json' },
       credentials: 'omit',
       signal: controller.signal,
@@ -79,9 +84,9 @@ onBeforeUnmount(() => {
     >
       <a
         :href="
-          available.url?.startsWith('https://github.com/Nonary/Vibepollo/releases/')
+          available.url?.startsWith(GITHUB_RELEASE_TAG_URL_PREFIX)
             ? available.url
-            : 'https://github.com/Nonary/Vibepollo/releases'
+            : GITHUB_RELEASES_PAGE_URL
         "
         target="_blank"
         rel="noopener noreferrer"

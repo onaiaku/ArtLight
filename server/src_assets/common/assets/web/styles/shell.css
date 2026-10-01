@@ -173,7 +173,6 @@
   background: var(--vs-color-bg-raised);
   color: var(--vs-color-text-primary);
 }
-.sidebar__legacy,
 .sidebar__logout {
   display: flex;
   min-height: 36px;
@@ -187,7 +186,6 @@
   font-size: 12px;
   text-decoration: none;
 }
-.sidebar__legacy:hover,
 .sidebar__logout:hover {
   color: var(--vs-color-text-primary);
   background: var(--vs-color-bg-subtle);
@@ -223,7 +221,6 @@
 .app-shell--collapsed .brand,
 .app-shell--collapsed .nav-link,
 .app-shell--collapsed .host-health,
-.app-shell--collapsed .sidebar__legacy,
 .app-shell--collapsed .sidebar__logout {
   justify-content: center;
   padding-inline: 0;

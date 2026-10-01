@@ -1,6 +1,7 @@
 import { useSystemStore } from '@/stores/system';
 import {
   type BundledChangelogAsset,
+  GITHUB_RELEASES_API_URL,
   type ChangelogEntry,
   type GitHubReleaseLike,
   compareChangelogTags,
@@ -18,7 +19,6 @@ export interface LoadChangelogResult {
 }
 
 const CHANGELOG_ASSET_URL = './assets/changelog.json';
-const GITHUB_RELEASES_URL = 'https://api.github.com/repos/onaiaku/ArtLight/releases';
 // Cache GitHub releases in localStorage so repeated dashboard visits don't burn
 // the unauthenticated 60 req/hour IP-wide API limit (the reason the changelog
 // panel usually showed stale/bundled data until a manual refresh).
@@ -36,7 +36,10 @@ function readGithubCache(): GitHubReleaseLike[] | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as GithubCachePayload;
     if (!Array.isArray(parsed?.releases)) return null;
-    if (typeof parsed.fetchedAt !== 'number' || Date.now() - parsed.fetchedAt > GITHUB_CACHE_TTL_MS) {
+    if (
+      typeof parsed.fetchedAt !== 'number' ||
+      Date.now() - parsed.fetchedAt > GITHUB_CACHE_TTL_MS
+    ) {
       return null;
     }
     return parsed.releases;
@@ -86,7 +89,7 @@ export async function loadGithubChangelog(forceRefresh = false): Promise<Changel
         .filter((entry): entry is ChangelogEntry => entry !== null);
     }
   }
-  const response = await fetch(GITHUB_RELEASES_URL, {
+  const response = await fetch(GITHUB_RELEASES_API_URL, {
     headers: { Accept: 'application/vnd.github+json' },
   });
   if (!response.ok) {
@@ -115,9 +118,7 @@ export async function loadGithubChangelog(forceRefresh = false): Promise<Changel
     .filter((entry): entry is ChangelogEntry => entry !== null);
 }
 
-export async function loadChangelog(
-  forceRefresh = false,
-): Promise<LoadChangelogResult> {
+export async function loadChangelog(forceRefresh = false): Promise<LoadChangelogResult> {
   const [installedVersion, bundled] = await Promise.all([
     getInstalledVersion(),
     loadBundledChangelog().catch(() => []),

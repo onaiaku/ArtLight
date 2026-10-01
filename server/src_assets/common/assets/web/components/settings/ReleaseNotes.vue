@@ -7,6 +7,8 @@ import {
   mergeChangelogEntries,
   type ChangelogEntry,
   type GitHubReleaseLike,
+  GITHUB_RELEASE_TAG_URL_PREFIX,
+  GITHUB_RELEASES_API_URL,
 } from '@/utils/changelog';
 const props = defineProps<{ installedVersion?: string }>();
 const { t } = useI18n();
@@ -18,10 +20,10 @@ async function load(remote = false) {
   loading.value = true;
   failed.value = false;
   try {
-    const response = await fetch(
-      remote ? 'https://api.github.com/repos/Nonary/Vibepollo/releases' : '/assets/changelog.json',
-      { headers: { Accept: 'application/json' }, credentials: 'omit' },
-    );
+    const response = await fetch(remote ? GITHUB_RELEASES_API_URL : '/assets/changelog.json', {
+      headers: { Accept: 'application/json' },
+      credentials: 'omit',
+    });
     if (!response.ok) throw new Error('releases-unavailable');
     const data = await response.json();
     const incoming = remote
@@ -62,7 +64,7 @@ onMounted(() => void load());
       <summary>{{ release.name || release.tag }} · {{ release.date }}</summary>
       <p class="release-notes__body">{{ release.body }}</p>
       <a
-        v-if="release.url?.startsWith('https://github.com/Nonary/Vibepollo/releases/')"
+        v-if="release.url?.startsWith(GITHUB_RELEASE_TAG_URL_PREFIX)"
         :href="release.url"
         target="_blank"
         rel="noopener noreferrer"
