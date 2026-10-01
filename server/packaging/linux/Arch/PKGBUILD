@@ -139,7 +139,7 @@ prepare() {
         --toolkitpath="${srcdir}/cuda" --no-opengl-libs --no-man-page --no-drm
       # Match CUDA 12.9 headers to Arch's glibc 2.41+ declarations.
       patch -p2 --forward --directory="${srcdir}/cuda" \
-        < "packaging/linux/patches/${CARCH}/cuda-12-math_functions.patch"
+        < "${srcdir}/${pkgname}/server/packaging/linux/patches/${CARCH}/cuda-12-math_functions.patch"
     fi
 }
 
@@ -157,7 +157,7 @@ build() {
     export MAKEFLAGS="${MAKEFLAGS:--j$(nproc)}"
 
     local _cmake_options=(
-      -S "$pkgname"
+      -S "$pkgname/server"
       -B build
       -G Ninja
       -Wno-dev
