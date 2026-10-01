@@ -308,9 +308,7 @@ All shortcuts start with `Ctrl+Alt+Shift`, just like Moonlight.
 
   * On Linux the packaged host already belongs to the `artlight-uinput` group that owns
     `/dev/uinput` and `/dev/uhid`; check `journalctl -u artlight.service` for uinput errors.
-  * On FreeBSD, add the user running ArtLight to the `input` group.
 
-* The FreeBSD version of ArtLight Server is missing some features that are present on Linux.
   The following are known limitations.
 
   * Only X11 and Wayland capture are supported

@@ -26,7 +26,6 @@ location by modifying the configuration file.
 | OS      | Location                                        |
 |---------|-------------------------------------------------|
 | Docker  | @code{}/config@endcode                          |
-| FreeBSD | @code{}~/.config/sunshine@endcode               |
 | Linux (native package) | @code{}/var/lib/artlight@endcode |
 | Linux (standalone) | @code{}~/.config/artlight@endcode (or `$XDG_CONFIG_HOME/artlight`) |
 | Windows | @code{}%ProgramFiles%\\Artlight\\Artlight Server\\config@endcode |
@@ -372,12 +371,12 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>ds5</td>
         <td>DualShock 5 controller (PS5)
-            @note{This option applies to FreeBSD and Linux only.}</td>
+            @note{This option applies to Linux only.}</td>
     </tr>
     <tr>
         <td>switch</td>
         <td>Switch Pro controller
-            @note{This option applies to FreeBSD and Linux only.}</td>
+            @note{This option applies to Linux only.}</td>
     </tr>
     <tr>
         <td>vhf</td>
@@ -438,7 +437,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>xone</td>
         <td>Xbox One controller
-            @note{This option applies to FreeBSD and Linux only.}</td>
+            @note{This option applies to Linux only.}</td>
     </tr>
 </table>
 
@@ -848,14 +847,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @tip{To find the name of the audio sink follow these instructions.
             <br>
             <br>
-            **FreeBSD/Linux + pulseaudio:**
+            **Linux + pulseaudio:**
             <br>
             @code{}
             pacmd list-sinks | grep "name:"
             @endcode
             <br>
             <br>
-            **FreeBSD/Linux + pipewire:**
+            **Linux + pipewire:**
             <br>
             @code{}
             pactl info | grep Source
@@ -1012,7 +1011,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @tip{To find the appropriate values follow these instructions.
             <br>
             <br>
-            **FreeBSD/Linux + VA-API:**
+            **Linux + VA-API:**
             <br>
             Unlike with AMD AMF encoders and *nvenc*, it doesn't matter if video encoding is done on a different GPU.
             @code{}
@@ -1102,7 +1101,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @tip{To find the appropriate values follow these instructions.
             <br>
             <br>
-            **FreeBSD/Linux:**
+            **Linux:**
             <br>
             During ArtLight Server startup, you should see the list of detected displays:
             @code{}
@@ -2874,7 +2873,7 @@ this option to replace the running app immediately. The default is `true`.
     <tr>
         <td>x11</td>
         <td>Uses XCB. This is the slowest and most CPU intensive so should be avoided if possible.
-            @note{Applies to FreeBSD and Linux only.}</td>
+            @note{Applies to Linux only.}</td>
     </tr>
     <tr>
         <td>ddx</td>
