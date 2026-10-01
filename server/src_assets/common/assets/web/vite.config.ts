@@ -4,7 +4,11 @@ import { fileURLToPath, URL } from 'node:url';
 
 import vue from '@vitejs/plugin-vue';
 import { defineConfig, type Plugin } from 'vite';
-import { parseBundledReleaseNote, sortChangelogEntries } from './utils/changelog';
+import {
+  parseBundledReleaseNote,
+  sortChangelogEntries,
+  type ChangelogEntry,
+} from './utils/changelog';
 
 const configuredOutputDirectory = process.env.SUNSHINE_WEB_OUTPUT_DIR;
 const CONFIG_DIR = fileURLToPath(new URL('.', import.meta.url));
@@ -20,6 +24,10 @@ function findRepoRoot(startDir: string): string {
   }
   return startDir;
 }
+
+// Titles an ArtLight release note must begin with to be bundled. See the filter
+// inside bundledChangelogPlugin for why this exists.
+const PRODUCT_NAME = 'artlight';
 
 // Emit assets/changelog.json at build time from server/release_notes/*.md so the
 // Overview changelog panel has bundled release notes to show when GitHub is
@@ -37,7 +45,14 @@ function bundledChangelogPlugin(repoRoot: string): Plugin {
               const path = resolve(releaseNotesDir, name);
               return parseBundledReleaseNote(name, fs.readFileSync(path, 'utf-8'));
             })
-            .filter((entry) => entry !== null)
+            .filter((entry): entry is ChangelogEntry => entry !== null)
+            // release_notes/ also carries upstream's own notes, which arrive
+            // with an upstream merge and describe releases this product never
+            // made -- their titles name the other product. Bundling them made
+            // ArtLight's changelog list upstream's versions under upstream's
+            // name. Keep only notes that are ours; a note with no '# ' title
+            // still qualifies, since it defaults to the product name.
+            .filter((entry) => entry.name.toLowerCase().startsWith(PRODUCT_NAME))
         : [];
 
       this.emitFile({
