@@ -30,7 +30,7 @@ location by modifying the configuration file.
 | Linux (native package) | @code{}/var/lib/artlight@endcode |
 | Linux (standalone) | @code{}~/.config/artlight@endcode (or `$XDG_CONFIG_HOME/artlight`) |
 | macOS   | @code{}~/.config/sunshine@endcode               |
-| Windows | @code{}%ProgramFiles%\\Sunshine\\config@endcode |
+| Windows | @code{}%ProgramFiles%\\Artlight\\Artlight Server\\config@endcode |
 
 Native Linux packages share one machine profile across the login screen and desktop.
 Edit settings through the Web UI; use `artlight paths` to locate files and
@@ -877,7 +877,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             <br>
             Enter the following command in command prompt or PowerShell.
             @code{}
-            %ProgramFiles%\Sunshine\tools\audio-info.exe
+            %ProgramFiles%\Artlight\Artlight Server\tools\audio-info.exe
             @endcode
             If you have multiple audio devices with identical names, use the Device ID instead.
             }
@@ -1048,7 +1048,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             manually authored configurations, use the following command in
             command prompt or PowerShell to list adapter descriptions.
             @code{}
-            %ProgramFiles%\Sunshine\tools\dxgi-info.exe
+            %ProgramFiles%\Artlight\Artlight Server\tools\dxgi-info.exe
             @endcode
             For hybrid graphics systems, DXGI reports the outputs are connected to whichever graphics
             adapter that the application is configured to use, so it's not a reliable indicator of how the
