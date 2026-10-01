@@ -1,6 +1,6 @@
 # Performance Tuning
 In addition to the options available in the [Configuration](configuration.md) section, there are a few additional
-system options that can be used to help improve the performance of Sunshine.
+system options that can be used to help improve the performance of ArtLight Server.
 
 ## AMD
 

@@ -8,10 +8,10 @@ By providing the host authority (URI + port), you can easily open each configura
 @endhtmlonly
 }
 
-Sunshine will work with the default settings for most users. In some cases you may want to configure Sunshine further.
+ArtLight Server will work with the default settings for most users. In some cases you may want to configure ArtLight Server further.
 
 The default location for the configuration file is listed below. You can use another location if you
-choose, by passing in the full configuration file path as the first argument when you start Sunshine.
+choose, by passing in the full configuration file path as the first argument when you start ArtLight Server.
 
 **Example**
 ```bash
@@ -48,7 +48,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            The locale used for Sunshine's user interface.
+            The locale used for ArtLight Server's user interface.
         </td>
     </tr>
     <tr>
@@ -251,7 +251,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Whether to be notified of new pre-release versions of Sunshine.
+            Whether to be notified of new pre-release versions of ArtLight Server.
         </td>
     </tr>
     <tr>
@@ -274,8 +274,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Interval in seconds between automatic checks for new Sunshine releases. Set to 0 to disable periodic checking.
-            Checks are date-based: Sunshine compares its build date to the latest release (and pre-releases if enabled) and notifies when a newer build is available.
+            Interval in seconds between automatic checks for new ArtLight Server releases. Set to 0 to disable periodic checking.
+            Checks are date-based: ArtLight Server compares its build date to the latest release (and pre-releases if enabled) and notifies when a newer build is available.
         </td>
     </tr>
     <tr>
@@ -315,7 +315,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-<!-- The update command mechanism was removed. Sunshine now only notifies about updates. -->
+<!-- The update command mechanism was removed. ArtLight Server now only notifies about updates. -->
 
 ## Input
 
@@ -657,7 +657,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">It may be possible that you cannot send the Windows Key from Moonlight directly. In those cases it may be useful to
-            make Sunshine think the Right Alt key is the Windows key.
+            make ArtLight Server think the Right Alt key is the Windows key.
             </td>
     </tr>
     <tr>
@@ -703,7 +703,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            When enabled, Sunshine will pass through high resolution scroll events from Moonlight clients.
+            When enabled, ArtLight Server will pass through high resolution scroll events from Moonlight clients.
             <br>
             This can be useful to disable for older applications that scroll too fast with high resolution scroll
             events.
@@ -729,7 +729,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            When enabled, Sunshine will pass through native pen/touch events from Moonlight clients.
+            When enabled, ArtLight Server will pass through native pen/touch events from Moonlight clients.
             <br>
             This can be useful to disable for older applications without native pen/touch support.
         </td>
@@ -867,7 +867,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             <br>
             **macOS:**
             <br>
-            Sunshine can only access microphones on macOS due to system limitations.
+            ArtLight Server can only access microphones on macOS due to system limitations.
             To stream system audio use
             [Soundflower](https://github.com/mattingalls/Soundflower) or
             [BlackHole](https://github.com/ExistentialAudio/BlackHole).
@@ -887,7 +887,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">Sunshine will select the default audio device.</td>
+        <td colspan="2">ArtLight Server will select the default audio device.</td>
     </tr>
     <tr>
         <td>Example (FreeBSD/Linux)</td>
@@ -946,7 +946,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            The audio device that's virtual, like Steam Streaming Speakers. This allows Sunshine to stream audio,
+            The audio device that's virtual, like Steam Streaming Speakers. This allows ArtLight Server to stream audio,
             while muting the speakers.
             @tip{See [audio_sink](#audio_sink)!}
             @tip{These are some options for virtual sound devices.
@@ -1037,7 +1037,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             vainfo --display drm --device /dev/dri/renderD129 | \
               grep -E "((VAProfileH264High|VAProfileHEVCMain|VAProfileHEVCMain10).*VAEntrypointEncSlice)|Driver version"
             @endcode
-            To be supported by Sunshine, it needs to have at the very minimum:
+            To be supported by ArtLight Server, it needs to have at the very minimum:
             `VAProfileH264High   : VAEntrypointEncSlice`
             <br>
             <br>
@@ -1063,7 +1063,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">Sunshine will select the default video card.</td>
+        <td colspan="2">ArtLight Server will select the default video card.</td>
     </tr>
     <tr>
         <td>Example (FreeBSD/Linux)</td>
@@ -1120,7 +1120,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             <br>
             **FreeBSD/Linux:**
             <br>
-            During Sunshine startup, you should see the list of detected displays:
+            During ArtLight Server startup, you should see the list of detected displays:
             @code{}
             Info: Detecting displays
             Info: Detected display: DVI-D-0 (id: 0) connected: false
@@ -1134,7 +1134,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             <br>
             **macOS:**
             <br>
-            During Sunshine startup, you should see the list of detected displays:
+            During ArtLight Server startup, you should see the list of detected displays:
             @code{}
             Info: Detecting displays
             Info: Detected display: Monitor-0 (id: 3) connected: true
@@ -1145,7 +1145,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             <br>
             **Windows:**
             <br>
-            During Sunshine startup, you should see the list of detected displays:
+            During ArtLight Server startup, you should see the list of detected displays:
             @code{}
             Info: Currently available display devices:
             [
@@ -1200,7 +1200,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">Sunshine will select the default display.</td>
+        <td colspan="2">ArtLight Server will select the default display.</td>
     </tr>
     <tr>
         <td>Example (FreeBSD/Linux)</td>
@@ -1228,7 +1228,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Select which display Sunshine should prepare before streaming. When set to one of the virtual options, Sunshine will manage a virtual display instead of relying on your physical monitor.
+            Select which display ArtLight Server should prepare before streaming. When set to one of the virtual options, ArtLight Server will manage a virtual display instead of relying on your physical monitor.
         </td>
     </tr>
     <tr>
@@ -1740,7 +1740,7 @@ this option to replace the running app immediately. The default is `true`.
         <td>Description</td>
         <td colspan="2">
             Comma-separated list or JSON array of display device identifiers to ignore when saving display snapshots.<br>
-            Excluded devices are removed from session and golden snapshots so Sunshine will not restore to transient or dummy displays.<br>
+            Excluded devices are removed from session and golden snapshots so ArtLight Server will not restore to transient or dummy displays.<br>
             @note{Applies to Windows only.}
         </td>
     </tr>
@@ -1772,7 +1772,7 @@ this option to replace the running app immediately. The default is `true`.
         <td colspan="2">
               Keyboard shortcut key that restores the display snapshot and tears down any virtual displays.
               <br>
-              Useful for forcing virtual displays off and restoring snapshots when Sunshine is paused or stuck.
+              Useful for forcing virtual displays off and restoring snapshots when ArtLight Server is paused or stuck.
               The modifier keys for this hotkey are configured separately via dd_snapshot_restore_hotkey_modifiers.
               Accepts function keys (F1-F24), letters, digits, or a virtual-key code.
               @note{Applies to Windows only.}
@@ -1855,7 +1855,7 @@ this option to replace the running app immediately. The default is `true`.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            When enabled, Sunshine activates the virtual display driver and makes it the only active display during stream startup.
+            When enabled, ArtLight Server activates the virtual display driver and makes it the only active display during stream startup.
             @note{Applies to Windows only.}
         </td>
     </tr>
@@ -1964,7 +1964,7 @@ this option to replace the running app immediately. The default is `true`.
         <td>Description</td>
         <td colspan="2">
             Forces Windows to run the capture output at 30&nbsp;Hz with HDR enabled so physical HDMI dummy plugs expose 10-bit colour.<br>
-            Sunshine also keeps the "Disable VSYNC" override engaged to ensure the driver profile disables VSYNC during streams.
+            ArtLight Server also keeps the "Disable VSYNC" override engaged to ensure the driver profile disables VSYNC during streams.
         </td>
     </tr>
     <tr>
@@ -1992,7 +1992,7 @@ this option to replace the running app immediately. The default is `true`.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            The maximum bitrate (in Kbps) that Sunshine will encode the stream at. If set to 0, it will always use the bitrate requested by Moonlight.
+            The maximum bitrate (in Kbps) that ArtLight Server will encode the stream at. If set to 0, it will always use the bitrate requested by Moonlight.
         </td>
     </tr>
     <tr>
@@ -2015,7 +2015,7 @@ this option to replace the running app immediately. The default is `true`.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Sunshine tries to save bandwidth when content on screen is static or a low framerate. Because many clients expect a constant stream of video frames, a certain amount of duplicate frames are sent when this happens. This setting controls the lowest effective framerate a stream can reach.
+            ArtLight Server tries to save bandwidth when content on screen is static or a low framerate. Because many clients expect a constant stream of video frames, a certain amount of duplicate frames are sent when this happens. This setting controls the lowest effective framerate a stream can reach.
         </td>
     </tr>
     <tr>
@@ -2043,7 +2043,7 @@ this option to replace the running app immediately. The default is `true`.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Sunshine will attempt to open ports for streaming over the internet.
+            ArtLight Server will attempt to open ports for streaming over the internet.
         </td>
     </tr>
     <tr>
@@ -2066,7 +2066,7 @@ this option to replace the running app immediately. The default is `true`.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Set the address family that Sunshine will use.
+            Set the address family that ArtLight Server will use.
         </td>
     </tr>
     <tr>
@@ -2098,8 +2098,8 @@ this option to replace the running app immediately. The default is `true`.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Set the IP address to bind Sunshine to. This is useful when you have multiple network interfaces
-            and want to restrict Sunshine to a specific one. If not set, Sunshine will bind to all available
+            Set the IP address to bind ArtLight Server to. This is useful when you have multiple network interfaces
+            and want to restrict ArtLight Server to a specific one. If not set, ArtLight Server will bind to all available
             interfaces (0.0.0.0 for IPv4 or :: for IPv6).
             <br><br>
             <strong>Note:</strong> The address must be valid for the system and must match the address family
@@ -2138,7 +2138,7 @@ this option to replace the running app immediately. The default is `true`.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Set the family of ports used by Sunshine.
+            Set the family of ports used by ArtLight Server.
             Changing this value will offset other ports as shown in config UI.
         </td>
     </tr>
@@ -2231,7 +2231,7 @@ this option to replace the running app immediately. The default is `true`.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            If no external IP address is given, Sunshine will attempt to automatically detect external ip-address.
+            If no external IP address is given, ArtLight Server will attempt to automatically detect external ip-address.
         </td>
     </tr>
     <tr>
@@ -2480,8 +2480,8 @@ this option to replace the running app immediately. The default is `true`.
     <tr>
     <td>Description</td>
         <td colspan="2">
-            Determines where Sunshine stores log sessions. When this value points to a file (the default),
-            Sunshine keeps a rolling <code>logs</code> folder next to that file and keeps the last 30 sessions,
+            Determines where ArtLight Server stores log sessions. When this value points to a file (the default),
+            ArtLight Server keeps a rolling <code>logs</code> folder next to that file and keeps the last 30 sessions,
             each capped at about 10 MiB by rolling ~2MB log files. Pointing to a directory stores the
             <code>logs</code> folder at the specified location.
         </td>
@@ -2556,7 +2556,7 @@ this option to replace the running app immediately. The default is `true`.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            The file where current state of Sunshine is stored.
+            The file where current state of ArtLight Server is stored.
         </td>
     </tr>
     <tr>
@@ -2851,7 +2851,7 @@ this option to replace the running app immediately. The default is `true`.
     <tr>
         <td>Default</td>
         <td colspan="2">Automatic<br>
-            Sunshine will use the first capture method available in the order of the table below</td>
+            ArtLight Server will use the first capture method available in the order of the table below</td>
     </tr>
     <tr>
         <td>Example</td>
@@ -2883,7 +2883,7 @@ this option to replace the running app immediately. The default is `true`.
     </tr>
     <tr>
         <td>kms</td>
-        <td>DRM/KMS screen capture from the kernel. This requires that Sunshine has `cap_sys_admin` capability.
+        <td>DRM/KMS screen capture from the kernel. This requires that ArtLight Server has `cap_sys_admin` capability.
             Managed Linux private HDR sessions use this path automatically to preserve 10-bit scanout,
             even when KWin is selected globally for SDR capture.
             With the <code>vibeshine_drm</code> presentation ABI, capture is change-driven, imports the exact
@@ -2936,7 +2936,7 @@ this option to replace the running app immediately. The default is `true`.
         <td>Description</td>
         <td colspan="2">
             Path to the LosslessScaling.exe executable used for frame generation or upscaling.
-            If empty, Sunshine will attempt to auto-detect common installation locations.
+            If empty, ArtLight Server will attempt to auto-detect common installation locations.
             @note{Applies to Windows only.}
         </td>
     </tr>
@@ -2963,7 +2963,7 @@ this option to replace the running app immediately. The default is `true`.
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">Sunshine will use the first encoder that is available.</td>
+        <td colspan="2">ArtLight Server will use the first encoder that is available.</td>
     </tr>
     <tr>
         <td>Example</td>
@@ -3247,7 +3247,7 @@ are detected during the stream. The host log reports hook readiness or failure.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Full path to the RTSS install directory. If empty, Sunshine will attempt to auto-detect it.
+            Full path to the RTSS install directory. If empty, ArtLight Server will attempt to auto-detect it.
         </td>
     </tr>
     <tr>
@@ -3331,15 +3331,15 @@ are detected during the stream. The host log reports hook readiness or failure.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Forces the NVIDIA driver VSYNC setting to Off for the Sunshine profile while streaming. Sunshine restores the previous VSYNC setting when streaming stops.
+            Forces the NVIDIA driver VSYNC setting to Off for the ArtLight Server profile while streaming. ArtLight Server restores the previous VSYNC setting when streaming stops.
             <br><br>
-            Use this when you globally enable VSYNC in the driver but need Sunshine sessions to run without it. This option no longer changes Ultra Low Latency Mode or pre-rendered frames.
+            Use this when you globally enable VSYNC in the driver but need ArtLight Server sessions to run without it. This option no longer changes Ultra Low Latency Mode or pre-rendered frames.
             <br><br>
-            When NVIDIA-specific overrides are unavailable, Sunshine falls back to forcing the active display to its highest available refresh rate during streams to minimize VSYNC engagement.
+            When NVIDIA-specific overrides are unavailable, ArtLight Server falls back to forcing the active display to its highest available refresh rate during streams to minimize VSYNC engagement.
             <br><br>
             <b>Notes</b>:
             <ul>
-                <li>Windows only; uses NVIDIA NvAPI overrides when available and relies on the Sunshine display helper for refresh-rate fallbacks.</li>
+                <li>Windows only; uses NVIDIA NvAPI overrides when available and relies on the ArtLight Server display helper for refresh-rate fallbacks.</li>
                 <li>Automatically enabled when the Dummy Plug HDR workaround is active.</li>
                 <li>On non-NVIDIA GPUs, the refresh-rate fallback acts as a best-effort VSYNC mitigation.</li>
             </ul>
@@ -3357,7 +3357,7 @@ are detected during the stream. The host log reports hook readiness or failure.
     </tr>
 </table>
 
-@note{Legacy configurations may still use @code{rtss_disable_vsync_ullm}. Sunshine continues to accept the old key and maps it to @code{frame_limiter_disable_vsync}.}
+@note{Legacy configurations may still use @code{rtss_disable_vsync_ullm}. ArtLight Server continues to accept the old key and maps it to @code{frame_limiter_disable_vsync}.}
 
 ## NVIDIA NVENC Encoder
 
@@ -3494,7 +3494,7 @@ directly to the NVIDIA Video Codec SDK and is preferred during automatic probing
         <td>Description</td>
         <td colspan="2">
             Single-frame VBV/HRD percentage increase.
-            By default Sunshine uses single-frame VBV/HRD, which means any encoded video frame size is not expected to
+            By default ArtLight Server uses single-frame VBV/HRD, which means any encoded video frame size is not expected to
             exceed requested bitrate divided by requested frame rate. Relaxing this restriction can be beneficial and
             act as low-latency variable bitrate, but may also lead to packet loss if the network doesn't have buffer
             headroom to handle bitrate spikes. Maximum accepted value is 400, which corresponds to 5x increased
@@ -3595,7 +3595,7 @@ directly to the NVIDIA Video Codec SDK and is preferred during automatic probing
         <td>Description</td>
         <td colspan="2">
             Adaptive P-State algorithm which NVIDIA drivers employ doesn't work well with low latency streaming,
-            so Sunshine requests high power mode explicitly.
+            so ArtLight Server requests high power mode explicitly.
             @note{This option only applies when using NVENC [encoder](#encoder).}
             @warning{Disabling this is not recommended since this can lead to significantly increased encoding latency.}
             @note{Applies to Windows only.}
@@ -3621,9 +3621,9 @@ directly to the NVIDIA Video Codec SDK and is preferred during automatic probing
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Sunshine can't capture fullscreen OpenGL and Vulkan programs at full frame rate unless they present on
-            top of DXGI. With this option enabled Sunshine changes global Vulkan/OpenGL present method to
-            "Prefer layered on DXGI Swapchain". This is system-wide setting that is reverted on Sunshine program exit.
+            ArtLight Server can't capture fullscreen OpenGL and Vulkan programs at full frame rate unless they present on
+            top of DXGI. With this option enabled ArtLight Server changes global Vulkan/OpenGL present method to
+            "Prefer layered on DXGI Swapchain". This is system-wide setting that is reverted on ArtLight Server program exit.
             @note{This option only applies when using NVENC [encoder](#encoder).}
             @note{Applies to Windows only.}
         </td>
@@ -4671,7 +4671,7 @@ Default: `true` on Windows
     <tr>
         <td>Description</td>
         <td>
-            When set to <code>true</code>, Sunshine synchronises every installed Playnite game into
+            When set to <code>true</code>, ArtLight Server synchronises every installed Playnite game into
             <code>apps.json</code>, in addition to any recent or category-based selections.
         </td>
     </tr>
@@ -4691,7 +4691,7 @@ Default: `true` on Windows
     <tr>
         <td>Description</td>
         <td>
-            Controls whether Sunshine removes auto-synced games when they are uninstalled in Playnite.
+            Controls whether ArtLight Server removes auto-synced games when they are uninstalled in Playnite.
             Set to <code>true</code> to drop entries immediately when Playnite reports them as uninstalled.
         </td>
     </tr>
@@ -4737,7 +4737,7 @@ playnite_sync_plugins = [
     <tr>
         <td>Description</td>
         <td>
-            List of Playnite categories to omit from Sunshine's auto-sync. Accepts a JSON array of objects
+            List of Playnite categories to omit from ArtLight Server's auto-sync. Accepts a JSON array of objects
             with <code>id</code>/<code>name</code> pairs or a comma-separated list of category names. Any
             game tagged with one of these categories is skipped even if it matches recent-activity or
             inclusion-category rules.

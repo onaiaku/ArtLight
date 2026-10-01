@@ -38,7 +38,7 @@ Anyone is free to contribute to the localization there.
 ##### CrowdIn Integration
 How does it work?
 
-When a change is made to Sunshine source code, a workflow generates new translation templates
+When a change is made to ArtLight Server source code, a workflow generates new translation templates
 that get pushed to CrowdIn automatically.
 
 When translations are updated on CrowdIn, a push gets made to the *l10n_master* branch and a PR is made against the
@@ -117,7 +117,7 @@ Additionally, [xgettext](https://www.gnu.org/software/gettext) must be installed
 > Due to the integration with CrowdIn, it is important to not include any extracted or compiled files in
 > Pull Requests. The files are automatically generated and updated by the workflow. Once the PR is merged, the
 > translations can take place on [CrowdIn][crowdin-url]. Once the translations are
-> complete, a PR will be made to merge the translations into Sunshine.
+> complete, a PR will be made to merge the translations into ArtLight Server.
 
 ### Testing
 

@@ -1,6 +1,6 @@
 # API
 
-Sunshine has a RESTful API which can be used to interact with the service.
+ArtLight Server has a RESTful API which can be used to interact with the service.
 
 Unless otherwise specified, authentication is required for all API calls. You can authenticate using either basic authentication with the admin username and password, or with an API token that provides fine-grained access control.
 
@@ -30,9 +30,9 @@ curl -u user:pass -H "X-CSRF-Token: your_token_here" \
 
 ## API Token Security Model and Best Practices
 
-Sunshine API tokens are designed for security and fine-grained access control:
+ArtLight Server API tokens are designed for security and fine-grained access control:
 
-- **Token Creation:** When you generate an API token, Sunshine creates a secure random 32-character string. Only a cryptographic hash of the token is stored on disk and in memory. The raw token is shown to you only once—immediately after creation. If you lose it, you must generate a new token.
+- **Token Creation:** When you generate an API token, ArtLight Server creates a secure random 32-character string. Only a cryptographic hash of the token is stored on disk and in memory. The raw token is shown to you only once—immediately after creation. If you lose it, you must generate a new token.
 - **Security:** Because only the hash is stored, even if the state file is compromised, attackers cannot recover the original token value.
 - **Principle of Least Privilege:** When creating a token, always grant access only to the specific API paths and HTTP methods required for your use case. Avoid giving broad or unnecessary permissions.
 - **Token Management:**
@@ -88,7 +88,7 @@ See below for details on token endpoints and usage examples.
 ## GET /api/logs
 @copydoc confighttp::getLogs()
 
-- Returns the most recent session log from the managed `logs` folder (Sunshine keeps the last 30 sessions, with each session capped at about 10 MiB by rolling ~2MB log files).
+- Returns the most recent session log from the managed `logs` folder (ArtLight Server keeps the last 30 sessions, with each session capped at about 10 MiB by rolling ~2MB log files).
 
 ## GET /api/logs/export
 Downloads a ZIP archive containing logs useful for troubleshooting (Windows only).
@@ -151,12 +151,12 @@ The token grants access only to the specified paths and HTTP methods.
 
 ### Managing Remembered Sessions
 
-- **Stay signed in:** Include an optional `"remember_me": true` flag in the JSON body when calling `POST /api/auth/login`. Sunshine will issue a hardened `__Host-` cookie with an extended lifetime.
+- **Stay signed in:** Include an optional `"remember_me": true` flag in the JSON body when calling `POST /api/auth/login`. ArtLight Server will issue a hardened `__Host-` cookie with an extended lifetime.
 - **Refresh silently:** `POST /api/auth/refresh` rotates the short-lived session token using the HttpOnly refresh cookie. The response sets fresh cookies and also returns the new access token in the JSON payload.
-- **List active sessions:** `GET /api/auth/sessions` returns all devices that currently hold a valid Sunshine session cookie. Each entry includes creation time, last activity, expiry, remote address, and whether it was a “remember me” session.
+- **List active sessions:** `GET /api/auth/sessions` returns all devices that currently hold a valid ArtLight Server session cookie. Each entry includes creation time, last activity, expiry, remote address, and whether it was a “remember me” session.
 - **Revoke a specific session:** `DELETE /api/auth/sessions/{hash}` immediately removes the matching session from disk. If the current device is revoked, its cookie is cleared and the browser must sign in again.
 
-All session metadata is stored hashed and persisted in the same state file as API tokens so Sunshine can validate cookies across service restarts.
+All session metadata is stored hashed and persisted in the same state file as API tokens so ArtLight Server can validate cookies across service restarts.
 
 ## GET /api/vigembus/status
 @copydoc confighttp::getViGEmBusStatus()

@@ -123,7 +123,7 @@ sudo pacman -R artlight
 ### macOS
 
 > [!IMPORTANT]
-> Sunshine on macOS is experimental. Gamepads do not work.
+> ArtLight Server on macOS is experimental. Gamepads do not work.
 
 #### DMG
 
@@ -141,7 +141,7 @@ sudo pacman -R artlight
 4. Eject the disk image.
 
 ##### Uninstall
-1. Quit Sunshine if it is running.
+1. Quit ArtLight Server if it is running.
 2. Open `Finder`, navigate to `Applications`, and drag `Sunshine.app` to the Trash.
 
 #### Homebrew
@@ -166,7 +166,7 @@ brew uninstall sunshine
 ### Windows
 
 > [!NOTE]
-> Sunshine supports ARM64 on Windows; however, this should be considered experimental. This version does not properly
+> ArtLight Server supports ARM64 on Windows; however, this should be considered experimental. This version does not properly
 > support GPU scheduling and any hardware acceleration.
 
 #### Installer (recommended)
@@ -195,7 +195,7 @@ brew uninstall sunshine
 > You should carefully select or unselect the options you want to install. Do not blindly install or
 > enable features.
 
-To uninstall, find Sunshine in the list <a href="ms-settings:installed-apps">here</a> and select "Uninstall" from the
+To uninstall, find ArtLight Server in the list <a href="ms-settings:installed-apps">here</a> and select "Uninstall" from the
 overflow menu. Different versions of Windows may provide slightly different steps for uninstall.
 
 #### Standalone (lite version)
@@ -287,9 +287,9 @@ There is no per-user unit on Linux. Never enable `app-io.github.onaiaku.ArtLight
 already carries the capabilities it needs.
 
 ### macOS
-The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
+The first time you start ArtLight Server, you will be asked to grant access to screen recording and your microphone.
 
-Sunshine supports native system audio capture on macOS 14.0 (Sonoma) and newer via Apple’s Audio Tap API.
+ArtLight Server supports native system audio capture on macOS 14.0 (Sonoma) and newer via Apple’s Audio Tap API.
 To use it, simply leave the **Audio Sink** setting blank.
 
 If you prefer to manage your own loopback device, you can still use
@@ -305,7 +305,7 @@ and enter its device name in the [audio_sink](configuration.md#audio_sink) field
 
 ### Windows
 In order for virtual gamepads to work, you must install ViGEmBus. You can do this from the troubleshooting tab
-in the web UI, as long as you are running Sunshine as a service or as an administrator. After installation, it is
+in the web UI, as long as you are running ArtLight Server as a service or as an administrator. After installation, it is
 recommended to restart your computer.
 
 ![ViGEmBus Installation](images/vigembus-installer.png)
@@ -342,7 +342,7 @@ the stream starts. The managed virtual display replaces dummy plugs.
 
 ### Configuration
 
-Sunshine is configured via the web ui, which is available on [https://localhost:47990](https://localhost:47990)
+ArtLight Server is configured via the web ui, which is available on [https://localhost:47990](https://localhost:47990)
 by default. You may replace *localhost* with your internal ip address.
 
 > [!NOTE]
@@ -358,7 +358,7 @@ by default. You may replace *localhost* with your internal ip address.
    ![Applications](images/applications.png)
 3. Adjust any configuration settings as needed. You can search for options in the search bar.
    ![Configuration](images/configuration-search.png)
-4. Find Moonlight clients and other tools for Sunshine in the `Featured Apps` tab.
+4. Find Moonlight clients and other tools for ArtLight Server in the `Featured Apps` tab.
    ![Featured Apps](images/featured-apps.png)
 5. In Moonlight, you may need to add the PC manually.
 6. When Moonlight requests for you insert the pin:
@@ -392,11 +392,11 @@ All shortcuts start with `Ctrl+Alt+Shift`, just like Moonlight.
 * You can use Environment variables in place of values
 * `$(HOME)` will be replaced by the value of `$HOME`
 * `$$` will be replaced by `$`, e.g. `$$(HOME)` will be become `$(HOME)`
-* `env` - Adds or overwrites Environment variables for the commands/applications run by Sunshine.
+* `env` - Adds or overwrites Environment variables for the commands/applications run by ArtLight Server.
   This can only be changed by modifying the `apps.json` file directly.
 
 ### Considerations
-* On Windows, Sunshine uses the Desktop Duplication API which only supports capturing from the GPU used for display.
+* On Windows, ArtLight Server uses the Desktop Duplication API which only supports capturing from the GPU used for display.
   If you want to capture and encode on the eGPU, connect a display or HDMI dummy display dongle to it and run the games
   on that display.
 * When an application is started, if there is an application already running, it will be terminated.
@@ -416,7 +416,7 @@ All shortcuts start with `Ctrl+Alt+Shift`, just like Moonlight.
     `/dev/uinput` and `/dev/uhid`; check `journalctl -u artlight.service` for uinput errors.
   * On FreeBSD, add the user running ArtLight to the `input` group.
 
-* The FreeBSD version of Sunshine is missing some features that are present on Linux.
+* The FreeBSD version of ArtLight Server is missing some features that are present on Linux.
   The following are known limitations.
 
   * Only X11 and Wayland capture are supported
@@ -514,7 +514,7 @@ Guides are available [here](guides.md).
 Tutorials and Guides are community generated. Want to contribute? Reach out to us on our discord server.}
 
 ### Version Status Messages
-The Web UI provides detailed context about how your locally built Sunshine instance relates to the latest public release:
+The Web UI provides detailed context about how your locally built ArtLight Server instance relates to the latest public release:
 
 * Ahead: Your build's commit is ahead of the latest release tag (extra commits not yet part of a release). You will not be prompted to update.
 * Behind: Your build is a number of commits behind the latest release; an update is recommended.
