@@ -26,7 +26,7 @@ The installer checks the requirements above, installs the kernel headers for you
 installs the package, opens the firewall if one is active, and tells you whether a reboot is needed.
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/onaiaku/ArtLight/vibe-test/scripts/linux_install.sh
+curl -fsSLO https://raw.githubusercontent.com/onaiaku/ArtLight/main/server/scripts/linux_install.sh
 less linux_install.sh            # optional: read what it does
 sudo bash linux_install.sh
 ```
@@ -66,12 +66,12 @@ available if pacman fails. Other packages' files and symlinks are not overwritte
 Import and locally trust the onaiaku repository key:
 
 ```bash
-curl -fsSLo /tmp/nonary-artlight.gpg \
-  https://nonary.github.io/ArtLight/arch/x86_64/nonary-artlight.gpg
-curl -fsSLo /tmp/nonary-artlight-fingerprint.txt \
-  https://nonary.github.io/ArtLight/arch/x86_64/nonary-artlight-fingerprint.txt
-sudo pacman-key --add /tmp/nonary-artlight.gpg
-sudo pacman-key --lsign-key "$(tr -d '[:space:]' </tmp/nonary-artlight-fingerprint.txt)"
+curl -fsSLo /tmp/onaiaku-artlight.gpg \
+  https://onaiaku.github.io/ArtLight/arch/x86_64/onaiaku-artlight.gpg
+curl -fsSLo /tmp/onaiaku-artlight-fingerprint.txt \
+  https://onaiaku.github.io/ArtLight/arch/x86_64/onaiaku-artlight-fingerprint.txt
+sudo pacman-key --add /tmp/onaiaku-artlight.gpg
+sudo pacman-key --lsign-key "$(tr -d '[:space:]' </tmp/onaiaku-artlight-fingerprint.txt)"
 ```
 
 Add the repository and install:
@@ -80,7 +80,7 @@ Add the repository and install:
 sudo install -Dm644 /dev/stdin /etc/pacman.d/artlight.conf <<'EOF'
 [artlight]
 SigLevel = Required
-Server = https://nonary.github.io/ArtLight/arch/x86_64
+Server = https://onaiaku.github.io/ArtLight/arch/x86_64
 EOF
 grep -qxF 'Include = /etc/pacman.d/artlight.conf' /etc/pacman.conf || \
   printf '\nInclude = /etc/pacman.d/artlight.conf\n' | sudo tee -a /etc/pacman.conf

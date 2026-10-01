@@ -17,9 +17,8 @@
 
   <url type="homepage">@PROJECT_HOMEPAGE_URL@</url>
   <url type="bugtracker">https://github.com/onaiaku/ArtLight/issues</url>
-  <url type="faq">https://github.com/onaiaku/ArtLight/blob/master/docs/troubleshooting.md</url>
-  <url type="help">https://github.com/onaiaku/ArtLight/tree/master/docs</url>
-  <url type="contact">https://github.com/onaiaku/ArtLight/discussions</url>
+  <url type="faq">https://github.com/onaiaku/ArtLight/blob/main/server/docs/troubleshooting.md</url>
+  <url type="help">https://github.com/onaiaku/ArtLight/tree/main/server/docs</url>
 
   <description>
     <p>@PROJECT_LONG_DESCRIPTION@</p>
@@ -40,12 +39,12 @@
     </release>
   </releases>
 
-  <developer id="io.github.nonary">
+  <developer id="io.github.onaiaku">
     <name>onaiaku</name>
   </developer>
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/onaiaku/ArtLight/master/gh-pages-template/assets/img/screenshots/01-sunshine-welcome-page.png</image>
+      <image>https://raw.githubusercontent.com/onaiaku/ArtLight/main/server/gh-pages-template/assets/img/screenshots/01-sunshine-welcome-page.png</image>
       <caption>ArtLight welcome page</caption>
     </screenshot>
   </screenshots>

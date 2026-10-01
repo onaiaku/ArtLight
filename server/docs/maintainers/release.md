@@ -58,7 +58,7 @@ For a non-draft release, run **Publish signed Arch repository** with the exact v
 `release_tag`. The workflow downloads the release's single validated `artlight` package, checks
 its embedded package name, version, and architecture, signs it, updates the signed `artlight`
 database on the `arch-repo` branch, and pushes that branch. The Pages workflow then deploys it at
-`https://nonary.github.io/ArtLight/arch/x86_64`.
+`https://onaiaku.github.io/ArtLight/arch/x86_64`.
 
 The `arch-repository` GitHub environment must contain:
 

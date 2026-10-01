@@ -307,9 +307,9 @@ repo_is_available() {
 configure_pacman_repo() {
   local keyfile fingerprint
   log 'Importing the onaiaku repository signing key'
-  keyfile="${workdir}/nonary-artlight.gpg"
-  curl -fsSL --max-time 60 -o "$keyfile" "${PACMAN_REPO_SERVER}/nonary-artlight.gpg"
-  fingerprint=$(curl -fsSL --max-time 60 "${PACMAN_REPO_SERVER}/nonary-artlight-fingerprint.txt" | tr -d '[:space:]')
+  keyfile="${workdir}/onaiaku-artlight.gpg"
+  curl -fsSL --max-time 60 -o "$keyfile" "${PACMAN_REPO_SERVER}/onaiaku-artlight.gpg"
+  fingerprint=$(curl -fsSL --max-time 60 "${PACMAN_REPO_SERVER}/onaiaku-artlight-fingerprint.txt" | tr -d '[:space:]')
   [[ "$fingerprint" =~ ^[0-9A-Fa-f]{40}$ ]] || die 'the published key fingerprint is malformed; refusing to trust it'
   pacman-key --add "$keyfile"
   pacman-key --lsign-key "$fingerprint"

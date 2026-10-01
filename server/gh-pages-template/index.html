@@ -36,21 +36,21 @@
 
   <h2>Arch Linux and CachyOS</h2>
   <p>ArtLight's Linux beta is built and tested on CachyOS with KDE Plasma 6 on Wayland. The quickest path is the installer script, which checks the requirements, installs kernel headers and the package, and opens the firewall:</p>
-  <pre><code>curl -fsSLO https://raw.githubusercontent.com/onaiaku/ArtLight/master/scripts/linux_install.sh
+  <pre><code>curl -fsSLO https://raw.githubusercontent.com/onaiaku/ArtLight/main/server/scripts/linux_install.sh
 sudo bash linux_install.sh</code></pre>
-  <p>The full guide, including manual steps and troubleshooting, is at <a href="https://github.com/onaiaku/ArtLight/blob/master/docs/linux/install.md">docs/linux/install.md</a>. To add the repository by hand, import and locally trust the repository signing key once:</p>
-  <pre><code>curl -fsSLo /tmp/nonary-artlight.gpg \
-  https://nonary.github.io/ArtLight/arch/x86_64/nonary-artlight.gpg
-curl -fsSLo /tmp/nonary-artlight-fingerprint.txt \
-  https://nonary.github.io/ArtLight/arch/x86_64/nonary-artlight-fingerprint.txt
-sudo pacman-key --add /tmp/nonary-artlight.gpg
-sudo pacman-key --lsign-key "$(tr -d '[:space:]' &lt;/tmp/nonary-artlight-fingerprint.txt)"</code></pre>
+  <p>The full guide, including manual steps and troubleshooting, is at <a href="https://github.com/onaiaku/ArtLight/blob/main/server/docs/linux/install.md">docs/linux/install.md</a>. To add the repository by hand, import and locally trust the repository signing key once:</p>
+  <pre><code>curl -fsSLo /tmp/onaiaku-artlight.gpg \
+  https://onaiaku.github.io/ArtLight/arch/x86_64/onaiaku-artlight.gpg
+curl -fsSLo /tmp/onaiaku-artlight-fingerprint.txt \
+  https://onaiaku.github.io/ArtLight/arch/x86_64/onaiaku-artlight-fingerprint.txt
+sudo pacman-key --add /tmp/onaiaku-artlight.gpg
+sudo pacman-key --lsign-key "$(tr -d '[:space:]' &lt;/tmp/onaiaku-artlight-fingerprint.txt)"</code></pre>
 
   <p>Add the signed repository and install ArtLight:</p>
   <pre><code>sudo install -Dm644 /dev/stdin /etc/pacman.d/artlight.conf &lt;&lt;'EOF'
 [artlight]
 SigLevel = Required
-Server = https://nonary.github.io/ArtLight/arch/x86_64
+Server = https://onaiaku.github.io/ArtLight/arch/x86_64
 EOF
 grep -qxF 'Include = /etc/pacman.d/artlight.conf' /etc/pacman.conf || \
   printf '\nInclude = /etc/pacman.d/artlight.conf\n' | sudo tee -a /etc/pacman.conf
