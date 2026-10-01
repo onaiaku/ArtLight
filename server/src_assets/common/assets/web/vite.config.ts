@@ -60,6 +60,7 @@ export default defineConfig({
   plugins: [vue(), bundledChangelogPlugin(findRepoRoot(CONFIG_DIR))],
   base: '/v2/',
   resolve: {
+    dedupe: ['vue', 'vue-i18n'],
     alias: {
       '@': fileURLToPath(new URL('.', import.meta.url)),
     },
