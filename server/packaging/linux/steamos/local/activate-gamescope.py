@@ -15,8 +15,8 @@ HERE = pathlib.Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('gamescope_wrapper', HERE / 'gamescope-wrapper.py')
 wrapper = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(wrapper)
-DROPIN_NAME = '90-vibepollo-local-hdr.conf'
-INSTALL_PARENT = pathlib.Path('/opt/vibepollo-gamescope/local')
+DROPIN_NAME = '90-artlight-local-hdr.conf'
+INSTALL_PARENT = pathlib.Path('/opt/artlight-gamescope/local')
 
 
 def files(root):
@@ -144,13 +144,13 @@ def activate_user(args):
         raise RuntimeError('Installed path differs from its compiled library search path')
     config = pathlib.Path(os.environ.get('XDG_CONFIG_HOME', pathlib.Path.home() / '.config'))
     dropin = config / 'systemd/user/gamescope-session.service.d' / DROPIN_NAME
-    contents = ('# Local Vibepollo HDR compositor; effective on the next Gaming Mode entry.\n'
-                '[Service]\nExecStart=\nExecStart=' + str(root / 'bin/gamescope') + ' --vibepollo-session\n')
+    contents = ('# Local ArtLight HDR compositor; effective on the next Gaming Mode entry.\n'
+                '[Service]\nExecStart=\nExecStart=' + str(root / 'bin/gamescope') + ' --artlight-session\n')
     if dropin.exists() and dropin.read_text() != contents:
         raise RuntimeError(f'Refusing to overwrite a different existing drop-in: {dropin}')
     dropin.parent.mkdir(parents=True, exist_ok=True)
     previous = dropin.read_bytes() if dropin.exists() else None
-    fd, name = tempfile.mkstemp(prefix='.vibepollo-', dir=dropin.parent)
+    fd, name = tempfile.mkstemp(prefix='.artlight-', dir=dropin.parent)
     temporary = pathlib.Path(name)
     try:
         with os.fdopen(fd, 'w') as stream:
@@ -177,7 +177,7 @@ def rollback_user(args):
     config = pathlib.Path(os.environ.get('XDG_CONFIG_HOME', pathlib.Path.home() / '.config'))
     dropin = config / 'systemd/user/gamescope-session.service.d' / DROPIN_NAME
     if dropin.exists():
-        if not dropin.read_text().startswith('# Local Vibepollo HDR compositor;'):
+        if not dropin.read_text().startswith('# Local ArtLight HDR compositor;'):
             raise RuntimeError(f'Refusing to remove an unrecognized drop-in: {dropin}')
         dropin.unlink()
     subprocess.run(['systemctl', '--user', 'daemon-reload'], check=True)

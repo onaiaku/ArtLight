@@ -1,0 +1,12 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = artlight
+
+[Action]
+Description = Safely stopping ArtLight before package replacement
+When = PreTransaction
+Exec = /usr/libexec/vibeshine/artlight-package-preflight
+AbortOnFail

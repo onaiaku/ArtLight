@@ -241,11 +241,11 @@ namespace platf {
       client_t client {vigem_alloc()};
       VIGEM_ERROR status = vigem_connect(client.get());
       if (!VIGEM_SUCCESS(status)) {
-        // Only a problem if nothing else can provide a gamepad. With Vibepollo's own driver
+        // Only a problem if nothing else can provide a gamepad. With ArtLight's own driver
         // present, ViGEmBus is simply not in use, and warning about it sends people chasing a
         // dependency they no longer need.
         if (vhf_gamepad_available) {
-          BOOST_LOG(info) << "ViGEmBus is not installed; the Vibepollo virtual gamepad driver is available."sv;
+          BOOST_LOG(info) << "ViGEmBus is not installed; the ArtLight virtual gamepad driver is available."sv;
         } else {
           BOOST_LOG(warning) << "ViGEmBus is not installed or running; gamepad emulation will be unavailable until installed."sv;
         }
@@ -516,7 +516,7 @@ namespace platf {
   };
 
   /**
-   * @brief Reports whether Vibepollo's own virtual gamepad driver is the configured backend.
+   * @brief Reports whether ArtLight's own virtual gamepad driver is the configured backend.
    * @return `true` when the VHF driver should be used instead of ViGEmBus.
    */
   static bool vhf_gamepad_selected() {
@@ -1343,7 +1343,7 @@ namespace platf {
       const auto desired = vhf_desired_profile(metadata);
 
       if (vhf_available) {
-        BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will use the Vibepollo virtual gamepad driver"sv
+        BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will use the ArtLight virtual gamepad driver"sv
                         << (automatic_vhf_fallback ? " (automatic fallback)"sv : ""sv);
 
         if (raw->vhf->alloc(id, feedback_queue, desired) == 0) {
@@ -1353,7 +1353,7 @@ namespace platf {
       }
 
       if (automatic_vhf_fallback) {
-        BOOST_LOG(error) << "Gamepad " << id.globalIndex << " could not be created on the Vibepollo virtual gamepad driver"sv;
+        BOOST_LOG(error) << "Gamepad " << id.globalIndex << " could not be created on the ArtLight virtual gamepad driver"sv;
         return -1;
       }
 
@@ -1361,12 +1361,12 @@ namespace platf {
       // ViGEmBus. Otherwise a failed Switch Pro allocation makes the client override appear to
       // win even though the user selected a specific VHF profile.
       if (desired != vhf_profile_e::automatic) {
-        BOOST_LOG(error) << "Gamepad " << id.globalIndex << " could not create the requested Vibepollo controller profile; refusing to substitute another profile"sv;
+        BOOST_LOG(error) << "Gamepad " << id.globalIndex << " could not create the requested ArtLight controller profile; refusing to substitute another profile"sv;
         return -1;
       }
 
       // The generic VHF option is allowed to fall back when the driver cannot create a device.
-      BOOST_LOG(error) << "Gamepad " << id.globalIndex << " could not be created on the Vibepollo virtual gamepad driver; falling back to ViGEmBus"sv;
+      BOOST_LOG(error) << "Gamepad " << id.globalIndex << " could not be created on the ArtLight virtual gamepad driver; falling back to ViGEmBus"sv;
     }
 
     if (!raw->vigem) {

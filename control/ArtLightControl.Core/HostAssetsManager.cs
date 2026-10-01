@@ -6,7 +6,7 @@ namespace ArtLightControl
 {
     /// <summary>
     /// Swaps the default tile PNGs (desktop.png / steam.png) in the streaming
-    /// server's assets folder (Sunshine / Apollo / Vibeshine / Vibepollo) with
+    /// server's assets folder (Sunshine / Apollo / Vibeshine / ArtLight) with
     /// the ArtLightControl-bundled replacements, keeping the originals as
     /// desktop_backup.png / steam_backup.png so the change is fully reversible.
     /// All writes go through ArtLightControlService (LocalSystem) because the host

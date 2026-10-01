@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=@PROJECT_NAME@
+Exec=artlight
+Terminal=true
+Type=Application
+NoDisplay=true

@@ -40,12 +40,12 @@ run(['git', 'submodule', 'update', '--init', '--recursive', '--depth', '1', '--'
      'subprojects/wlroots', 'subprojects/libliftoff', 'subprojects/vkroots', 'src/reshade', 'thirdparty/SPIRV-Headers'], cwd=source)
 run(['git', 'apply', '--check', str(patch)], cwd=source)
 run(['git', 'apply', str(patch)], cwd=source)
-run(['meson', 'setup', str(build), str(source), '--buildtype=release', '--prefix=/opt/vibepollo-gamescope',
+run(['meson', 'setup', str(build), str(source), '--buildtype=release', '--prefix=/opt/artlight-gamescope',
      '-Denable_openvr_support=false', '-Dpipewire=enabled', '-Drt_cap=enabled', '-Ddrm_backend=enabled',
      '-Dsdl2_backend=enabled', '-Dinput_emulation=enabled', '-Davif_screenshots=enabled',
      '-Dwlroots:werror=false'] + args.meson_option)
 run(['meson', 'compile', '-C', str(build), '-j', str(args.jobs)])
 run(['meson', 'install', '-C', str(build), '--no-rebuild'], env={**os.environ, 'DESTDIR': str(stage)})
-shutil.copytree(source / 'scripts', stage / 'opt/vibepollo-gamescope/share/gamescope/scripts', dirs_exist_ok=True)
+shutil.copytree(source / 'scripts', stage / 'opt/artlight-gamescope/share/gamescope/scripts', dirs_exist_ok=True)
 (stage / 'source-lock.json').write_text(json.dumps(lock, indent=2) + '\n')
 print(f'Built and staged {lock["tag"]} + HDR capture profile 1 at {stage}')

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install a prebuilt Vibepollo payload without modifying SteamOS's read-only OS.
+# Install a prebuilt ArtLight payload without modifying SteamOS's read-only OS.
 # SPDX-License-Identifier: GPL-3.0-only
 
 set -euo pipefail
@@ -8,7 +8,7 @@ usage() {
   cat <<'EOF'
 Usage: install-user.sh --payload DIR [--no-start | --no-enable]
 
-DIR must contain an executable bin/vibepollo and any runtime assets beside it.
+DIR must contain an executable bin/artlight and any runtime assets beside it.
 The payload is copied into the invoking user's XDG data directory and activated
 atomically. This script must not be run with sudo.
 --no-start enables the service without starting it.
@@ -52,22 +52,22 @@ done
 
 [[ $(id -u) -ne 0 ]] || die "run this as the SteamOS desktop user, not root"
 [[ -n "$payload" && -d "$payload" && ! -L "$payload" ]] || die "--payload must name a real directory"
-[[ -f "$payload/bin/vibepollo" && -x "$payload/bin/vibepollo" && ! -L "$payload/bin/vibepollo" ]] || \
-  die "payload has no regular executable bin/vibepollo"
+[[ -f "$payload/bin/artlight" && -x "$payload/bin/artlight" && ! -L "$payload/bin/artlight" ]] || \
+  die "payload has no regular executable bin/artlight"
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 data_home=${XDG_DATA_HOME:-"$HOME/.local/share"}
 config_home=${XDG_CONFIG_HOME:-"$HOME/.config"}
-install_root="$data_home/vibepollo-steamos"
+install_root="$data_home/artlight-steamos"
 release_root="$install_root/releases"
 unit_dir="$config_home/systemd/user"
-launcher="$HOME/.local/bin/vibepollo-steamos-session"
+launcher="$HOME/.local/bin/artlight-steamos-session"
 
 [[ "$HOME" == /* && "$data_home" == /* && "$config_home" == /* ]] || \
   die "HOME and XDG base directories must be absolute paths"
 
 install -d -- "$data_home"
-exec 9> "$data_home/.vibepollo-steamos.lock"
+exec 9> "$data_home/.artlight-steamos.lock"
 flock -n 9 || die "another install or uninstall is running"
 
 install -d -m 0700 -- "$release_root"
@@ -77,7 +77,7 @@ previous=$(readlink -- "$install_root/current" || true)
 activated=no
 [[ ! -e "$install_root/current" || -L "$install_root/current" ]] || die "current must be a release symlink"
 [[ ! -e "$launcher" ]] || cp -a -- "$launcher" "$transaction/launcher"
-[[ ! -e "$unit_dir/vibepollo-steamos.service" ]] || cp -a -- "$unit_dir/vibepollo-steamos.service" "$transaction/unit"
+[[ ! -e "$unit_dir/artlight-steamos.service" ]] || cp -a -- "$unit_dir/artlight-steamos.service" "$transaction/unit"
 cleanup() {
   local status=$?
   if [[ "$status" -ne 0 && "$activated" == yes ]]; then
@@ -94,14 +94,14 @@ cleanup() {
       rm -f -- "$launcher"
     fi
     if [[ -e "$transaction/unit" ]]; then
-      cp -a -- "$transaction/unit" "$unit_dir/vibepollo-steamos.service"
+      cp -a -- "$transaction/unit" "$unit_dir/artlight-steamos.service"
     else
-      systemctl --user disable vibepollo-steamos.service 2>/dev/null || true
-      rm -f -- "$unit_dir/vibepollo-steamos.service"
+      systemctl --user disable artlight-steamos.service 2>/dev/null || true
+      rm -f -- "$unit_dir/artlight-steamos.service"
     fi
     systemctl --user daemon-reload || true
     if [[ "$start" == yes && -n "$previous" ]]; then
-      systemctl --user restart vibepollo-steamos.service || true
+      systemctl --user restart artlight-steamos.service || true
     fi
   fi
   if [[ -n ${stage:-} && -d "$stage" ]]; then
@@ -117,12 +117,12 @@ trap 'exit 130' INT
 trap 'exit 143' TERM HUP
 
 cp -a -- "$payload"/. "$stage"/
-[[ -f "$stage/bin/vibepollo" && -x "$stage/bin/vibepollo" && ! -L "$stage/bin/vibepollo" ]] || \
+[[ -f "$stage/bin/artlight" && -x "$stage/bin/artlight" && ! -L "$stage/bin/artlight" ]] || \
   die "copied payload failed validation"
 for asset in apps.json web/index.html web/v2/index.html; do
-  [[ -f "$stage/share/vibepollo/$asset" ]] || die "payload is missing share/vibepollo/$asset"
+  [[ -f "$stage/share/artlight/$asset" ]] || die "payload is missing share/artlight/$asset"
 done
-if ! "$stage/bin/vibepollo" --help > "$transaction/preflight.log" 2>&1; then
+if ! "$stage/bin/artlight" --help > "$transaction/preflight.log" 2>&1; then
   head -c 4096 "$transaction/preflight.log" >&2
   die "payload cannot run on this SteamOS version; the previous installation was preserved"
 fi
@@ -144,19 +144,19 @@ activated=yes
   printf '#!/usr/bin/env bash\n'
   printf 'export XDG_DATA_HOME=%q\n' "$data_home"
   printf 'export XDG_CONFIG_HOME=%q\n' "$config_home"
-  tail -n +2 -- "$script_dir/vibepollo-steamos-session"
+  tail -n +2 -- "$script_dir/artlight-steamos-session"
 } > "$transaction/new-launcher"
 install -Dm755 -- "$transaction/new-launcher" "$launcher"
-install -Dm644 -- "$script_dir/vibepollo-steamos.service" \
-  "$unit_dir/vibepollo-steamos.service"
+install -Dm644 -- "$script_dir/artlight-steamos.service" \
+  "$unit_dir/artlight-steamos.service"
 
 systemctl --user daemon-reload
 if [[ "$start" == yes ]]; then
-  systemctl --user enable vibepollo-steamos.service
+  systemctl --user enable artlight-steamos.service
   # enable --now does not restart an already running host on upgrade.
-  systemctl --user restart vibepollo-steamos.service
+  systemctl --user restart artlight-steamos.service
 elif [[ "$enable" == yes ]]; then
-  systemctl --user enable vibepollo-steamos.service
+  systemctl --user enable artlight-steamos.service
 fi
 
-printf 'Installed Vibepollo for %s. Previous release directories were preserved.\n' "${USER:-$(id -un)}"
+printf 'Installed ArtLight for %s. Previous release directories were preserved.\n' "${USER:-$(id -un)}"

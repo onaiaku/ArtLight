@@ -24,7 +24,7 @@ namespace ArtLightControl
     /// (App.xaml.cs), and the client asks with CLIPGET when that number moves.</para>
     ///
     /// <para>⚠️ Nothing here logs clipboard CONTENT, at any level — only lengths and outcomes.
-    /// Apollo and Vibepollo log the payload of their clipboard packet at info level; a password
+    /// Apollo and ArtLight log the payload of their clipboard packet at info level; a password
     /// sent that way ends up in the server log.</para>
     /// </summary>
     public sealed class ClipboardShare : IDisposable

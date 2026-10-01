@@ -957,7 +957,7 @@ namespace config {
       0,  // virtual_display_scale_percent
       0,  // virtual_display_permanent_count
       false,  // virtual_display_permanent_count_configured
-      {},  // virtual_display_outputs (Linux; empty auto-discovers Vibepollo VKMS connectors)
+      {},  // virtual_display_outputs (Linux; empty auto-discovers ArtLight VKMS connectors)
       {},  // snapshot_exclude_devices
       {},  // mode_remapping
       {false},  // wa
@@ -1069,8 +1069,8 @@ namespace config {
 
   namespace {
     #ifdef __linux__
-    constexpr std::string_view default_config_filename = "vibepollo.conf";
-    constexpr std::string_view default_log_filename = "vibepollo.log";
+    constexpr std::string_view default_config_filename = "artlight.conf";
+    constexpr std::string_view default_log_filename = "artlight.log";
     #else
     constexpr std::string_view default_config_filename = "sunshine.conf";
     constexpr std::string_view default_log_filename = "sunshine.log";

@@ -18,14 +18,14 @@ endif()
 set(PROJECT_LICENSE "GPL-3.0-only")
 
 # PROJECT_FQDN names the packaged desktop identity. Every file in packaging/linux/
-# is named for it -- io.github.Nonary.vibepollo.desktop, .terminal.desktop,
-# .metainfo.xml, .kwin.desktop.in, and app-io.github.Nonary.vibepollo.service.in --
+# is named for it -- io.github.onaiaku.ArtLight.desktop, .terminal.desktop,
+# .metainfo.xml, .kwin.desktop.in, and app-io.github.onaiaku.ArtLight.service.in --
 # and special_package_configuration.cmake builds those paths from this value, so it
 # must match the filenames or the Linux configure fails outright. ArtLight's own
 # reverse-DNS identity belongs to the deliberate Linux rename, which renames these
 # files and this value together. (Windows does not use PROJECT_FQDN: the Windows
 # identity is WINDOWS_APP_USER_MODEL_ID below.)
-set(PROJECT_FQDN "io.github.Nonary.vibepollo")
+set(PROJECT_FQDN "io.github.onaiaku.ArtLight")
 set(WINDOWS_APP_USER_MODEL_ID "onaiaku.ArtLightServer")
 
 set(PROJECT_BRIEF_DESCRIPTION "GameStream host for Artemis")  # must be <= 35 characters
@@ -79,10 +79,10 @@ include(${CMAKE_MODULE_PATH}/dependencies/libvirtualdisplay_source.cmake)
 # added. Keep it in the cache so libvirtualdisplay sees the same decision.
 if(SUNSHINE_BUILD_STEAMOS)
     set(BUILD_VIBESHINE_KWIN_GPU_BRIDGE OFF CACHE BOOL
-            "Build the Vibepollo KWin GPU-association bridge" FORCE)
+            "Build the ArtLight KWin GPU-association bridge" FORCE)
 else()
     set(BUILD_VIBESHINE_KWIN_GPU_BRIDGE ON CACHE BOOL
-        "Build the Vibepollo KWin GPU-association bridge" FORCE)
+        "Build the ArtLight KWin GPU-association bridge" FORCE)
 endif()
 
 # configure special package files, such as sunshine.desktop, Flatpak manifest, Portfile , etc.

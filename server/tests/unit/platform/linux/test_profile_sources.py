@@ -10,7 +10,7 @@ with tempfile.TemporaryDirectory() as temporary:
     base = Path(temporary)
     harness = base / 'test.c'
     harness.write_text('#define main importer_main\n#include ' +
-                       json.dumps(str(ROOT / 'packaging/linux/vibepollo-profile-import.c')) +
+                       json.dumps(str(ROOT / 'packaging/linux/artlight-profile-import.c')) +
                        '\n#undef main\n' + r'''
 int main(int argc, char **argv) {
   int home = open(argv[1], O_RDONLY | O_DIRECTORY);

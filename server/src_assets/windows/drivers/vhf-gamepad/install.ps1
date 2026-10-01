@@ -553,7 +553,7 @@ function Uninstall-DriverPackage {
         Write-DriverMessage 'VIRTUAL_GAMEPAD_RESTART_REQUIRED'
         return $rebootExitCode
     }
-    Write-DriverMessage 'Removed only Vibepollo-managed VHF source devices.'
+    Write-DriverMessage 'Removed only ArtLight-managed VHF source devices.'
     return 0
 }
 

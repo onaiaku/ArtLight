@@ -31,12 +31,12 @@ TEST(BoostProcessShim, ConvertedEnvironmentOwnsItsEntries) {
 
 TEST(BoostProcessShim, PrivateVaapiDriverIsAbsentFromLaunchedApplications) {
   boost_process_shim::environment environment;
-  environment["VIBEPOLLO_PRIVATE_VAAPI"] = "1";
-  environment["LIBVA_DRIVERS_PATH"] = "/opt/vibepollo/private-driver";
+  environment["ARTLIGHT_PRIVATE_VAAPI"] = "1";
+  environment["LIBVA_DRIVERS_PATH"] = "/opt/artlight/private-driver";
   environment["LIBVA_DRIVER_NAME"] = "radeonsi";
   environment["GAME_OPTION"] = "preserved";
   auto child_environment = platf::linux_private_vaapi::child_environment(
-    environment, "1", "/opt/vibepollo/private-driver", "radeonsi"
+    environment, "1", "/opt/artlight/private-driver", "radeonsi"
   ).to_process_environment();
 
   const auto close_file = [](FILE *file) { std::fclose(file); };
@@ -61,11 +61,11 @@ TEST(BoostProcessShim, PrivateVaapiDriverIsAbsentFromLaunchedApplications) {
 
 TEST(BoostProcessShim, PrivateVaapiFilteringPreservesApplicationOverridesAndRequiresExactMarker) {
   boost_process_shim::environment environment;
-  environment["VIBEPOLLO_PRIVATE_VAAPI"] = "1";
+  environment["ARTLIGHT_PRIVATE_VAAPI"] = "1";
   environment["LIBVA_DRIVERS_PATH"] = "/game/drivers";
   environment["LIBVA_DRIVER_NAME"] = "game-driver";
   const auto child_environment = platf::linux_private_vaapi::child_environment(
-    environment, "1", "/opt/vibepollo/private-driver", "radeonsi"
+    environment, "1", "/opt/artlight/private-driver", "radeonsi"
   );
   ASSERT_EQ(std::distance(child_environment.begin(), child_environment.end()), 2);
   for (const auto &entry : child_environment) {

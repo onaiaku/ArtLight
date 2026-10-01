@@ -80,7 +80,7 @@ int main(int argc, char **argv) {
   assert(xdisplay);
   Window root = DefaultRootWindow(xdisplay);
   Window window = XCreateSimpleWindow(xdisplay, root, 0, 0, 1280, 800, 0, 0, 0);
-  XStoreName(xdisplay, window, "Vibepollo HDR validation pattern");
+  XStoreName(xdisplay, window, "ArtLight HDR validation pattern");
   XMapWindow(xdisplay, window);
   XSync(xdisplay, False);
   Atom actual_type;
@@ -94,10 +94,10 @@ int main(int argc, char **argv) {
   struct wl_surface *surface = wl_compositor_create_surface(compositor);
   struct gamescope_swapchain *swapchain = gamescope_swapchain_factory_v2_create_swapchain(factory, surface);
   gamescope_swapchain_override_window_content(swapchain, server, window);
-  gamescope_swapchain_swapchain_feedback(swapchain, 2, VK_FORMAT_A2B10G10R10_UNORM_PACK32, sdr ? VK_COLOR_SPACE_SRGB_NONLINEAR_KHR : VK_COLOR_SPACE_HDR10_ST2084_EXT, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, 1, "Vibepollo HDR validation");
+  gamescope_swapchain_swapchain_feedback(swapchain, 2, VK_FORMAT_A2B10G10R10_UNORM_PACK32, sdr ? VK_COLOR_SPACE_SRGB_NONLINEAR_KHR : VK_COLOR_SPACE_HDR10_ST2084_EXT, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, 1, "ArtLight HDR validation");
   gamescope_swapchain_set_present_mode(swapchain, VK_PRESENT_MODE_FIFO_KHR);
   const size_t bytes = 1280 * 800 * 4;
-  int fd = memfd_create("vibepollo-hdr-pattern", MFD_CLOEXEC);
+  int fd = memfd_create("artlight-hdr-pattern", MFD_CLOEXEC);
   assert(fd >= 0);
   assert(ftruncate(fd, bytes * 2) == 0);
   uint32_t *pixels = mmap(NULL, bytes * 2, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);

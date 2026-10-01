@@ -27,7 +27,7 @@ probe='printf "config=%s\nlimit=%s\n" "$MANGOHUD_CONFIG" "${MANGOHUD_FPS_LIMIT-U
 
 write_state 59.94 mangohud custom 0 early
 fractional=$(
-  VIBEPOLLO_MANGOHUD_STATE_DIR=$test_root \
+  ARTLIGHT_MANGOHUD_STATE_DIR=$test_root \
   MANGOHUD_CONFIG='position=top-right,fps_limit=30' \
   MANGOHUD_FPS_LIMIT=30 \
     "$wrapper" --appid 480 -- /bin/sh -c "$probe"
@@ -38,7 +38,7 @@ limit=UNSET'
 
 write_state 120
 integer=$(
-  VIBEPOLLO_MANGOHUD_STATE_DIR=$test_root \
+  ARTLIGHT_MANGOHUD_STATE_DIR=$test_root \
     "$wrapper" --appid 480 -- /bin/sh -c "$probe"
 )
 expected_integer='config=read_cfg,fps_limit_method=late,fps_limit=120
@@ -47,7 +47,7 @@ limit=120'
 
 write_state 116 proton
 proton=$(
-  VIBEPOLLO_MANGOHUD_STATE_DIR=$test_root \
+  ARTLIGHT_MANGOHUD_STATE_DIR=$test_root \
   MANGOHUD=1 \
   MANGOHUD_CONFIG='fps_limit=30' \
   MANGOHUD_FPS_LIMIT=30 \
@@ -67,7 +67,7 @@ preload=UNSET'
 
 write_state 59.94 mangohud-proton 3 1
 combined=$(
-  VIBEPOLLO_MANGOHUD_STATE_DIR=$test_root \
+  ARTLIGHT_MANGOHUD_STATE_DIR=$test_root \
   MANGOHUD_CONFIG='position=top-right,fps_limit=30' \
   MANGOHUD_FPS_LIMIT=30 \
   LD_PRELOAD='/usr/lib/libz.so.1' \
@@ -84,7 +84,7 @@ preload=/usr/lib/libz.so.1:/usr/$LIB/mangohud/libMangoHud_shim.so'
 
 rm -f -- "$test_root/480.state"
 passthrough=$(
-  VIBEPOLLO_MANGOHUD_STATE_DIR=$test_root \
+  ARTLIGHT_MANGOHUD_STATE_DIR=$test_root \
     "$wrapper" --appid 480 -- /bin/sh -c 'printf pass'
 )
 [ "$passthrough" = pass ]

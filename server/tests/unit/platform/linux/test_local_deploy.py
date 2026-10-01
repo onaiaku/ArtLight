@@ -25,8 +25,8 @@ VERSION = '1.19.0-beta.5'
 def package(extra=(), omit=()):
     stream = io.BytesIO()
     names = deploy.FIXED | {
-        f'usr/bin/vibepollo-{VERSION}', 'usr/share/vibepollo/web/index.html',
-        'usr/share/vibepollo/web/v2/index.html',
+        f'usr/bin/artlight-{VERSION}', 'usr/share/artlight/web/index.html',
+        'usr/share/artlight/web/v2/index.html',
         'usr/src/vibeshine-drm-1.19.0/vibeshine_drm_version.h',
     }
     names.update('usr/src/vibeshine-drm-1.19.0/' + name for name in
@@ -39,9 +39,9 @@ def package(extra=(), omit=()):
     with tarfile.open(fileobj=stream, mode='w:gz') as archive:
         for name in sorted(names - set(omit)):
             entry = tarfile.TarInfo(name)
-            if name == 'usr/bin/vibepollo':
+            if name == 'usr/bin/artlight':
                 entry.type = tarfile.SYMTYPE
-                entry.linkname = f'vibepollo-{VERSION}'
+                entry.linkname = f'artlight-{VERSION}'
                 archive.addfile(entry)
             else:
                 entry.size = 4
@@ -62,14 +62,14 @@ class InstallerShellTests(unittest.TestCase):
 
 class ArchiveTests(unittest.TestCase):
     def test_local_package_must_include_driver_helper_and_build_sources(self):
-        self.assertNotIn('usr/libexec/vibeshine/vibepollo-drm-install', deploy.FIXED)
-        self.assertNotIn('usr/libexec/vibeshine/vibepollo-ds5-install', deploy.FIXED)
+        self.assertNotIn('usr/libexec/vibeshine/artlight-drm-install', deploy.FIXED)
+        self.assertNotIn('usr/libexec/vibeshine/artlight-ds5-install', deploy.FIXED)
         for missing in ('usr/libexec/vibeshine/vibeshine-ds5-install',
                         'usr/lib/modules-load.d/70-vibeshine-ds5.conf',
                         'usr/src/vibeshine-ds5-1.19.0/vibeshine_ds5_gadget.c',
                         'usr/src/vibeshine-ds5-1.19.0/dkms.conf',
                         'usr/libexec/vibeshine/vibeshine-drm-install',
-                        'usr/libexec/vibeshine/vibepollo-global-limiter.py',
+                        'usr/libexec/vibeshine/artlight-global-limiter.py',
                         'usr/src/vibeshine-drm-1.19.0/Makefile',
                         'usr/src/vibeshine-drm-1.19.0/build-module',
                         'usr/src/vibeshine-drm-1.19.0/vibeshine_drm_vrr.h'):
@@ -86,10 +86,10 @@ class ArchiveTests(unittest.TestCase):
     def test_complete_native_payload(self):
         with package() as archive:
             members = deploy.inspect_archive(archive, VERSION)
-        self.assertIn('usr/libexec/vibeshine/vibepollo-display-power', members)
+        self.assertIn('usr/libexec/vibeshine/artlight-display-power', members)
 
     def test_missing_recovery_helper_fails_preflight(self):
-        with package(omit=['usr/libexec/vibeshine/vibepollo-display-power']) as archive:
+        with package(omit=['usr/libexec/vibeshine/artlight-display-power']) as archive:
             with self.assertRaises(deploy.DeployError):
                 deploy.inspect_archive(archive, VERSION)
 
@@ -104,26 +104,26 @@ class ArchiveTests(unittest.TestCase):
     def test_paths_special_files_links_duplicates_and_symlink_parents(self):
         entries = []
         for name in ('/etc/shadow', '../escape', 'usr/../escape', 'usr//bin/x',
-                     'etc/vibepollo/machine.conf', 'usr/bin/bash', 'usr/share/vibepollo/../bad',
-                     'usr/bin/vibepollo-1.19.0-beta.4',
-                     'usr/bin/vibepollo-mangohud'):
+                     'etc/artlight/machine.conf', 'usr/bin/bash', 'usr/share/artlight/../bad',
+                     'usr/bin/artlight-1.19.0-beta.4',
+                     'usr/bin/artlight-mangohud'):
             entries.append(tarfile.TarInfo(name))
         for kind in (tarfile.SYMTYPE, tarfile.LNKTYPE, tarfile.FIFOTYPE, tarfile.CHRTYPE):
-            entry = tarfile.TarInfo('usr/share/vibepollo/bad')
+            entry = tarfile.TarInfo('usr/share/artlight/bad')
             entry.type = kind
             entry.linkname = '/etc'
             entries.append(entry)
-        entries.append(tarfile.TarInfo('usr/bin/vibepollo/escape'))
+        entries.append(tarfile.TarInfo('usr/bin/artlight/escape'))
         for entry in entries:
             with self.subTest(name=entry.name, kind=entry.type), package([entry]) as archive:
                 with self.assertRaises(deploy.DeployError):
                     deploy.inspect_archive(archive, VERSION)
 
     def test_file_modes_do_not_trust_archive_privilege_bits(self):
-        self.assertEqual(deploy.install_mode('usr/share/vibepollo/web/index.html', 0o7777), 0o644)
-        self.assertEqual(deploy.install_mode('usr/libexec/vibeshine/vibepollo-display-power', 0o4777), 0o755)
-        self.assertEqual(deploy.install_mode('usr/libexec/vibeshine/vibepollo-host', 0o7777), 0o750)
-        self.assertEqual(deploy.install_mode('usr/libexec/vibeshine/vibepollo-session-broker', 0o7777), 0o700)
+        self.assertEqual(deploy.install_mode('usr/share/artlight/web/index.html', 0o7777), 0o644)
+        self.assertEqual(deploy.install_mode('usr/libexec/vibeshine/artlight-display-power', 0o4777), 0o755)
+        self.assertEqual(deploy.install_mode('usr/libexec/vibeshine/artlight-host', 0o7777), 0o750)
+        self.assertEqual(deploy.install_mode('usr/libexec/vibeshine/artlight-session-broker', 0o7777), 0o700)
         self.assertEqual(deploy.install_mode('usr/lib/libvibeshine-kwin-gpu.so'), 0o4755)
 
 
@@ -296,7 +296,7 @@ class NativePackageTests(unittest.TestCase):
 
     def test_running_streamed_application_blocks_installation(self):
         args = SimpleNamespace(allow_disruption=False)
-        listing = 'vibepollo-app-2-473489.service loaded active running [systemd-run] steam-launch\n'
+        listing = 'artlight-app-2-473489.service loaded active running [systemd-run] steam-launch\n'
 
         def run_for_seat(*command, **_kwargs):
             if command[:2] == ('loginctl', 'show-seat'):
@@ -306,10 +306,10 @@ class NativePackageTests(unittest.TestCase):
             return SimpleNamespace(returncode=0, stdout=listing)
 
         with mock.patch.object(deploy, 'run', side_effect=run_for_seat) as run:
-            with self.assertRaisesRegex(deploy.DeployError, r'vibepollo-app-2-473489\.service.*--allow-disruption'):
+            with self.assertRaisesRegex(deploy.DeployError, r'artlight-app-2-473489\.service.*--allow-disruption'):
                 deploy.refuse_live_applications(args)
         self.assertIn(mock.call('systemctl', '--user', 'list-units', '--plain', '--no-legend',
-                                '--no-pager', '--state=active', 'vibepollo-app-*.service',
+                                '--no-pager', '--state=active', 'artlight-app-*.service',
                                 check=False), run.call_args_list)
         with mock.patch.object(deploy, 'run', side_effect=lambda *command, **kwargs:
                                SimpleNamespace(returncode=0, stdout='' if command[0] == 'systemctl' else
@@ -358,20 +358,20 @@ class NativePackageTests(unittest.TestCase):
             deploy.build_native_package(candidate, destination, VERSION)
             with tarfile.open(destination) as result:
                 info = result.extractfile('.PKGINFO').read().decode()
-                self.assertIn('pkgname = vibepollo\n', info)
+                self.assertIn('pkgname = artlight\n', info)
                 self.assertIn('pkgver = 1.19.0.beta.5-1\n', info)
                 self.assertIn('depend = dkms\n', info)
                 self.assertIn('conflict = sunshine\n', info)
                 self.assertEqual(result.extractfile('.INSTALL').read(),
-                                 (ROOT / 'packaging/linux/Arch/vibepollo.install').read_bytes())
-                self.assertEqual(result.getmember('usr/libexec/vibeshine/vibepollo-host').mode, 0o750)
-                self.assertEqual(result.getmember('usr/share/vibepollo').mode, 0o755)
+                                 (ROOT / 'packaging/linux/Arch/artlight.install').read_bytes())
+                self.assertEqual(result.getmember('usr/libexec/vibeshine/artlight-host').mode, 0o750)
+                self.assertEqual(result.getmember('usr/share/artlight').mode, 0o755)
                 for member in result:
                     self.assertEqual((member.uid, member.gid), (0, 0))
-                self.assertEqual(result.getmember('usr/bin/vibepollo').linkname, f'vibepollo-{VERSION}')
+                self.assertEqual(result.getmember('usr/bin/artlight').linkname, f'artlight-{VERSION}')
             if deploy.shutil.which('pacman'):
                 self.assertEqual(deploy.run('pacman', '-Qp', '--', destination, stderr=deploy.subprocess.PIPE).stdout.strip(),
-                                 'vibepollo ' + deploy.arch_package_version(VERSION))
+                                 'artlight ' + deploy.arch_package_version(VERSION))
 
     def test_package_metadata_rejects_shell_expansion_and_missing_arrays(self):
         for recipe in ('depends=("$(id)")', 'depends=("${extra}")', ''):
@@ -389,7 +389,7 @@ class NativePackageTests(unittest.TestCase):
                                    timeout=30, yes=True)
             with mock.patch.object(deploy, 'STATE', state), \
                     mock.patch.object(deploy, 'run', return_value=SimpleNamespace(
-                        stdout='vibepollo ' + deploy.arch_package_version(VERSION))), \
+                        stdout='artlight ' + deploy.arch_package_version(VERSION))), \
                     mock.patch.object(deploy, 'logged_install', return_value=0) as install, \
                     mock.patch.object(deploy, 'package_readiness', return_value=0), \
                     mock.patch.object(deploy.pwd, 'getpwnam', side_effect=KeyError):
@@ -460,7 +460,7 @@ class NativePackageTests(unittest.TestCase):
 
 class NativeInstallationPreflightTests(unittest.TestCase):
     def test_missing_account_is_actionable_before_build_or_root_staging(self):
-        with mock.patch.object(deploy.pwd, 'getpwnam', side_effect=KeyError('vibepollo')), \
+        with mock.patch.object(deploy.pwd, 'getpwnam', side_effect=KeyError('artlight')), \
                 mock.patch.object(deploy, 'platform_preflight'), \
                 mock.patch.object(deploy.shutil, 'which', return_value=None), \
                 mock.patch.object(deploy.os, 'geteuid', return_value=1000), \
@@ -494,7 +494,7 @@ class NativeInstallationPreflightTests(unittest.TestCase):
 
 class FilesTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix='vibepollo-deploy-test-')
+        self.temporary = tempfile.TemporaryDirectory(prefix='artlight-deploy-test-')
         self.base = Path(self.temporary.name)
         self.root = self.base / 'root'
         self.root.mkdir()
@@ -512,13 +512,13 @@ class FilesTests(unittest.TestCase):
         return path
 
     def test_partial_install_restore_content_links_modes_xattrs_and_absence(self):
-        public = f'usr/bin/vibepollo-{VERSION}'
-        alias = 'usr/bin/vibepollo'
-        new = 'usr/libexec/vibeshine/vibepollo-display-power'
+        public = f'usr/bin/artlight-{VERSION}'
+        alias = 'usr/bin/artlight'
+        new = 'usr/libexec/vibeshine/artlight-display-power'
         binary = self.place(public)
         binary.chmod(0o751)
-        os.setxattr(binary, 'user.vibepollo-test', b'original')
-        (self.root / alias).symlink_to(f'vibepollo-{VERSION}')
+        os.setxattr(binary, 'user.artlight-test', b'original')
+        (self.root / alias).symlink_to(f'artlight-{VERSION}')
         saved = self.files.snapshot([public, alias, new])
         candidate = self.base / 'new'
         candidate.write_bytes(b'new')
@@ -527,12 +527,12 @@ class FilesTests(unittest.TestCase):
         self.files.restore(saved)
         self.assertEqual(binary.read_bytes(), b'old')
         self.assertEqual(stat.S_IMODE(binary.stat().st_mode), 0o751)
-        self.assertEqual(os.getxattr(binary, 'user.vibepollo-test'), b'original')
-        self.assertEqual(os.readlink(self.root / alias), f'vibepollo-{VERSION}')
+        self.assertEqual(os.getxattr(binary, 'user.artlight-test'), b'original')
+        self.assertEqual(os.readlink(self.root / alias), f'artlight-{VERSION}')
         self.assertFalse((self.root / new).exists())
 
     def test_corrupt_backup_is_rejected_before_any_restore(self):
-        name = 'usr/share/vibepollo/web/index.html'
+        name = 'usr/share/artlight/web/index.html'
         target = self.place(name)
         saved = self.files.snapshot([name])
         target.write_bytes(b'current')
@@ -544,10 +544,10 @@ class FilesTests(unittest.TestCase):
     def test_symlink_parent_is_rejected(self):
         (self.root / 'usr').symlink_to(self.base, target_is_directory=True)
         with self.assertRaises(deploy.DeployError):
-            self.files.snapshot(['usr/bin/vibepollo'])
+            self.files.snapshot(['usr/bin/artlight'])
 
     def test_private_public_asset_parent_is_rejected_before_install(self):
-        name = 'usr/share/vibepollo/prelogin/apps.json'
+        name = 'usr/share/artlight/prelogin/apps.json'
         target = self.place(name)
         target.parent.chmod(0o700)
         with self.assertRaisesRegex(deploy.DeployError, 'not traversable'):
@@ -567,7 +567,7 @@ class FilesTests(unittest.TestCase):
         source.write_bytes(b'code')
         previous = os.umask(0o077)
         try:
-            self.files.replace('usr/libexec/vibeshine/vibepollo-display-power', source,
+            self.files.replace('usr/libexec/vibeshine/artlight-display-power', source,
                                mode=0o755, uid=os.getuid(), gid=os.getgid())
         finally:
             os.umask(previous)
@@ -601,7 +601,7 @@ class FilesTests(unittest.TestCase):
         (self.root / old_module).unlink()
         (self.root / old_source).unlink()
         (self.root / marker).write_bytes(b'new-marker')
-        self.place('usr/lib/modules/6.18/updates/vibepollo/vibeshine_drm.ko', b'candidate')
+        self.place('usr/lib/modules/6.18/updates/artlight/vibeshine_drm.ko', b'candidate')
         self.place('usr/src/vibeshine-drm-1.19.0/Makefile', b'new-source')
         with mock.patch.object(deploy, 'run') as run:
             deploy.restore_driver(self.transaction, {'before': saved, 'directories': dirs}, self.root, os.getuid())
@@ -709,7 +709,7 @@ class PolicyTests(unittest.TestCase):
 
     def test_synthetic_encoder_probe_does_not_require_future_client_capture_logs(self):
         with mock.patch.object(deploy, 'unit_properties', return_value={
-                'ActiveState': 'active', 'ControlGroup': '/system.slice/vibepollo.service', 'InvocationID': 'a' * 32}), \
+                'ActiveState': 'active', 'ControlGroup': '/system.slice/artlight.service', 'InvocationID': 'a' * 32}), \
                 mock.patch.object(Path, 'read_text', return_value='123\n'), \
                 mock.patch.object(deploy, 'run', return_value=mock.Mock(stdout='users:(("host",pid=123,fd=1))')), \
                 mock.patch.object(deploy, 'capture_logs', return_value='Found H.264 encoder: h264_nvenc [nvenc]'), \
@@ -803,8 +803,8 @@ class PolicyTests(unittest.TestCase):
         self.assertNotIn(('systemctl', 'start', deploy.HOST), calls)
 
     def test_quiesce_tracks_brokers_accepted_during_socket_close(self):
-        first = 'vibepollo-session-exec@1.service'
-        late = 'vibepollo-session-exec@2.service'
+        first = 'artlight-session-exec@1.service'
+        late = 'artlight-session-exec@2.service'
         calls = []
         def fake_run(*args, **kwargs):
             calls.append(args)
@@ -821,7 +821,7 @@ class PolicyTests(unittest.TestCase):
         with mock.patch.object(deploy, 'run'), \
                 mock.patch.object(deploy, 'broker_units', return_value=[]), \
                 mock.patch.object(deploy, 'unit_properties', return_value={
-                    'ActiveState': 'inactive', 'ControlGroup': '/system.slice/vibepollo.service'}), \
+                    'ActiveState': 'inactive', 'ControlGroup': '/system.slice/artlight.service'}), \
                 mock.patch.object(Path, 'exists', return_value=True), \
                 mock.patch.object(Path, 'read_text', return_value='populated 1\n'):
             with self.assertRaisesRegex(deploy.DeployError, 'still populated'):
@@ -886,12 +886,12 @@ class ManagedPoolReadinessTests(unittest.TestCase):
         original_read = Path.read_text
 
         def read_text(path, *args, **kwargs):
-            if str(path) == '/sys/fs/cgroup/system.slice/vibepollo.service/cgroup.procs':
+            if str(path) == '/sys/fs/cgroup/system.slice/artlight.service/cgroup.procs':
                 return '123\n'
             return original_read(path, *args, **kwargs)
 
         with mock.patch.object(deploy, 'unit_properties', return_value={
-                'ActiveState': 'active', 'ControlGroup': '/system.slice/vibepollo.service',
+                'ActiveState': 'active', 'ControlGroup': '/system.slice/artlight.service',
                 'InvocationID': 'a' * 32}), \
                 mock.patch.object(Path, 'read_text', read_text), \
                 mock.patch.object(deploy, 'run', return_value=mock.Mock(stdout='users:(("host",pid=123,fd=1))')), \
@@ -951,7 +951,7 @@ class ManagedPoolReadinessTests(unittest.TestCase):
 
 class RollbackTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix='vibepollo-rollback-test-')
+        self.temporary = tempfile.TemporaryDirectory(prefix='artlight-rollback-test-')
         self.directory = Path(self.temporary.name)
         self.manifest = {'status': 'MUTATING', 'payload_mutated': True,
                          'before': {}, 'after': {}, 'controller_active': True}
@@ -992,7 +992,7 @@ class RollbackTests(unittest.TestCase):
         self.assertEqual(self.manifest['status'], 'ABORTED')
 
     def test_completed_install_metadata_drift_blocks_rollback(self):
-        name = 'usr/bin/vibepollo-1.19.0-beta.5'
+        name = 'usr/bin/artlight-1.19.0-beta.5'
         self.manifest.update(status='COMMITTED', after={name: {'sha256': 'new'}},
                              installed_metadata={name: {'mode': 0o755}})
         with mock.patch.object(deploy, 'fingerprint', return_value={'sha256': 'new'}), \
@@ -1003,7 +1003,7 @@ class RollbackTests(unittest.TestCase):
         stop.assert_not_called()
 
     def test_partial_install_rejects_drift_in_old_and_new_file_metadata(self):
-        name = 'usr/bin/vibepollo-1.19.0-beta.5'
+        name = 'usr/bin/artlight-1.19.0-beta.5'
         original = {'uid': 0, 'gid': 0, 'mode': 0o755, 'xattrs': {}}
         self.manifest.update(after={name: {'sha256': 'new'}},
                              before={name: dict(original, sha256='old')},

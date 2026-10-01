@@ -31,53 +31,53 @@ import uuid
 
 
 REPO = Path(__file__).resolve().parent.parent
-STATE = Path('/var/lib/vibepollo-local-deploy')
+STATE = Path('/var/lib/artlight-local-deploy')
 TRUSTED_PATH = '/usr/sbin:/usr/bin:/sbin:/bin'
-HOST = 'vibepollo.service'
-CONTROLLER = 'vibepollo-session-controller.service'
-SOCKET = 'vibepollo-session-exec.socket'
+HOST = 'artlight.service'
+CONTROLLER = 'artlight-session-controller.service'
+SOCKET = 'artlight-session-exec.socket'
 HELPERS = (
     'app-supervisor', 'display-power', 'global-limiter.py', 'host',
     'package-preflight',
     'kwin-session-environment', 'machine-host', 'profile-import', 'provider-scan',
     'session-broker', 'session-controller', 'session-exec', 'steam-launch',
 )
-UNITS = (HOST, CONTROLLER, SOCKET, 'vibepollo-session-exec@.service',
+UNITS = (HOST, CONTROLLER, SOCKET, 'artlight-session-exec@.service',
          'vibeshine-drm-setup.service', 'vibeshine-vkms.service',
          'vibeshine-vkms-control.socket', 'vibeshine-vkms-control@.service')
 FIXED = {
-    'usr/bin/vibepollo', 'usr/bin/vibepollo-mangohud',
+    'usr/bin/artlight', 'usr/bin/artlight-mangohud',
     'usr/lib/libvibeshine-kwin-gpu.so',
     'usr/lib/modules-load.d/60-sunshine.conf',
     'usr/lib/modules-load.d/70-vibeshine-ds5.conf',
     'usr/lib/udev/rules.d/60-sunshine.rules',
-    'usr/lib/udev/rules.d/70-vibepollo-uinput.rules',
-    'usr/lib/sysusers.d/vibepollo.conf', 'usr/lib/sysusers.d/vibeshine-vkms.conf',
-    'usr/lib/firewalld/services/vibepollo.xml', 'etc/ufw/applications.d/vibepollo',
-    'usr/share/pipewire/pipewire.conf.d/50-vibepollo-audio.conf',
-    'usr/share/metainfo/io.github.Nonary.vibepollo.metainfo.xml',
-    'usr/share/vibepollo/arch-package-hooks',
-    'usr/share/libalpm/hooks/00-vibepollo-quiesce.hook',
+    'usr/lib/udev/rules.d/70-artlight-uinput.rules',
+    'usr/lib/sysusers.d/artlight.conf', 'usr/lib/sysusers.d/vibeshine-vkms.conf',
+    'usr/lib/firewalld/services/artlight.xml', 'etc/ufw/applications.d/artlight',
+    'usr/share/pipewire/pipewire.conf.d/50-artlight-audio.conf',
+    'usr/share/metainfo/io.github.onaiaku.ArtLight.metainfo.xml',
+    'usr/share/artlight/arch-package-hooks',
+    'usr/share/libalpm/hooks/00-artlight-quiesce.hook',
 }
-FIXED.update(f'usr/libexec/vibeshine/vibepollo-{name}' for name in HELPERS)
+FIXED.update(f'usr/libexec/vibeshine/artlight-{name}' for name in HELPERS)
 FIXED.update(f'usr/libexec/vibeshine/vibeshine-{name}' for name in
              ('drm-install', 'ds5-install', 'vkms', 'vkms-peercred', 'vkms-quiesce'))
 FIXED.update(f'usr/libexec/vibeshine/{name}' for name in
-             ('vibepollo-profile-normalize.py', 'pairing_migration.py'))
+             ('artlight-profile-normalize.py', 'pairing_migration.py'))
 FIXED.update(f'usr/lib/systemd/system/{name}' for name in UNITS)
-FIXED.update(f'usr/share/applications/io.github.Nonary.vibepollo{suffix}.desktop'
+FIXED.update(f'usr/share/applications/io.github.onaiaku.ArtLight{suffix}.desktop'
              for suffix in ('', '.kwin', '.terminal'))
 FIXED.add('usr/share/icons/hicolor/scalable/apps/apollo.svg')
 OPTIONAL = {f'usr/share/icons/hicolor/scalable/status/apollo-{state}.svg'
             for state in ('locked', 'pausing', 'playing', 'tray')}
 FIXED.update(f'usr/lib/systemd/user/{unit}.service.d/{dropin}.conf'
              for unit in ('plasma-kwin_wayland', 'plasma-login-kwin_wayland')
-             for dropin in ('vibeshine-kwin-gpu', 'vibepollo-kwin-session-environment'))
+             for dropin in ('vibeshine-kwin-gpu', 'artlight-kwin-session-environment'))
 VERSION = re.compile(r'[1-9][0-9]*\.[0-9]+\.[0-9]+(?:-(?:alpha|beta|rc|stable)\.[0-9]+)?')
 TRANSACTION_ID = re.compile(r'[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}')
 CAPABILITIES = {
-    'usr/libexec/vibeshine/vibepollo-host': 'cap_sys_admin,cap_sys_nice=p',
-    'usr/libexec/vibeshine/vibepollo-session-broker': 'cap_kill,cap_setgid,cap_setuid=p',
+    'usr/libexec/vibeshine/artlight-host': 'cap_sys_admin,cap_sys_nice=p',
+    'usr/libexec/vibeshine/artlight-session-broker': 'cap_kill,cap_setgid,cap_setuid=p',
 }
 # These are the production paths of vibeshine-drm-install, not developer
 # preferences. Do not accept caller-controlled privileged signing paths.
@@ -98,7 +98,7 @@ class DriverBusy(DeployError):
 def run(*args, check=True, timeout=60, **kwargs):
     if (args[0] in ('depmod', 'modprobe', 'systemd-sysusers') or
             (args[0] == 'systemctl' and args[1] in ('stop', 'start', 'mask', 'unmask', 'daemon-reload')) or
-            str(args[0]).endswith('vibepollo-session-controller')):
+            str(args[0]).endswith('artlight-session-controller')):
         print('+ ' + ' '.join(str(arg) for arg in args), flush=True)
     result = subprocess.run([str(arg) for arg in args], text=True,
                             stdout=subprocess.PIPE, stderr=kwargs.pop('stderr', subprocess.STDOUT),
@@ -121,9 +121,9 @@ def safe_name(name):
 
 def allowed(name):
     return safe_name(name) and (
-        name in FIXED or name in OPTIONAL or (name.startswith('usr/bin/vibepollo-') and
-                         VERSION.fullmatch(name.removeprefix('usr/bin/vibepollo-')) is not None) or
-        name.startswith(('usr/share/vibepollo/', 'usr/lib/vibepollo/')) or
+        name in FIXED or name in OPTIONAL or (name.startswith('usr/bin/artlight-') and
+                         VERSION.fullmatch(name.removeprefix('usr/bin/artlight-')) is not None) or
+        name.startswith(('usr/share/artlight/', 'usr/lib/artlight/')) or
         re.fullmatch(r'usr/src/vibeshine-(?:drm|ds5)-[1-9][0-9]*\.[0-9]+\.[0-9]+/[^/]+', name) is not None
     )
 
@@ -143,13 +143,13 @@ def inspect_archive(archive, version):
         if not entry.isdir():
             if not allowed(name) or not (entry.isfile() or entry.issym()):
                 raise DeployError(f'Unexpected artifact/type: {name}')
-            if entry.issym() and (name != 'usr/bin/vibepollo' or
-                                  entry.linkname != f'vibepollo-{version}'):
+            if entry.issym() and (name != 'usr/bin/artlight' or
+                                  entry.linkname != f'artlight-{version}'):
                 raise DeployError(f'Unexpected symlink: {name}')
         members[name] = entry
-    required = FIXED | {f'usr/bin/vibepollo-{version}',
-                        'usr/share/vibepollo/web/index.html',
-                        'usr/share/vibepollo/web/v2/index.html'}
+    required = FIXED | {f'usr/bin/artlight-{version}',
+                        'usr/share/artlight/web/index.html',
+                        'usr/share/artlight/web/v2/index.html'}
     required.update(f'usr/src/vibeshine-drm-{version.split("-")[0]}/{name}' for name in
                     ('Makefile', 'build-module', 'dkms.conf', 'vkms_drv.c',
                      'vibeshine_drm_uapi.h', 'vibeshine_drm_version.h', 'vibeshine_drm_vrr.h'))
@@ -162,10 +162,10 @@ def inspect_archive(archive, version):
     for name in required:
         if members[name].isdir():
             raise DeployError(f'Artifact is a directory: {name}')
-    if not members['usr/bin/vibepollo'].issym():
+    if not members['usr/bin/artlight'].issym():
         raise DeployError('Public executable must point to the versioned candidate')
-    if {name for name in members if name.startswith('usr/bin/vibepollo-') and
-            VERSION.fullmatch(name.removeprefix('usr/bin/vibepollo-'))} != {f'usr/bin/vibepollo-{version}'}:
+    if {name for name in members if name.startswith('usr/bin/artlight-') and
+            VERSION.fullmatch(name.removeprefix('usr/bin/artlight-'))} != {f'usr/bin/artlight-{version}'}:
         raise DeployError('Expected exactly one versioned public executable')
     drivers = {name.split('/')[2] for name in members if name.startswith('usr/src/') and
                not members[name].isdir()}
@@ -233,7 +233,7 @@ class Files:
     def parents(self, path, create=False):
         relative = path.relative_to(self.root)
         public_assets = relative.parts[:3] in (
-            ('usr', 'share', 'vibepollo'), ('usr', 'lib', 'vibepollo'))
+            ('usr', 'share', 'artlight'), ('usr', 'lib', 'artlight'))
         cursor = self.root
         for part in relative.parts[:-1]:
             cursor /= part
@@ -293,7 +293,7 @@ class Files:
         self.parents(target, create=True)
         if target.is_dir() and not target.is_symlink():
             raise DeployError(f'Refusing to replace a directory: {target}')
-        fd, temporary_name = tempfile.mkstemp(prefix='.vibepollo-install-', dir=target.parent)
+        fd, temporary_name = tempfile.mkstemp(prefix='.artlight-install-', dir=target.parent)
         temporary = Path(temporary_name)
         try:
             with os.fdopen(fd, 'wb') as output:
@@ -354,8 +354,8 @@ def retain_failed_install(directory, manifest, phase, detail):
         # A partial payload stays stopped until explicitly recovered.
         quiesce()
     print('Installation retained for diagnosis; no files were reverted.\n'
-          'Retry readiness: vibepollo-install --part2 (complete payloads only).\n'
-          'Restore the previous installation: vibepollo-install --recover', file=sys.stderr)
+          'Retry readiness: artlight-install --part2 (complete payloads only).\n'
+          'Restore the previous installation: artlight-install --recover', file=sys.stderr)
 
 
 def unit_properties(unit):
@@ -428,9 +428,9 @@ def health():
 
 def broker_units():
     result = run('systemctl', 'list-units', '--all', '--plain', '--no-legend', '--no-pager',
-                 'vibepollo-session-exec@*.service')
+                 'artlight-session-exec@*.service')
     names = [line.split()[0] for line in result.stdout.splitlines() if line.strip()]
-    if any(not re.fullmatch(r'vibepollo-session-exec@[A-Za-z0-9_.\\-]+\.service', name) for name in names):
+    if any(not re.fullmatch(r'artlight-session-exec@[A-Za-z0-9_.\\-]+\.service', name) for name in names):
         raise DeployError('Unexpected broker instance name')
     return names
 
@@ -457,7 +457,7 @@ def quiesce():
             break
     else:
         raise DeployError('Broker instances did not converge after closing admission')
-    run('/usr/libexec/vibeshine/vibepollo-session-controller', 'cleanup', timeout=45)
+    run('/usr/libexec/vibeshine/artlight-session-controller', 'cleanup', timeout=45)
     for name in [*names, *broker_units()]:
         if unit_properties(name).get('ActiveState') not in ('inactive', 'failed'):
             raise DeployError(f'{name} did not stop')
@@ -467,7 +467,7 @@ def quiesce():
         events = Path('/sys/fs/cgroup') / group.lstrip('/') / 'cgroup.events'
         if events.exists() and 'populated 0' not in events.read_text().splitlines():
             raise DeployError(f'Service cgroup still populated: {group}')
-    if Path('/run/vibepollo/session.env').exists():
+    if Path('/run/artlight/session.env').exists():
         raise DeployError('Old session binding survived cleanup')
 
 
@@ -479,8 +479,8 @@ def start_controller(active=True):
 
 
 def power_probe():
-    record = Path('/run/vibepollo/session.env')
-    account = pwd.getpwnam('vibepollo')
+    record = Path('/run/artlight/session.env')
+    account = pwd.getpwnam('artlight')
     info = record.lstat()
     if not stat.S_ISREG(info.st_mode) or (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) != (0, account.pw_gid, 0o640):
         raise DeployError('Untrusted controller session record')
@@ -491,8 +491,8 @@ def power_probe():
     process = subprocess.Popen([
         'setpriv', '--reuid', str(account.pw_uid), '--regid', str(account.pw_gid),
         '--init-groups', '--no-new-privs', '--', 'env',
-        f'VIBEPOLLO_SESSION_GENERATION={generations[0]}',
-        '/usr/libexec/vibeshine/vibepollo-session-exec', 'display-power',
+        f'ARTLIGHT_SESSION_GENERATION={generations[0]}',
+        '/usr/libexec/vibeshine/artlight-session-exec', 'display-power',
     ], stdout=subprocess.PIPE)
     try:
         with selectors.DefaultSelector() as selector:
@@ -530,16 +530,16 @@ def readiness(timeout):
         kind = run('loginctl', 'show-session', session, '-p', 'Type', '--value', check=False)
         graphical = kind.returncode != 0 or kind.stdout.strip() == 'wayland'
     if (active_session.returncode == 0 and (not session or not graphical) and
-            not Path('/run/vibepollo/session.env').exists() and
+            not Path('/run/artlight/session.env').exists() and
             unit_properties(CONTROLLER).get('ActiveState') == 'active'):
         return 'waiting-session', 'Installed controller is waiting for a local graphical session'
     return 'unhealthy', detail
 
 
 def install_mode(name, _source_mode=0):
-    if name.endswith('/vibepollo-host'):
+    if name.endswith('/artlight-host'):
         return 0o750
-    if name.endswith('/vibepollo-session-broker'):
+    if name.endswith('/artlight-session-broker'):
         return 0o700
     if name == 'usr/lib/libvibeshine-kwin-gpu.so':
         return 0o4755
@@ -758,8 +758,8 @@ def install_driver(directory, manifest):
                'current_kernel_release() { printf "%s\\n" "$deploy_kernel"; }; main install')
     returncodes = []
     for kernel in manifest['driver']['kernels']:
-        print(f'Building/installing Vibepollo DRM for {kernel}', flush=True)
-        code = driver_command(['/usr/bin/bash', '-c', wrapper, 'vibepollo-driver-upgrade', kernel])
+        print(f'Building/installing ArtLight DRM for {kernel}', flush=True)
+        code = driver_command(['/usr/bin/bash', '-c', wrapper, 'artlight-driver-upgrade', kernel])
         returncodes.append(code)
         if code not in (0, 4):
             raise DeployError(f'Driver installation failed for {kernel} ({code}); see output above')
@@ -885,7 +885,7 @@ def rollback(directory, manifest):
         print(f'Transaction {directory.name} is already restored/aborted.')
         return
     if manifest['status'] == 'ROLLBACK_REBOOT_REQUIRED':
-        raise DeployError('Previous files already restored; reboot and run vibepollo-install --part2')
+        raise DeployError('Previous files already restored; reboot and run artlight-install --part2')
     if not manifest.get('payload_mutated', True):
         quiesce()
         start_controller(manifest['controller_active'])
@@ -937,7 +937,7 @@ def rollback(directory, manifest):
                 driver['after'] = driver_state()
                 write_json(directory / 'transaction.json', manifest)
                 print(f'Previous files/driver restored. Reboot, then run:\n'
-                      'vibepollo-install --part2', flush=True)
+                      'artlight-install --part2', flush=True)
                 return
         for name, record in manifest['before'].items():
             target = Path('/') / name
@@ -1002,9 +1002,9 @@ def refuse_live_applications(args):
         if owner.returncode or owner.stdout.strip() != pwd.getpwuid(os.getuid()).pw_name:
             raise DeployError('The active seat0 session belongs to another account; run deployment as that desktop user or pass --allow-disruption')
     result = run('systemctl', '--user', 'list-units', '--plain', '--no-legend', '--no-pager',
-                 '--state=active', 'vibepollo-app-*.service', check=False)
+                 '--state=active', 'artlight-app-*.service', check=False)
     if result.returncode:
-        raise DeployError('Could not list running Vibepollo applications; '
+        raise DeployError('Could not list running ArtLight applications; '
                           'pass --allow-disruption to install anyway')
     running = [line.split()[0] for line in result.stdout.splitlines() if line.strip()]
     if running:
@@ -1036,8 +1036,8 @@ def package_array(recipe, name):
 def build_native_package(archive_path, destination, version):
     """Package the exact validated local stage with the maintained Arch hooks."""
     recipe = (REPO / 'packaging/linux/Arch/PKGBUILD').read_text()
-    fields = [('pkgname', 'vibepollo'), ('pkgbase', 'vibepollo'),
-              ('pkgver', arch_package_version(version)), ('pkgdesc', 'Local Vibepollo build'),
+    fields = [('pkgname', 'artlight'), ('pkgbase', 'artlight'),
+              ('pkgver', arch_package_version(version)), ('pkgdesc', 'Local ArtLight build'),
               ('arch', 'x86_64'), ('builddate', str(int(time.time())))]
     for array, field in (('depends', 'depend'), ('provides', 'provides'),
                          ('conflicts', 'conflict'), ('license', 'license')):
@@ -1048,7 +1048,7 @@ def build_native_package(archive_path, destination, version):
         with tarfile.open(destination, 'w:gz', format=tarfile.PAX_FORMAT) as package:
             metadata_files = {
                 '.PKGINFO': ''.join(f'{key} = {value}\n' for key, value in fields).encode(),
-                '.INSTALL': (REPO / 'packaging/linux/Arch/vibepollo.install').read_bytes(),
+                '.INSTALL': (REPO / 'packaging/linux/Arch/artlight.install').read_bytes(),
             }
             for name, data in metadata_files.items():
                 entry = tarfile.TarInfo(name)
@@ -1094,15 +1094,15 @@ def verify_package_payload(directory, manifest):
 
 
 def package_readiness(directory, manifest):
-    expected = 'vibepollo ' + arch_package_version(manifest['version'])
-    if run('pacman', '-Q', 'vibepollo', stderr=subprocess.PIPE).stdout.strip() != expected:
+    expected = 'artlight ' + arch_package_version(manifest['version'])
+    if run('pacman', '-Q', 'artlight', stderr=subprocess.PIPE).stdout.strip() != expected:
         raise DeployError('Installed package differs from this transaction; use pacman to recover')
     native_installation_preflight()
     verify_package_payload(directory, manifest)
     if driver_needs_reboot():
         manifest['status'] = 'PACKAGE_REBOOT_REQUIRED'
         write_json(directory / 'transaction.json', manifest)
-        print('Package installed. Reboot, then run vibepollo-install --part2.')
+        print('Package installed. Reboot, then run artlight-install --part2.')
         return 0
     result, detail = readiness(manifest['timeout'])
     if result not in ('healthy', 'waiting-session'):
@@ -1133,7 +1133,7 @@ def root_package_install(args):
     directory.mkdir(mode=0o700)
     package = directory / 'candidate.pkg.tar.gz'
     snapshot_archive(args.archive, args.sha256, package)
-    expected = 'vibepollo ' + arch_package_version(args.version)
+    expected = 'artlight ' + arch_package_version(args.version)
     if run('pacman', '-Qp', '--', package, stderr=subprocess.PIPE).stdout.strip() != expected:
         raise DeployError('Local package identity does not match the requested build')
     manifest = {'backend': 'pacman', 'status': 'PACKAGE_INSTALLING',
@@ -1165,16 +1165,16 @@ def root_package_install(args):
 
 def native_installation_preflight():
     """Check updater prerequisites without reading or changing shared state."""
-    guidance = ('This local-build helper updates an already-configured native Vibepollo host; '
+    guidance = ('This local-build helper updates an already-configured native ArtLight host; '
                 'complete the native package installation and machine setup first. '
                 'Use --stage-only to build without installing.')
     try:
-        account = pwd.getpwnam('vibepollo')
+        account = pwd.getpwnam('artlight')
     except KeyError as error:
-        raise DeployError('Missing service account vibepollo. ' + guidance) from error
+        raise DeployError('Missing service account artlight. ' + guidance) from error
     for path, kind, uid, gid, mode in (
-        (Path('/etc/vibepollo/machine.conf'), stat.S_ISREG, 0, 0, 0o600),
-        (Path('/var/lib/vibepollo'), stat.S_ISDIR, account.pw_uid, account.pw_gid, 0o700),
+        (Path('/etc/artlight/machine.conf'), stat.S_ISREG, 0, 0, 0o600),
+        (Path('/var/lib/artlight'), stat.S_ISDIR, account.pw_uid, account.pw_gid, 0o700),
     ):
         Files(STATE).parents(path)
         try:
@@ -1205,21 +1205,21 @@ def root_install(args):
             target.parent.mkdir(parents=True, exist_ok=True)
             with archive.extractfile(member) as source, target.open('xb') as output:
                 shutil.copyfileobj(source, output)
-    if digest(candidate / f'usr/bin/vibepollo-{args.version}') != digest(candidate / 'usr/libexec/vibeshine/vibepollo-host'):
+    if digest(candidate / f'usr/bin/artlight-{args.version}') != digest(candidate / 'usr/libexec/vibeshine/artlight-host'):
         raise DeployError('Staged public/private host binaries are from different builds')
     driver_preflight(candidate, args.version)
     driver_transaction_preflight()
     previous = {unit: unit_properties(unit) for unit in (HOST, CONTROLLER, SOCKET)}
     if any('masked' in props.get('UnitFileState', '') for props in previous.values()):
         raise DeployError('A native unit is administratively masked; refusing to override it')
-    if os.path.lexists('/run/systemd/system/vibepollo-session-exec.socket'):
+    if os.path.lexists('/run/systemd/system/artlight-session-exec.socket'):
         raise DeployError('A runtime socket override already exists')
     baseline, reason = health()
     print(f'Pre-install health: {baseline}: {reason}', flush=True)
     files = Files(directory)
     names = set(members)
     # Remove obsolete hashed assets as part of the same exact-file journal.
-    for tree in ('usr/share/vibepollo', 'usr/lib/vibepollo'):
+    for tree in ('usr/share/artlight', 'usr/lib/artlight'):
         if any(name.startswith(tree + '/') for name in members):
             existing = Path('/') / tree
             if existing.is_symlink():
@@ -1230,8 +1230,8 @@ def root_install(args):
                     names.add(str(path.relative_to('/')))
                 elif not path.is_dir():
                     raise DeployError(f'Unexpected special asset: {path}')
-    for path in Path('/usr/bin').glob('vibepollo-*'):
-        if VERSION.fullmatch(path.name.removeprefix('vibepollo-')):
+    for path in Path('/usr/bin').glob('artlight-*'):
+        if VERSION.fullmatch(path.name.removeprefix('artlight-')):
             info = path.lstat()
             if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
                 raise DeployError(f'Unexpected versioned executable: {path}')
@@ -1249,7 +1249,7 @@ def root_install(args):
                                    {'sha256': digest(candidate / name)})
         if member is not None:
             manifest['intended_metadata'][name] = {
-                'uid': 0, 'gid': account.pw_gid if name.endswith('/vibepollo-host') else 0,
+                'uid': 0, 'gid': account.pw_gid if name.endswith('/artlight-host') else 0,
                 'mode': 0o777 if member.issym() else install_mode(name), 'xattrs': {},
             }
     write_json(directory / 'transaction.json', manifest)
@@ -1281,10 +1281,10 @@ def root_install(args):
             else:
                 files.replace(name, candidate / name, link=member.linkname if member.issym() else None,
                               mode=install_mode(name, member.mode),
-                              gid=account.pw_gid if name.endswith('/vibepollo-host') else 0)
+                              gid=account.pw_gid if name.endswith('/artlight-host') else 0)
         for path, caps in (
-            ('/usr/libexec/vibeshine/vibepollo-host', 'cap_sys_admin,cap_sys_nice+p'),
-            ('/usr/libexec/vibeshine/vibepollo-session-broker', 'cap_setgid,cap_setuid,cap_kill+p'),
+            ('/usr/libexec/vibeshine/artlight-host', 'cap_sys_admin,cap_sys_nice+p'),
+            ('/usr/libexec/vibeshine/artlight-session-broker', 'cap_setgid,cap_setuid,cap_kill+p'),
         ):
             run('setcap', caps, path)
             sync_path(path)
@@ -1301,7 +1301,7 @@ def root_install(args):
             run('systemctl', 'daemon-reload')
             print(f'Installed {args.version}, including the new DRM driver. KWin still holds the old module.\n'
                   'Reboot required; services remain stopped until reboot. No automatic reboot was requested.\n'
-                  'After reboot: vibepollo-install --part2', flush=True)
+                  'After reboot: artlight-install --part2', flush=True)
             return 0
         phase = 'readiness'
         start_controller()
@@ -1313,7 +1313,7 @@ def root_install(args):
         write_json(directory / 'transaction.json', manifest)
         print(f'Installed {args.version}: {detail}.\n'
               'These checks do not prove client video delivery or suspend/resume.\n'
-              'Recovery: vibepollo-install --recover')
+              'Recovery: artlight-install --recover')
         return 0
     except BaseException as error:
         print(f'Deployment failed during {phase}: {error}', file=sys.stderr, flush=True)
@@ -1359,7 +1359,7 @@ def finalize(directory, manifest):
         print(f'Latest transaction is already {status.lower()}.')
         return
     if status not in ('REBOOT_REQUIRED', 'ROLLBACK_REBOOT_REQUIRED', 'UNHEALTHY'):
-        raise DeployError('Installation is incomplete; use vibepollo-install --recover')
+        raise DeployError('Installation is incomplete; use artlight-install --recover')
     previous_boot = manifest.get('rollback_boot_id') if status == 'ROLLBACK_REBOOT_REQUIRED' else manifest['driver']['boot_id']
     if status != 'UNHEALTHY' and Path('/proc/sys/kernel/random/boot_id').read_text().strip() == previous_boot:
         raise DeployError('Reboot first; restarting the host does not replace the loaded driver')
@@ -1418,8 +1418,8 @@ def resume_latest(command, identifier, latest):
 
 
 def verify_payload(directory, manifest, members):
-    account = pwd.getpwnam('vibepollo')
-    if os.path.samefile('/usr/bin/vibepollo', '/usr/libexec/vibeshine/vibepollo-host'):
+    account = pwd.getpwnam('artlight')
+    if os.path.samefile('/usr/bin/artlight', '/usr/libexec/vibeshine/artlight-host'):
         raise DeployError('Public and capability-bearing host must be distinct inodes')
     for name, expected in manifest['after'].items():
         target = Path('/') / name
@@ -1427,13 +1427,13 @@ def verify_payload(directory, manifest, members):
             raise DeployError(f'Installed payload mismatch: {name}')
         if expected is not None and 'link' not in expected:
             info = target.lstat()
-            wanted_gid = account.pw_gid if name.endswith('/vibepollo-host') else 0
+            wanted_gid = account.pw_gid if name.endswith('/artlight-host') else 0
             if (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) != (
                     0, wanted_gid, install_mode(name, members[name].mode)):
                 raise DeployError(f'Installed ownership/mode mismatch: {name}')
     cap_expectations = {
-        '/usr/libexec/vibeshine/vibepollo-host': 'cap_sys_admin,cap_sys_nice=p',
-        '/usr/libexec/vibeshine/vibepollo-session-broker': 'cap_kill,cap_setgid,cap_setuid=p',
+        '/usr/libexec/vibeshine/artlight-host': 'cap_sys_admin,cap_sys_nice=p',
+        '/usr/libexec/vibeshine/artlight-session-broker': 'cap_kill,cap_setgid,cap_setuid=p',
     }
     for name, expected in manifest['after'].items():
         if expected is None or 'link' in expected:
@@ -1489,7 +1489,7 @@ def platform_preflight(native=True):
         raise DeployError('Native deployment requires /lib/modules to resolve to /usr/lib/modules')
     kernel = re.match(r'([0-9]+)\.([0-9]+)', os.uname().release)
     if not kernel or tuple(map(int, kernel.groups())) < (6, 16):
-        raise DeployError('Managed Vibepollo displays require Linux 6.16 or newer')
+        raise DeployError('Managed ArtLight displays require Linux 6.16 or newer')
     commands = ('systemctl', 'loginctl', 'journalctl', 'ss', 'setpriv', 'udevadm',
                 'getcap', 'setcap', 'modinfo', 'modprobe', 'depmod', 'pgrep', 'bash', 'openssl')
     missing = [name for name in commands if not shutil.which(name, path=TRUSTED_PATH)]
@@ -1529,7 +1529,7 @@ def configure_command(args, build, cache):
                '-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG',
                '-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG',
                f'-DBUILD_VERSION={args.version}', '-DBUILD_VIBESHINE_KWIN_GPU_BRIDGE=ON',
-               '-DSUNSHINE_ASSETS_DIR=/usr/share/vibepollo', '-DSUNSHINE_EXECUTABLE_PATH=/usr/bin/vibepollo',
+               '-DSUNSHINE_ASSETS_DIR=/usr/share/artlight', '-DSUNSHINE_EXECUTABLE_PATH=/usr/bin/artlight',
                f'-DSUNSHINE_ENABLE_CUDA={"ON" if cuda else "OFF"}', '-DSUNSHINE_ENABLE_PORTAL=ON',
                '-DBUILD_TESTS=ON', '-DBUILD_DOCS=OFF']
     for key, value in (('CMAKE_C_COMPILER', cc), ('CMAKE_CXX_COMPILER', cxx)):
@@ -1590,7 +1590,7 @@ def install_confirmed_package(package, args):
 
 def version_probe_environment(work):
     environment = dict(os.environ, XDG_CONFIG_HOME=str(work / 'version-config'),
-                       VIBEPOLLO_MIGRATE_CONFIG='0')
+                       ARTLIGHT_MIGRATE_CONFIG='0')
     environment.pop('CONFIGURATION_DIRECTORY', None)
     return environment
 
@@ -1618,7 +1618,7 @@ def build_install(args):
         raise DeployError('The obsolete user host is active; migrate to the native controller first')
     build = REPO / 'build'
     build.mkdir(exist_ok=True)
-    with (build / '.local-deploy.lock').open('w') as lock, tempfile.TemporaryDirectory(prefix='vibepollo-local-stage-') as temporary:
+    with (build / '.local-deploy.lock').open('w') as lock, tempfile.TemporaryDirectory(prefix='artlight-local-stage-') as temporary:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         print(run('git', '-C', REPO, 'status', '--short').stdout, end='')
         cache = read_cache(build)
@@ -1639,14 +1639,14 @@ def build_install(args):
         environment = dict(os.environ, DESTDIR=str(work / 'stage'))
         subprocess.run(['cmake', '--install', str(build)], env=environment, check=True)
         version_environment = dict(os.environ, XDG_CONFIG_HOME=str(work / 'version-config'))
-        # Vibepollo parses defaults before --version. Seed only this isolated
+        # ArtLight parses defaults before --version. Seed only this isolated
         # probe profile from the staged payload, never an installed host's data.
-        probe_profile = work / 'version-config' / 'vibepollo'
+        probe_profile = work / 'version-config' / 'artlight'
         probe_profile.mkdir(parents=True)
-        shutil.copyfile(work / 'stage/usr/share/vibepollo/apps.json', probe_profile / 'apps.json')
-        reported = run(work / 'stage' / f'usr/bin/vibepollo-{args.version}', '--version',
+        shutil.copyfile(work / 'stage/usr/share/artlight/apps.json', probe_profile / 'apps.json')
+        reported = run(work / 'stage' / f'usr/bin/artlight-{args.version}', '--version',
                        env=version_environment).stdout
-        if not re.search(r'Vibepollo version: ' + re.escape(args.version) + r'(?:\s|$)', reported):
+        if not re.search(r'ArtLight version: ' + re.escape(args.version) + r'(?:\s|$)', reported):
             raise DeployError(f'Staged executable did not report the requested version: {reported}')
         archive_path = work / 'candidate.tar.gz'
         with tarfile.open(archive_path, 'w:gz', format=tarfile.PAX_FORMAT) as archive:
@@ -1664,7 +1664,7 @@ def build_install(args):
         if not package_install:
             driver_preflight(work / 'stage', args.version)
         if package_install:
-            package = build / f'vibepollo-{arch_package_version(args.version)}-x86_64.pkg.tar.gz'
+            package = build / f'artlight-{arch_package_version(args.version)}-x86_64.pkg.tar.gz'
             build_native_package(archive_path, package, args.version)
             print(f'Local package: {package}\n'
                   'Installation replaces conflicting host packages and preserves original profiles.\n'
@@ -1762,7 +1762,7 @@ def main():
         if latest:
             manifest = json.loads((transaction_path(latest) / 'transaction.json').read_text())
             if manifest['status'] in ('PREPARED', 'MUTATING', 'ROLLBACK_FAILED', 'REBOOT_REQUIRED', 'ROLLBACK_REBOOT_REQUIRED', 'UNHEALTHY'):
-                raise DeployError('Latest installation is unfinished; use vibepollo-install --part2 or --recover')
+                raise DeployError('Latest installation is unfinished; use artlight-install --part2 or --recover')
         def interrupted(signum, _frame):
             raise DeployError(f'Interrupted by signal {signum}')
         signal.signal(signal.SIGTERM, interrupted)

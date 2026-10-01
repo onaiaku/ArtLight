@@ -285,7 +285,7 @@ namespace platf::steam::sync::policy {
       const auto parsed_id = app_id_of(app);
       const bool managed = app.contains("steam-managed") &&
                            app["steam-managed"] == "auto";
-      // Early auto-imported entries already received Vibepollo's reserved,
+      // Early auto-imported entries already received ArtLight's reserved,
       // deterministic Steam UUID but predate the steam-managed marker.  That
       // UUID is an ownership marker strong enough to adopt the entry.  Keep
       // shortcuts identified only by steam-id untouched as manual entries.

@@ -44,7 +44,7 @@ on:
       symbol_release_repo:
         required: false
         type: string
-        default: Nonary/vibeshine_symbols
+        default: onaiaku/vibeshine_symbols
       symbol_release_tag:
         required: false
         type: string
@@ -68,7 +68,7 @@ on:
       truehdr_runtime_release_repo:
         required: false
         type: string
-        default: Nonary/vibeshine_truehdr_runtime
+        default: onaiaku/vibeshine_truehdr_runtime
       truehdr_runtime_release_tag:
         required: false
         type: string

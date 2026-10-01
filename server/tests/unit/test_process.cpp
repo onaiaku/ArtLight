@@ -79,7 +79,7 @@ namespace {
   }
 
   TEST(ProcessArtwork, MachinePathsStayInsideImmutableAssetsOrSharedCovers) {
-    const auto fixture_root = std::filesystem::temp_directory_path() / "vibepollo-artwork-policy";
+    const auto fixture_root = std::filesystem::temp_directory_path() / "artlight-artwork-policy";
     const std::string assets = (fixture_root / "assets").string();
     const std::string covers = (fixture_root / "covers").string();
 

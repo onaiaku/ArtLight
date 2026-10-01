@@ -335,8 +335,8 @@ namespace platf::provider_scan {
       // Provider scans and artwork belong to the desktop session. Avoid
       // spawning rejected broker requests on every greeter poll. The broker
       // still independently validates the authoritative session identity.
-      const auto *machine_host = std::getenv("VIBEPOLLO_MACHINE_HOST");
-      const auto *session_role = std::getenv("VIBEPOLLO_SESSION_ROLE");
+      const auto *machine_host = std::getenv("ARTLIGHT_MACHINE_HOST");
+      const auto *session_role = std::getenv("ARTLIGHT_SESSION_ROLE");
       if (machine_host && *machine_host && (!session_role || std::string_view {session_role} != "desktop")) {
         return std::nullopt;
       }
@@ -440,14 +440,14 @@ namespace platf::provider_scan {
 
   std::optional<steam_catalog_t> scan_steam_session() {
     const auto payload = detail::capture_command(
-      "/usr/libexec/vibeshine/vibepollo-session-exec", "provider-steam-scan",
+      "/usr/libexec/vibeshine/artlight-session-exec", "provider-steam-scan",
       {std::chrono::duration_cast<std::chrono::milliseconds>(command_timeout), max_payload_bytes});
     return payload ? decode_steam_catalog(*payload) : std::nullopt;
   }
 
   std::optional<lutris_catalog_t> scan_lutris_session() {
     const auto payload = detail::capture_command(
-      "/usr/libexec/vibeshine/vibepollo-session-exec", "provider-lutris-scan",
+      "/usr/libexec/vibeshine/artlight-session-exec", "provider-lutris-scan",
       {std::chrono::duration_cast<std::chrono::milliseconds>(command_timeout), max_payload_bytes});
     return payload ? decode_lutris_catalog(*payload) : std::nullopt;
   }

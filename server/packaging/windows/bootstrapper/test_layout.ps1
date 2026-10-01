@@ -10,7 +10,7 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using VibepolloInstaller;
+using ArtLightInstaller;
 
 internal static class LayoutTest {
   static T Field<T>(InstallerWindow window, string name) {

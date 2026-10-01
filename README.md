@@ -65,7 +65,7 @@ ArtLight does not collect, transmit, or store any user data. All components run 
 
 ## Credits & lineage
 
-ArtLight Server is a fork of [Sunshine](https://github.com/LizardByte/Sunshine) (via the Vibepollo fork), and stands on the shoulders of the Moonlight ecosystem. All upstream licenses are preserved — see [LICENSE](LICENSE) and [`server/NOTICE`](server/NOTICE).
+ArtLight Server is a fork of [Sunshine](https://github.com/LizardByte/Sunshine) (via the ArtLight fork), and stands on the shoulders of the Moonlight ecosystem. All upstream licenses are preserved — see [LICENSE](LICENSE) and [`server/NOTICE`](server/NOTICE).
 
 ArtLight Control is a fork of [StreamTweak](https://github.com/FoggyBytes/StreamTweak) by FoggyBytes.
 

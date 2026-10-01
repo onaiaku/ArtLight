@@ -123,7 +123,7 @@ def main():
     if '__vaDriverInit_1_22' not in symbols:
         raise RuntimeError('Private driver was not built for host VAAPI 1.22')
     (runtime / 'env.conf').write_text('LIBVA_DRIVERS_PATH=' + str(driver_dir) + '\n'
-                                      'LIBVA_DRIVER_NAME=radeonsi\nVIBEPOLLO_PRIVATE_VAAPI=1\n')
+                                      'LIBVA_DRIVER_NAME=radeonsi\nARTLIGHT_PRIVATE_VAAPI=1\n')
     license_dir = runtime / 'licenses'
     license_dir.mkdir()
     mesa_source = args.mesa_source.resolve() if args.mesa_source else work / 'mesa-26.1.7'

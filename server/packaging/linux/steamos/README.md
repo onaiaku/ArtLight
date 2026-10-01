@@ -10,8 +10,8 @@ Gaming Mode's physical layout alone. Independent Gaming Mode virtual monitors
 are not created. HDR is negotiated with the running compositor; selecting a
 virtual display does not force SDR.
 
-This packaging profile runs Vibepollo as the logged-in SteamOS user and leaves
-the read-only root filesystem untouched. It is separate from Vibepollo's
+This packaging profile runs ArtLight as the logged-in SteamOS user and leaves
+the read-only root filesystem untouched. It is separate from ArtLight's
 machine-service Linux package, which remains the right deployment for managed
 KDE hosts and the optional `vibeshine_drm` virtual-display driver.
 
@@ -58,9 +58,9 @@ The resulting relocatable payload contains at least:
 
 ```text
 payload/
-  bin/vibepollo
+  bin/artlight
   lib/...
-  share/vibepollo/...
+  share/artlight/...
 ```
 
 Install it from the checkout as the `deck` user (never with `sudo`):
@@ -70,8 +70,8 @@ packaging/linux/steamos/install-user.sh --payload /path/to/payload
 ```
 
 The installer copies each build to
-`$XDG_DATA_HOME/vibepollo-steamos/releases/`, atomically changes `current`, and
-enables `vibepollo-steamos.service` in the user's graphical-session and
+`$XDG_DATA_HOME/artlight-steamos/releases/`, atomically changes `current`, and
+enables `artlight-steamos.service` in the user's graphical-session and
 gamescope-session targets.
 Installation restarts the service, interrupting an active stream. A failed
 activation restores the previous release and launcher. Old release directories
@@ -110,7 +110,7 @@ physical display remain owned by the session.
 - Local audio playback follows the Moonlight client's setting. Steam titles are handed to the Steam client
   already running in Gaming Mode instead of starting a second Steam/Proton
   environment. This is resolved when launching, including catalog entries saved
-  in Desktop Mode with direct Proton commands. Vibepollo's environment-based
+  in Desktop Mode with direct Proton commands. ArtLight's environment-based
   frame limiter and Smooth Motion injection are unavailable for these Steam
   handoffs; Steam's own launch options still apply.
 - The SteamOS profile defaults to Xbox One controller emulation because stock
@@ -132,8 +132,8 @@ KScreen or the managed-display driver in the Gaming Mode capture path.
 For local development, inspect the service with:
 
 ```bash
-systemctl --user status vibepollo-steamos.service
-journalctl --user -u vibepollo-steamos.service -b
+systemctl --user status artlight-steamos.service
+journalctl --user -u artlight-steamos.service -b
 bash packaging/linux/steamos/check-host.sh
 ```
 
@@ -143,7 +143,7 @@ Validate the rootless install flow without touching the live user service:
 packaging/linux/steamos/tests/test-user-install.sh
 ```
 
-The same scripts are included in a staged payload at `share/vibepollo/steamos/`.
+The same scripts are included in a staged payload at `share/artlight/steamos/`.
 The readiness script checks devices and the PipeWire socket without changing
 permissions or restarting services. A passing check is not proof of streaming.
 
@@ -154,7 +154,7 @@ packaging/linux/steamos/uninstall-user.sh
 ```
 
 This removes the installed payload, launcher, and unit. It deliberately does
-not delete Vibepollo configuration, credentials, pairings, or application data.
+not delete ArtLight configuration, credentials, pairings, or application data.
 
 ## Privileged components
 

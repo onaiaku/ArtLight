@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Vibepollo installer for Arch Linux and CachyOS.
+# ArtLight installer for Arch Linux and CachyOS.
 #
-# Vibepollo's Linux beta is developed and tested on CachyOS with KDE Plasma 6
+# ArtLight's Linux beta is developed and tested on CachyOS with KDE Plasma 6
 # on Wayland. Other Arch-based distributions are supported on a best-effort
 # basis. This script:
 #
 #   1. checks the machine against the documented requirements,
 #   2. installs the kernel headers the virtual-display driver needs,
-#   3. installs the Vibepollo package from the signed Nonary repository, or
+#   3. installs the ArtLight package from the signed onaiaku repository, or
 #      from the newest GitHub release when the repository is unavailable,
 #   4. opens the firewall (firewalld or ufw) when one is active, and
 #   5. prints whether a reboot is required and what to do next.
@@ -17,7 +17,7 @@
 #
 # Options:
 #   --version VERSION     Install this exact release (for example 2.0.0).
-#   --package FILE        Install a local vibepollo-*.pkg.tar.zst instead of downloading.
+#   --package FILE        Install a local artlight-*.pkg.tar.zst instead of downloading.
 #   --stable              Ignore pre-releases when picking the newest GitHub release.
 #   --no-repo             Skip the signed pacman repository and use GitHub releases.
 #   --skip-checks         Continue past failed requirement checks (not recommended).
@@ -28,18 +28,18 @@
 
 set -euo pipefail
 
-readonly REPO_OWNER='Nonary'
-readonly REPO_NAME='Vibepollo'
+readonly REPO_OWNER='onaiaku'
+readonly REPO_NAME='ArtLight'
 readonly REPO_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}"
 readonly API_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}"
-readonly PACMAN_REPO_NAME='vibepollo'
-readonly PACMAN_REPO_SERVER='https://nonary.github.io/Vibepollo/arch/x86_64'
-readonly PACMAN_REPO_CONF='/etc/pacman.d/vibepollo.conf'
+readonly PACMAN_REPO_NAME='artlight'
+readonly PACMAN_REPO_SERVER='https://nonary.github.io/ArtLight/arch/x86_64'
+readonly PACMAN_REPO_CONF='/etc/pacman.d/artlight.conf'
 readonly MIN_KERNEL_MAJOR=6
 readonly MIN_KERNEL_MINOR=16
 readonly DRM_INSTALL='/usr/libexec/vibeshine/vibeshine-drm-install'
 readonly DS5_INSTALL='/usr/libexec/vibeshine/vibeshine-ds5-install'
-readonly MACHINE_HOST='/usr/libexec/vibeshine/vibepollo-machine-host'
+readonly MACHINE_HOST='/usr/libexec/vibeshine/artlight-machine-host'
 
 requested_version=''
 local_package=''
@@ -114,14 +114,14 @@ check_distribution() {
   fi
   case "$id" in
     cachyos)
-      ok "CachyOS detected. This is the distribution Vibepollo is tuned and tested on."
+      ok "CachyOS detected. This is the distribution ArtLight is tuned and tested on."
       ;;
     arch)
-      ok "Arch Linux detected. Vibepollo is optimized for CachyOS; Arch is supported on a best-effort basis."
+      ok "Arch Linux detected. ArtLight is optimized for CachyOS; Arch is supported on a best-effort basis."
       ;;
     *)
       if [[ " $id_like " == *' arch '* ]]; then
-        warn "${name:-$id} is an Arch derivative. Vibepollo is tested on CachyOS; expect rough edges here."
+        warn "${name:-$id} is an Arch derivative. ArtLight is tested on CachyOS; expect rough edges here."
       else
         warn "${name:-unknown distribution} is not Arch-based. Continuing because pacman exists, but this is untested."
       fi
@@ -214,12 +214,12 @@ check_desktop() {
   if pacman -Qq plasma-workspace >/dev/null 2>&1 || pacman -Qq plasma-desktop >/dev/null 2>&1; then
     ok "KDE Plasma is installed."
   else
-    fail "KDE Plasma is not installed. Vibepollo streams only a KDE Plasma 6 Wayland desktop (install plasma-meta or plasma-desktop)."
+    fail "KDE Plasma is not installed. ArtLight streams only a KDE Plasma 6 Wayland desktop (install plasma-meta or plasma-desktop)."
   fi
   if pacman -Qq sddm >/dev/null 2>&1 || pacman -Qq plasma-login-manager >/dev/null 2>&1; then
     ok "A supported login manager (SDDM or Plasma Login Manager) is installed."
   else
-    warn "Neither sddm nor plasma-login-manager is installed. Vibepollo only attaches to Plasma sessions started by one of them."
+    warn "Neither sddm nor plasma-login-manager is installed. ArtLight only attaches to Plasma sessions started by one of them."
   fi
   if [[ -x /usr/bin/kwin_wayland ]]; then
     ok "KWin Wayland is available."
@@ -267,7 +267,7 @@ check_gpu() {
     fi
   fi
   if ! ((nvidia || amd || intel)); then
-    warn "Could not identify a GPU vendor. Vibepollo needs a GPU with a hardware H.264 encoder."
+    warn "Could not identify a GPU vendor. ArtLight needs a GPU with a hardware H.264 encoder."
   fi
   if ((nvidia == 0)); then
     warn "Pre-login (greeter) streaming is only supported on NVIDIA GPUs; this machine streams after login."
@@ -285,7 +285,7 @@ check_secure_boot() {
 }
 
 run_checks() {
-  log 'Checking this machine against the Vibepollo Linux requirements'
+  log 'Checking this machine against the ArtLight Linux requirements'
   check_distribution
   check_kernel
   check_desktop
@@ -306,10 +306,10 @@ repo_is_available() {
 
 configure_pacman_repo() {
   local keyfile fingerprint
-  log 'Importing the Nonary repository signing key'
-  keyfile="${workdir}/nonary-vibepollo.gpg"
-  curl -fsSL --max-time 60 -o "$keyfile" "${PACMAN_REPO_SERVER}/nonary-vibepollo.gpg"
-  fingerprint=$(curl -fsSL --max-time 60 "${PACMAN_REPO_SERVER}/nonary-vibepollo-fingerprint.txt" | tr -d '[:space:]')
+  log 'Importing the onaiaku repository signing key'
+  keyfile="${workdir}/nonary-artlight.gpg"
+  curl -fsSL --max-time 60 -o "$keyfile" "${PACMAN_REPO_SERVER}/nonary-artlight.gpg"
+  fingerprint=$(curl -fsSL --max-time 60 "${PACMAN_REPO_SERVER}/nonary-artlight-fingerprint.txt" | tr -d '[:space:]')
   [[ "$fingerprint" =~ ^[0-9A-Fa-f]{40}$ ]] || die 'the published key fingerprint is malformed; refusing to trust it'
   pacman-key --add "$keyfile"
   pacman-key --lsign-key "$fingerprint"
@@ -334,31 +334,31 @@ stage_upgrade_guard() {
   bsdtar -xOf "$candidate" .INSTALL > "$library" || die 'candidate has no Arch package hooks'
   chmod 0600 "$library" || die 'could not protect the staged package hooks'
   bash -n "$library" || die 'candidate package hooks have invalid shell syntax'
-  grep -q '^vibepollo_quiesce_or_abort() {' "$library" ||
+  grep -q '^artlight_quiesce_or_abort() {' "$library" ||
     die 'candidate lacks the required quiescence check'
-  printf '#!/usr/bin/bash\n. %q || exit 1\nvibepollo_quiesce_or_abort\n' "$library" > "$preflight"
+  printf '#!/usr/bin/bash\n. %q || exit 1\nartlight_quiesce_or_abort\n' "$library" > "$preflight"
   chmod 0700 "$preflight" || die 'could not protect the transaction preflight'
-  cat > "$hook_dir/00-vibepollo-quiesce.hook" <<EOF
+  cat > "$hook_dir/00-artlight-quiesce.hook" <<EOF
 [Trigger]
 Operation = Install
 Operation = Upgrade
 Operation = Remove
 Type = Package
-Target = vibepollo
+Target = artlight
 
 [Action]
-Description = Safely stopping Vibepollo before package replacement
+Description = Safely stopping ArtLight before package replacement
 When = PreTransaction
 Exec = $preflight
 AbortOnFail
 EOF
-  chmod 0600 "$hook_dir/00-vibepollo-quiesce.hook" || die 'could not protect the transaction hook'
+  chmod 0600 "$hook_dir/00-artlight-quiesce.hook" || die 'could not protect the transaction hook'
 }
 
 install_from_repo() {
   configure_pacman_repo
-  if ! pacman -Si vibepollo >/dev/null 2>&1; then
-    warn 'Vibepollo repository metadata is unavailable locally; using a release package without refreshing system databases.'
+  if ! pacman -Si artlight >/dev/null 2>&1; then
+    warn 'ArtLight repository metadata is unavailable locally; using a release package without refreshing system databases.'
     download_release_package
     install_from_package
     return
@@ -367,29 +367,29 @@ install_from_repo() {
   if [[ -n "$requested_version" ]]; then
     local arch_version="${requested_version//-/}"
     arch_version="${arch_version//+/.}"
-    repo_target=("vibepollo=${arch_version}-1")
+    repo_target=("artlight=${arch_version}-1")
   else
-    repo_target=(vibepollo)
+    repo_target=(artlight)
   fi
   mkdir -p -m 700 -- "$workdir/cache" || die 'could not stage the signed repository package'
   # Download and verify the exact signed candidate before executing its hook
   # under the package manager's transaction lock.
   pacman -Sw "${replacement_confirm[@]}" --cachedir "$workdir/cache" "${repo_target[@]}"
   mapfile -d '' -t candidates < <(find "$workdir/cache" -maxdepth 1 -type f \
-    -name 'vibepollo-*.pkg.tar.*' ! -name '*.sig' -print0)
-  [[ ${#candidates[@]} == 1 ]] || die 'expected exactly one verified Vibepollo package in the private cache'
-  [[ $(pacman -Qp -- "${candidates[0]}") == 'vibepollo '* ]] ||
-    die 'cached package identity is not Vibepollo'
+    -name 'artlight-*.pkg.tar.*' ! -name '*.sig' -print0)
+  [[ ${#candidates[@]} == 1 ]] || die 'expected exactly one verified ArtLight package in the private cache'
+  [[ $(pacman -Qp -- "${candidates[0]}") == 'artlight '* ]] ||
+    die 'cached package identity is not ArtLight'
   stage_upgrade_guard "${candidates[0]}"
   prepare_driver_replacement
-  log 'Installing Vibepollo and its dependencies; no full system upgrade is requested'
+  log 'Installing ArtLight and its dependencies; no full system upgrade is requested'
   pacman -S "${replacement_confirm[@]}" "${driver_overwrite[@]}" \
     --cachedir "$workdir/cache" --hookdir "$workdir/hooks" "${repo_target[@]}"
 }
 
 download_release_package() {
   local releases tag asset_url asset_name selector
-  log 'Looking up the newest Vibepollo release on GitHub'
+  log 'Looking up the newest ArtLight release on GitHub'
   command -v curl >/dev/null 2>&1 || die 'curl is required to download the release'
   if ! command -v jq >/dev/null 2>&1; then
     pacman -S --needed "${pacman_confirm[@]}" jq
@@ -411,7 +411,7 @@ download_release_package() {
   # Releases are listed newest first; pick the first one that carries an Arch package.
   read -r tag asset_name asset_url < <(jq -r "
     [${selector} | . as \$r | .assets[]
-      | select(.name | test(\"^vibepollo-.*\\\\.pkg\\\\.tar\\\\.zst\$\"))
+      | select(.name | test(\"^artlight-.*\\\\.pkg\\\\.tar\\\\.zst\$\"))
       | select(.name | test(\"-debug-\") | not)
       | [\$r.tag_name, .name, .browser_download_url] | @tsv] | first // empty" <<<"$releases")
   [[ -n "${asset_url:-}" ]] ||
@@ -454,7 +454,7 @@ prepare_driver_replacement() {
     # Accept a known host package or an explicitly unowned exact driver tree;
     # both still require trusted ancestry and per-file ownership checks below.
     if owner=$(LC_ALL=C pacman -Qoq -- "$directory" 2>"$workdir/driver-owner-error"); then
-      case "$owner" in sunshine|vibeshine|vibepollo) ;; *) continue ;; esac
+      case "$owner" in sunshine|vibeshine|artlight) ;; *) continue ;; esac
     else
       status=$?
       [[ $status == 1 ]] && grep -Fxq -- "error: No package owns $directory" "$workdir/driver-owner-error" ||
@@ -531,7 +531,7 @@ install_from_package() {
   [[ -f "$local_package" ]] || die "package file not found: ${local_package}"
   local identity
   identity=$(pacman -Qp -- "$local_package") || die 'could not inspect the local package'
-  [[ "$identity" == 'vibepollo '* && "$identity" != *$'\n'* ]] || die 'local package is not Vibepollo'
+  [[ "$identity" == 'artlight '* && "$identity" != *$'\n'* ]] || die 'local package is not ArtLight'
   stage_upgrade_guard "$local_package"
   prepare_driver_replacement
   log "Installing ${local_package##*/} with pacman"
@@ -540,8 +540,8 @@ install_from_package() {
     --hookdir "$workdir/hooks" -- "$local_package"
 }
 
-install_vibepollo() {
-  workdir=$(mktemp -d /tmp/vibepollo-installer.XXXXXXXX)
+install_artlight() {
+  workdir=$(mktemp -d /tmp/artlight-installer.XXXXXXXX)
   if [[ -n "$local_package" ]]; then
     install_from_package
     return
@@ -559,14 +559,14 @@ install_vibepollo() {
 
 open_firewall() {
   if systemctl is-active --quiet firewalld 2>/dev/null; then
-    log 'Opening the Vibepollo ports in firewalld'
-    firewall-cmd --permanent --add-service=vibepollo >/dev/null && firewall-cmd --reload >/dev/null &&
-      ok 'firewalld: service "vibepollo" allowed.' ||
-      warn 'firewalld: could not add the vibepollo service; run: sudo firewall-cmd --permanent --add-service=vibepollo && sudo firewall-cmd --reload'
+    log 'Opening the ArtLight ports in firewalld'
+    firewall-cmd --permanent --add-service=artlight >/dev/null && firewall-cmd --reload >/dev/null &&
+      ok 'firewalld: service "artlight" allowed.' ||
+      warn 'firewalld: could not add the artlight service; run: sudo firewall-cmd --permanent --add-service=artlight && sudo firewall-cmd --reload'
   elif command -v ufw >/dev/null 2>&1 && LC_ALL=C ufw status 2>/dev/null | grep -q '^Status: active'; then
-    log 'Opening the Vibepollo ports in ufw'
-    ufw allow Vibepollo >/dev/null && ok 'ufw: application profile "Vibepollo" allowed.' ||
-      warn 'ufw: could not allow the Vibepollo profile; run: sudo ufw allow Vibepollo'
+    log 'Opening the ArtLight ports in ufw'
+    ufw allow ArtLight >/dev/null && ok 'ufw: application profile "ArtLight" allowed.' ||
+      warn 'ufw: could not allow the ArtLight profile; run: sudo ufw allow ArtLight'
   else
     ok 'No active firewalld or ufw detected; nothing to open.'
   fi
@@ -637,24 +637,24 @@ check_driver_state() {
 check_session_restart() {
   # First installation adds KWin startup hooks. A running greeter/desktop
   # predates those hooks even when the newly installed DRM module loads.
-  if ! pacman -Q vibepollo >/dev/null 2>&1; then
+  if ! pacman -Q artlight >/dev/null 2>&1; then
     reboot_required=1
-    warn 'First installation requires a reboot so the login screen and desktop load the Vibepollo display and session integration.'
+    warn 'First installation requires a reboot so the login screen and desktop load the ArtLight display and session integration.'
   fi
 }
 
 check_services() {
-  if systemctl is-enabled --quiet vibepollo-session-controller.service 2>/dev/null; then
-    ok 'vibepollo-session-controller.service is enabled.'
+  if systemctl is-enabled --quiet artlight-session-controller.service 2>/dev/null; then
+    ok 'artlight-session-controller.service is enabled.'
   else
-    warn "The session controller is not enabled. If the install printed an ACTION REQUIRED line about choosing a user, run: sudo ${MACHINE_HOST} configure YOUR_USER && sudo systemctl enable --now vibepollo-session-controller.service"
+    warn "The session controller is not enabled. If the install printed an ACTION REQUIRED line about choosing a user, run: sudo ${MACHINE_HOST} configure YOUR_USER && sudo systemctl enable --now artlight-session-controller.service"
     reboot_required=1
   fi
 }
 
 print_summary() {
   printf '\n'
-  log 'Vibepollo is installed. Next steps:'
+  log 'ArtLight is installed. Next steps:'
   local step=1
   if ((reboot_required)); then
     printf '    %d. Reboot now. The display/session integration, virtual-display driver, Secure Boot key, or service state requires it.\n' "$step"
@@ -664,8 +664,8 @@ print_summary() {
   printf '       Pairing works at the login screen; enter the PIN in the Web UI from another device.\n'
   printf '    %d. Log in to your KDE Plasma (Wayland) desktop to stream the desktop.\n' "$step"; step=$((step + 1))
   printf '    %d. Log out and back in once (or restart PipeWire) so the audio quantum drop-in takes effect.\n' "$step"; step=$((step + 1))
-  printf '\n    Status:  sudo systemctl status vibepollo-session-controller.service vibepollo.service\n'
-  printf '    Logs:    sudo journalctl -u vibepollo-session-controller.service -u vibepollo.service -b\n'
+  printf '\n    Status:  sudo systemctl status artlight-session-controller.service artlight.service\n'
+  printf '    Logs:    sudo journalctl -u artlight-session-controller.service -u artlight.service -b\n'
   printf '    Guide:   %s/blob/vibe-test/docs/linux/install.md\n' "$REPO_URL"
   if ((${#warnings[@]} > 0)); then
     printf '\n    Warnings raised during installation:\n'
@@ -683,7 +683,7 @@ main() {
   run_checks
   install_kernel_headers
   check_session_restart
-  install_vibepollo
+  install_artlight
   install_virtual_driver
   install_dualsense_driver
   open_firewall

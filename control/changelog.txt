@@ -7,7 +7,7 @@ https://github.com/onaiaku/ArtLight
 ------------------------------------------------
 Version 1.4.0 (01/10/2026)
 ------------------------------------------------
-ArtLight Server 1.4.0 brings the upstream Vibepollo 2.0.0 engine in.
+ArtLight Server 1.4.0 brings the upstream ArtLight 2.0.0 engine in.
 
 PyroWave, a GPU wavelet codec, is available with very low encode and
 decode latency. Its frames are independent, so losing one does not

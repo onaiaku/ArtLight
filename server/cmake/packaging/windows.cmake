@@ -227,7 +227,7 @@ install(FILES ${SUNSHINE_VIRTUAL_DISPLAY_VULKAN_LAYER_FILES}
         DESTINATION "${SUNSHINE_VDD_VULKAN_LAYER_DESTINATION}"
         COMPONENT virtual_display_driver)
 
-# Drivers (Vibepollo VHF virtual gamepad)
+# Drivers (ArtLight VHF virtual gamepad)
 #
 # This is intentionally independent from the display-driver refresh flow. The
 # gamepad package is an immutable libvirtualgamepad producer release. It arrives
@@ -542,7 +542,7 @@ set(CPACK_COMPONENT_VIRTUAL_DISPLAY_DRIVER_GROUP "Drivers")
 set(CPACK_COMPONENT_VIRTUAL_DISPLAY_DRIVER_REQUIRED true)
 
 if(SUNSHINE_BUNDLE_VHF_GAMEPAD_DRIVER)
-    set(CPACK_COMPONENT_VIRTUAL_GAMEPAD_DRIVER_DISPLAY_NAME "Vibepollo Virtual Gamepad Driver")
+    set(CPACK_COMPONENT_VIRTUAL_GAMEPAD_DRIVER_DISPLAY_NAME "ArtLight Virtual Gamepad Driver")
     set(CPACK_COMPONENT_VIRTUAL_GAMEPAD_DRIVER_DESCRIPTION
         "Pinned VHF UMDF gamepad source-driver package.")
     set(CPACK_COMPONENT_VIRTUAL_GAMEPAD_DRIVER_GROUP "Drivers")

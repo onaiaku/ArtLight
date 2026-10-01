@@ -112,13 +112,13 @@ namespace platf::linux_private_display {
 
       std::vector<std::string> owned_argv;
       owned_argv.reserve(arguments.size() + 2);
-      if (std::getenv("VIBEPOLLO_MACHINE_HOST")) {
-        owned_argv.emplace_back("/usr/libexec/vibeshine/vibepollo-session-exec");
+      if (std::getenv("ARTLIGHT_MACHINE_HOST")) {
+        owned_argv.emplace_back("/usr/libexec/vibeshine/artlight-session-exec");
         owned_argv.emplace_back(arguments.size() == 1 && arguments.front() == "-j" ? "display-query" : "display-apply");
       } else {
         owned_argv.push_back(*executable);
       }
-      if (!std::getenv("VIBEPOLLO_MACHINE_HOST") || owned_argv.back() == "display-apply") {
+      if (!std::getenv("ARTLIGHT_MACHINE_HOST") || owned_argv.back() == "display-apply") {
         owned_argv.insert(owned_argv.end(), arguments.begin(), arguments.end());
       }
       std::vector<const gchar *> argv;
@@ -361,7 +361,7 @@ namespace platf::linux_private_display {
       }
 
       // A unique physical connector needs no broker ownership check. The broker
-      // deliberately recognizes only Vibepollo's Virtual-N pool, so querying it
+      // deliberately recognizes only ArtLight's Virtual-N pool, so querying it
       // for HDMI/DP connectors both produces a false error and prevents restore
       // verification from observing an already-active physical output.
       if (matching_connectors.size() == 1 && !name.starts_with("Virtual-")) {
@@ -395,7 +395,7 @@ namespace platf::linux_private_display {
         return true;
       }
 
-      // The managed Vibepollo DRM device has a fixed HDR10 EDID. Keep its
+      // The managed ArtLight DRM device has a fixed HDR10 EDID. Keep its
       // capability stable while the connector is deliberately disconnected:
       // the kernel exposes no EDID bytes in that dormant state.
       std::error_code error;
@@ -2012,7 +2012,7 @@ namespace platf::linux_private_display {
       device.m_device_id = output.value("name", std::string {});
       device.m_display_name = device.m_device_id;
       device.m_friendly_name = is_managed_output(device.m_device_id) ?
-                                 "Vibepollo Private Display (" + device.m_device_id + ")" :
+                                 "ArtLight Private Display (" + device.m_device_id + ")" :
                                  device.m_device_id;
       device.m_monitor_device_path = connector_sysfs_path(device.m_device_id);
       if (detail == display_device::DeviceEnumerationDetail::Full && enabled(output)) {

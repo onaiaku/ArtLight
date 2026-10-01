@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Vibepollo game-streaming host and official Arch Linux repository">
-  <title>Vibepollo by Nonary</title>
+  <meta name="description" content="ArtLight game-streaming host and official Arch Linux repository">
+  <title>ArtLight by onaiaku</title>
   <style>
     :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #0b1020; color: #edf2ff; }
     body { margin: 0; }
@@ -25,38 +25,38 @@
 </head>
 <body>
 <main>
-  <div class="eyebrow">A Nonary project</div>
-  <h1>Vibepollo</h1>
+  <div class="eyebrow">A onaiaku project</div>
+  <h1>ArtLight</h1>
   <p class="lead">A self-hosted game-streaming host for Moonlight, with Linux virtual-display integration and first-class Arch Linux and CachyOS packaging.</p>
   <div class="actions">
-    <a class="button primary" href="https://github.com/Nonary/Vibepollo/releases/latest">Download the latest release</a>
-    <a class="button" href="https://github.com/Nonary/Vibepollo">View source</a>
-    <a class="button" href="https://github.com/Nonary/Vibepollo/issues">Report an issue</a>
+    <a class="button primary" href="https://github.com/onaiaku/ArtLight/releases/latest">Download the latest release</a>
+    <a class="button" href="https://github.com/onaiaku/ArtLight">View source</a>
+    <a class="button" href="https://github.com/onaiaku/ArtLight/issues">Report an issue</a>
   </div>
 
   <h2>Arch Linux and CachyOS</h2>
-  <p>Vibepollo's Linux beta is built and tested on CachyOS with KDE Plasma 6 on Wayland. The quickest path is the installer script, which checks the requirements, installs kernel headers and the package, and opens the firewall:</p>
-  <pre><code>curl -fsSLO https://raw.githubusercontent.com/Nonary/Vibepollo/master/scripts/linux_install.sh
+  <p>ArtLight's Linux beta is built and tested on CachyOS with KDE Plasma 6 on Wayland. The quickest path is the installer script, which checks the requirements, installs kernel headers and the package, and opens the firewall:</p>
+  <pre><code>curl -fsSLO https://raw.githubusercontent.com/onaiaku/ArtLight/master/scripts/linux_install.sh
 sudo bash linux_install.sh</code></pre>
-  <p>The full guide, including manual steps and troubleshooting, is at <a href="https://github.com/Nonary/Vibepollo/blob/master/docs/linux/install.md">docs/linux/install.md</a>. To add the repository by hand, import and locally trust the repository signing key once:</p>
-  <pre><code>curl -fsSLo /tmp/nonary-vibepollo.gpg \
-  https://nonary.github.io/Vibepollo/arch/x86_64/nonary-vibepollo.gpg
-curl -fsSLo /tmp/nonary-vibepollo-fingerprint.txt \
-  https://nonary.github.io/Vibepollo/arch/x86_64/nonary-vibepollo-fingerprint.txt
-sudo pacman-key --add /tmp/nonary-vibepollo.gpg
-sudo pacman-key --lsign-key "$(tr -d '[:space:]' &lt;/tmp/nonary-vibepollo-fingerprint.txt)"</code></pre>
+  <p>The full guide, including manual steps and troubleshooting, is at <a href="https://github.com/onaiaku/ArtLight/blob/master/docs/linux/install.md">docs/linux/install.md</a>. To add the repository by hand, import and locally trust the repository signing key once:</p>
+  <pre><code>curl -fsSLo /tmp/nonary-artlight.gpg \
+  https://nonary.github.io/ArtLight/arch/x86_64/nonary-artlight.gpg
+curl -fsSLo /tmp/nonary-artlight-fingerprint.txt \
+  https://nonary.github.io/ArtLight/arch/x86_64/nonary-artlight-fingerprint.txt
+sudo pacman-key --add /tmp/nonary-artlight.gpg
+sudo pacman-key --lsign-key "$(tr -d '[:space:]' &lt;/tmp/nonary-artlight-fingerprint.txt)"</code></pre>
 
-  <p>Add the signed repository and install Vibepollo:</p>
-  <pre><code>sudo install -Dm644 /dev/stdin /etc/pacman.d/vibepollo.conf &lt;&lt;'EOF'
-[vibepollo]
+  <p>Add the signed repository and install ArtLight:</p>
+  <pre><code>sudo install -Dm644 /dev/stdin /etc/pacman.d/artlight.conf &lt;&lt;'EOF'
+[artlight]
 SigLevel = Required
-Server = https://nonary.github.io/Vibepollo/arch/x86_64
+Server = https://nonary.github.io/ArtLight/arch/x86_64
 EOF
-grep -qxF 'Include = /etc/pacman.d/vibepollo.conf' /etc/pacman.conf || \
-  printf '\nInclude = /etc/pacman.d/vibepollo.conf\n' | sudo tee -a /etc/pacman.conf
-sudo pacman -Syu vibepollo</code></pre>
+grep -qxF 'Include = /etc/pacman.d/artlight.conf' /etc/pacman.conf || \
+  printf '\nInclude = /etc/pacman.d/artlight.conf\n' | sudo tee -a /etc/pacman.conf
+sudo pacman -Syu artlight</code></pre>
 
-  <p class="note">Secure Boot users may be asked to enroll the Vibepollo DKMS signing certificate through MOK during the next reboot. The package will explain the required action; do not disable Secure Boot.</p>
+  <p class="note">Secure Boot users may be asked to enroll the ArtLight DKMS signing certificate through MOK during the next reboot. The package will explain the required action; do not disable Secure Boot.</p>
 </main>
 </body>
 </html>

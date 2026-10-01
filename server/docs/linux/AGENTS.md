@@ -1,4 +1,4 @@
-# Vibepollo Linux Machine-Service Guide
+# ArtLight Linux Machine-Service Guide
 
 This document describes the supported Linux deployment. The repository-level
 `AGENTS.md` remains authoritative for the exact build, test, staging, and host
@@ -6,35 +6,35 @@ installation commands.
 
 ## Ownership model
 
-Vibepollo follows the normal machine-wide Linux layout:
+ArtLight follows the normal machine-wide Linux layout:
 
-- `/usr/bin/vibepollo`, `/usr/libexec/vibeshine`, and
-  `/usr/share/vibepollo` are immutable, root-owned program files.
-- `/etc/vibepollo` is root-owned administrator policy. Ordinary desktop and
+- `/usr/bin/artlight`, `/usr/libexec/vibeshine`, and
+  `/usr/share/artlight` are immutable, root-owned program files.
+- `/etc/artlight` is root-owned administrator policy. Ordinary desktop and
   greeter users must not be able to change it.
-- `/var/lib/vibepollo` is persistent machine state, owned only by the
-  unprivileged `vibepollo` service account and mode `0700`.
-- `/run/vibepollo` contains short-lived root-created coordination records.
+- `/var/lib/artlight` is persistent machine state, owned only by the
+  unprivileged `artlight` service account and mode `0700`.
+- `/run/artlight` contains short-lived root-created coordination records.
 - User homes are neither the authoritative configuration store nor a runtime
   dependency after a one-time legacy migration.
 
-Do not grant write access to `/usr/share/vibepollo`, add ordinary users to the
+Do not grant write access to `/usr/share/artlight`, add ordinary users to the
 service group, or restore the old per-user service design. Do not put file
 capabilities on the public executable or its client helper.
 
 ## Runtime trust boundary
 
-`vibepollo-session-controller.service` is the only login-session authority. It
+`artlight-session-controller.service` is the only login-session authority. It
 observes logind and accepts only the active, local, seat0 KDE Wayland desktop
 or greeter session. It never activates a session, mutates PAM, writes a user's
 environment, or keeps a stream alive across a login transition. A transition
 stops the machine host and its generation-bound applications before binding a
 fresh session. Disconnect and reconnect is intentional.
 
-The controller writes a root-owned, `root:vibepollo` mode `0640` session
-record. `vibepollo.service` runs as the dedicated `vibepollo` account and owns
+The controller writes a root-owned, `root:artlight` mode `0640` session
+record. `artlight.service` runs as the dedicated `artlight` account and owns
 the network protocol, machine configuration, and persistent state. Its
-capability-free supervisor invokes a distinct root-owned, `root:vibepollo`
+capability-free supervisor invokes a distinct root-owned, `root:artlight`
 mode `0750` private host inode with only `CAP_SYS_ADMIN` and `CAP_SYS_NICE` in
 the file-permitted set. The loader and parser enter with effective,
 inheritable, and ambient sets empty; the literal first Linux statement verifies
@@ -51,7 +51,7 @@ record and generation, authorizes semantic operations, drops to the selected
 session identity, clears capabilities, and sets `no_new_privs`. Broker workers
 and launched application scopes must be cancelled during every session
 transition and package lifecycle operation. Each application scope runs the
-capability-free `vibepollo-app-supervisor`; a broker-worker-owned watchdog pipe
+capability-free `artlight-app-supervisor`; a broker-worker-owned watchdog pipe
 forces bounded descendant cleanup even if the worker or broker is killed.
 
 KWin creates the session's Xwayland display and authority file after the user
@@ -65,7 +65,7 @@ reject missing display credentials. The Wayland-only greeter unit does not use
 this Xwayland helper. The session controller remains a passive observer and
 must not mutate the user's environment.
 
-Provider discovery uses `/usr/libexec/vibeshine/vibepollo-provider-scan`. It
+Provider discovery uses `/usr/libexec/vibeshine/artlight-provider-scan`. It
 runs as the selected unprivileged session user and returns a bounded, path-free
 description to the machine host. Separate numeric-ID artwork requests convert
 local covers under that same session identity and return bounded PNG bytes to
@@ -75,7 +75,7 @@ the Windows-only Playnite integration.
 Stream-owned Steam launch policy uses the semantic `steam-direct` broker
 operation. The broker accepts only a catalog-authorized numeric AppID and
 bounded policy values, enters the selected desktop UID, then executes the
-capability-free `/usr/libexec/vibeshine/vibepollo-steam-launch`. Only that
+capability-free `/usr/libexec/vibeshine/artlight-steam-launch`. Only that
 unprivileged helper reads Steam paths or launch options; incomplete metadata
 must fail instead of falling back to the already-running Steam process.
 
@@ -94,7 +94,7 @@ policy rather than automatically trusting newly saved commands.
 ## Legacy profile migration
 
 Migration is one-time and fail-closed. Root creates a private staging parent,
-then `vibepollo-profile-import` drops permanently to the source user before it
+then `artlight-profile-import` drops permanently to the source user before it
 opens or traverses the user's legacy profile. The importer uses confined
 `openat2` resolution, rejects links and mount crossings, accepts only
 directories and regular files, and enforces depth, count, byte, and time
@@ -104,7 +104,7 @@ never recursively copy a live user-controlled tree.
 The migration retains existing machine identity, credentials, pairing state,
 configuration, applications, and covers where valid. Policy and command
 authorization remain administrator-controlled. Use the explicit
-`vibepollo-machine-host reset` operation only when an administrator intends to
+`artlight-machine-host reset` operation only when an administrator intends to
 erase machine state; package removal does not erase it, while package purge
 does.
 
@@ -118,8 +118,8 @@ instances, stop the controller and host, perform controller cleanup, and prove
 that no worker, host cgroup, or trusted session record remains. First install
 must also succeed when the managed virtual-display pool has never existed.
 
-After installation, both `/usr/bin/vibepollo` and
-`/usr/libexec/vibeshine/vibepollo-session-exec` must report an empty `getcap`.
+After installation, both `/usr/bin/artlight` and
+`/usr/libexec/vibeshine/artlight-session-exec` must report an empty `getcap`.
 The private host/broker must have only their exact permitted sets and private
 modes described above. Only the controller is enabled; it owns the static
 socket and starts the host after binding an authoritative session.
@@ -133,7 +133,7 @@ compositor. Compare the installed `modinfo` version with
 `/sys/module/vibeshine_drm/version` and reboot when they differ.
 
 On this KDE/Wayland/NVIDIA host, keep `capture = kms`. A healthy deployment
-requires the event-driven Vibepollo DRM capture message and successful H.264
+requires the event-driven ArtLight DRM capture message and successful H.264
 encoder discovery; HEVC and AV1 are reported when the GPU supports them but are
 not required for readiness. Unit activity, TCP listeners, or a reachable Web
 UI alone are not proof that remote display works. Test both the greeter and the
@@ -145,18 +145,18 @@ Inspect the system services, not the obsolete user unit:
 
 ```bash
 sudo systemctl --no-pager --full status \
-  vibepollo-session-controller.service vibepollo-session-exec.socket \
-  vibepollo.service
-sudo journalctl -u vibepollo-session-controller.service \
-  -u vibepollo-session-exec@.service -u vibepollo.service \
+  artlight-session-controller.service artlight-session-exec.socket \
+  artlight.service
+sudo journalctl -u artlight-session-controller.service \
+  -u artlight-session-exec@.service -u artlight.service \
   --since '-5 minutes' --no-pager
-sudo stat -c '%U:%G:%a:%F %n' /usr/bin/vibepollo \
-  /usr/libexec/vibeshine/vibepollo-app-supervisor \
-  /etc/vibepollo/machine.conf /var/lib/vibepollo \
-  /run/vibepollo/session.env
-getcap /usr/bin/vibepollo /usr/libexec/vibeshine/vibepollo-session-exec \
-  /usr/libexec/vibeshine/vibepollo-host \
-  /usr/libexec/vibeshine/vibepollo-session-broker
+sudo stat -c '%U:%G:%a:%F %n' /usr/bin/artlight \
+  /usr/libexec/vibeshine/artlight-app-supervisor \
+  /etc/artlight/machine.conf /var/lib/artlight \
+  /run/artlight/session.env
+getcap /usr/bin/artlight /usr/libexec/vibeshine/artlight-session-exec \
+  /usr/libexec/vibeshine/artlight-host \
+  /usr/libexec/vibeshine/artlight-session-broker
 ss -lntup | rg ':(47984|47989|47990|48010)\b'
 ```
 

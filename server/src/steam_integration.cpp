@@ -160,7 +160,7 @@ namespace {
 
 #if defined(__linux__)
   bool machine_host_mode() {
-    const auto *value = std::getenv("VIBEPOLLO_MACHINE_HOST");
+    const auto *value = std::getenv("ARTLIGHT_MACHINE_HOST");
     return value && *value;
   }
 
@@ -1094,7 +1094,7 @@ namespace platf::steam {
     // The machine host has no desktop of its own; the session broker runs
     // `steam -applaunch` inside the selected desktop session for it.
     if (machine_host_mode()) {
-      return "/usr/libexec/vibeshine/vibepollo-session-exec steam " + std::to_string(app_id);
+      return "/usr/libexec/vibeshine/artlight-session-exec steam " + std::to_string(app_id);
     }
   #endif
     // Send the request directly to Steam. Desktop URI openers can exit
@@ -1106,7 +1106,7 @@ namespace platf::steam {
 #ifdef __linux__
   namespace {
     constexpr std::string_view session_exec_path =
-      "/usr/libexec/vibeshine/vibepollo-session-exec";
+      "/usr/libexec/vibeshine/artlight-session-exec";
 
     bool valid_session_launch_policy(const session_launch_policy_t &policy) {
       const bool overlay = policy.provider == "mangohud" ||
@@ -1245,14 +1245,14 @@ namespace platf::steam {
       return launch_command(game.app_id);
     }
 
-    std::string wrapper = "/usr/bin/vibepollo-mangohud";
+    std::string wrapper = "/usr/bin/artlight-mangohud";
     // Relocatable installations ship the helper beside the running host.
     // Resolve the executable itself so switching a bundle's "current"
     // symlink cannot send an older host through a different release's helper.
     std::error_code wrapper_error;
     const auto executable = fs::read_symlink("/proc/self/exe", wrapper_error);
     if (!wrapper_error) {
-      const auto bundled_wrapper = executable.parent_path() / "vibepollo-mangohud";
+      const auto bundled_wrapper = executable.parent_path() / "artlight-mangohud";
       if (bundled_wrapper != wrapper && fs::is_regular_file(bundled_wrapper, wrapper_error) &&
           access(bundled_wrapper.c_str(), X_OK) == 0) {
         wrapper = shell_quote(bundled_wrapper.generic_string());
@@ -1371,8 +1371,8 @@ namespace platf::steam {
       execlp("open", "open", uri.c_str(), static_cast<char *>(nullptr));
   #else
       const auto app_id_string = std::to_string(app_id);
-      if (std::getenv("VIBEPOLLO_MACHINE_HOST")) {
-        execl("/usr/libexec/vibeshine/vibepollo-session-exec", "vibepollo-session-exec", "steam", app_id_string.c_str(), static_cast<char *>(nullptr));
+      if (std::getenv("ARTLIGHT_MACHINE_HOST")) {
+        execl("/usr/libexec/vibeshine/artlight-session-exec", "artlight-session-exec", "steam", app_id_string.c_str(), static_cast<char *>(nullptr));
       } else {
         execlp("steam", "steam", "-applaunch", app_id_string.c_str(), static_cast<char *>(nullptr));
       }

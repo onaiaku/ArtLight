@@ -2,7 +2,7 @@
  * @file src/platform/windows/pyrowave_d3d11_core.h
  * @brief PyroWave encoding of Direct3D 11 frames through PyroWave's Vulkan C API.
  *
- * Frame path, after dimizago's Vibepollo PyroWave host (which ran a D3D12 port of the
+ * Frame path, after dimizago's ArtLight PyroWave host (which ran a D3D12 port of the
  * encoder, AMD only) and andygrundman's Windows PyroWave host:
  *
  *   captured frame (D3D11 texture, keyed mutex)

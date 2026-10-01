@@ -3,7 +3,7 @@ set -euo pipefail
 
 repository=$(CDPATH= cd -- "$(dirname -- "$0")/../../../.." && pwd -P)
 # tests/ -> steamos/ -> linux/ -> packaging/ -> repository
-build_root=$(mktemp -d /tmp/vibepollo-steamos-profile.XXXXXXXX)
+build_root=$(mktemp -d /tmp/artlight-steamos-profile.XXXXXXXX)
 trap 'rm -rf -- "$build_root"' EXIT
 
 cmake -S "$repository" -B "$build_root/profile" \
@@ -22,15 +22,15 @@ grep -qx 'SUNSHINE_ENABLE_DRM:BOOL=OFF' "$build_root/profile/CMakeCache.txt"
 # leak into either the installed assets or the SteamOS runtime definition.
 cat > "$build_root/assets.cmake" <<'EOF'
 set(CMAKE_INSTALL_PREFIX "/temporary/build/prefix")
-set(SUNSHINE_ASSETS_DIR "share/vibepollo")
+set(SUNSHINE_ASSETS_DIR "share/artlight")
 set(SUNSHINE_BUILD_STEAMOS ON)
 include("${REPOSITORY}/cmake/compile_definitions/unix.cmake")
-if(NOT SUNSHINE_ASSETS_DIR STREQUAL "share/vibepollo")
+if(NOT SUNSHINE_ASSETS_DIR STREQUAL "share/artlight")
     message(FATAL_ERROR "SteamOS assets must remain bundle-relative")
 endif()
 set(SUNSHINE_BUILD_STEAMOS OFF)
 include("${REPOSITORY}/cmake/compile_definitions/unix.cmake")
-if(NOT SUNSHINE_ASSETS_DIR STREQUAL "/temporary/build/prefix/share/vibepollo")
+if(NOT SUNSHINE_ASSETS_DIR STREQUAL "/temporary/build/prefix/share/artlight")
     message(FATAL_ERROR "Native Linux assets must retain the install prefix")
 endif()
 EOF

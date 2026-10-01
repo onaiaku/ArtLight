@@ -9,7 +9,7 @@
 #include <optional>
 #include <vector>
 
-#ifdef VIBEPOLLO_STEAM_ARTWORK_IMAGE_LIBS
+#ifdef ARTLIGHT_STEAM_ARTWORK_IMAGE_LIBS
 extern "C" {
 #include <jpeglib.h>
 }
@@ -31,7 +31,7 @@ namespace {
 
   fs::path test_root() {
     const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
-    return fs::temp_directory_path() / ("vibepollo-steam-artwork-" + std::to_string(nonce));
+    return fs::temp_directory_path() / ("artlight-steam-artwork-" + std::to_string(nonce));
   }
 
   void append_u32(std::vector<std::uint8_t> &out, std::uint32_t value) {
@@ -170,7 +170,7 @@ TEST(SteamArtwork, ConvertsWebpCoverWithStaleJpegExtension) {
   fs::remove_all(root, ec);
 }
 
-#ifdef VIBEPOLLO_STEAM_ARTWORK_IMAGE_LIBS
+#ifdef ARTLIGHT_STEAM_ARTWORK_IMAGE_LIBS
 TEST(SteamArtwork, ConvertsJpegWithoutFFmpegImageCodecs) {
   jpeg_compress_struct compressor {};
   jpeg_error_mgr error {};

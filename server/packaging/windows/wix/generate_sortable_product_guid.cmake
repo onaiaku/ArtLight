@@ -17,7 +17,7 @@ function(_artlightserver_generate_sortable_product_guid _output_variable)
     )
   endif()
 
-  vibepollo_is_sortable_product_guid(_guid_is_valid "${_guid}")
+  artlight_is_sortable_product_guid(_guid_is_valid "${_guid}")
   if(NOT _guid_is_valid)
     # Fallback for non-PowerShell hosts.  CMake only exposes seconds here, so
     # random bits keep ProductCodes unique if two packages are produced within
@@ -52,7 +52,7 @@ function(_artlightserver_generate_sortable_product_guid _output_variable)
     set(_guid "{${_time_a}-${_time_b}-7${_rand_a}-8${_rand_b}-${_rand_c}}")
   endif()
 
-  vibepollo_is_sortable_product_guid(_guid_is_valid "${_guid}")
+  artlight_is_sortable_product_guid(_guid_is_valid "${_guid}")
   if(NOT _guid_is_valid)
     message(FATAL_ERROR "Failed to generate a structurally valid sortable UUIDv7 ProductCode.")
   endif()

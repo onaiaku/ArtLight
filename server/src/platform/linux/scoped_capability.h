@@ -123,7 +123,7 @@ namespace platf::linux_security {
     }
 
     [[noreturn]] static void fail_stop(const char *operation) noexcept {
-      std::fprintf(stderr, "Vibepollo capability safety failure while %s; aborting.\n", operation);
+      std::fprintf(stderr, "ArtLight capability safety failure while %s; aborting.\n", operation);
       std::abort();
     }
 

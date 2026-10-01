@@ -133,7 +133,7 @@ function message(cause: unknown, fallback: string): string {
 }
 
 function crashBundlePartName(part: CrashBundlePart): string {
-  return part.filename || `vibepollo_crashbundle-part${part.index}.zip`;
+  return part.filename || `artlight_crashbundle-part${part.index}.zip`;
 }
 
 function triggerBlobDownload(blob: Blob, filename: string): void {

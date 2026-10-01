@@ -36,10 +36,10 @@ static unsigned pq(double nits) {
 int main(int argc, char **argv) {
   const bool stock = argc > 1 && std::string_view(argv[1]) == "--stock";
   const bool sdr_source = argc > 1 && std::string_view(argv[1]) == "--sdr-source";
-  auto log = logging::init(2, "/tmp/vibepollo-hdr-capture-probe.log");
+  auto log = logging::init(2, "/tmp/artlight-hdr-capture-probe.log");
   mail::man = std::make_shared<safe::mail_raw_t>();
   config::video.capture.clear();
-  const bool use_vulkan = std::getenv("VIBEPOLLO_HDR_ENCODER") && std::string_view(std::getenv("VIBEPOLLO_HDR_ENCODER")) == "vulkan";
+  const bool use_vulkan = std::getenv("ARTLIGHT_HDR_ENCODER") && std::string_view(std::getenv("ARTLIGHT_HDR_ENCODER")) == "vulkan";
   config::video.encoder = use_vulkan ? "vulkan" : "vaapi";
   const auto memory_type = use_vulkan ? platf::mem_type_e::vulkan : platf::mem_type_e::vaapi;
   const auto &encoder = use_vulkan ? video::vulkan : video::vaapi;
@@ -178,7 +178,7 @@ int main(int argc, char **argv) {
   if (frames < 12 || !valid) {
     return 7;
   }
-  if (std::getenv("VIBEPOLLO_HDR_CAPTURE_ONLY")) {
+  if (std::getenv("ARTLIGHT_HDR_CAPTURE_ONLY")) {
     std::cout << "Capture and reference-volume metadata PASS (encoding not requested)\n";
     return 0;
   }
@@ -197,7 +197,7 @@ int main(int argc, char **argv) {
   requested.bitrate = 20000;
   requested.slicesPerFrame = 1;
   requested.numRefFrames = 1;
-  requested.encoderCscMode = std::getenv("VIBEPOLLO_HDR_FULL_RANGE") ? 1 : 0;
+  requested.encoderCscMode = std::getenv("ARTLIGHT_HDR_FULL_RANGE") ? 1 : 0;
   auto device = video::make_encode_device(*display, encoder, requested, nullptr, false);
   if (!device) {
     return 10;
@@ -207,8 +207,8 @@ int main(int argc, char **argv) {
     return 11;
   }
   auto packets = mail::man->queue<video::packet_t>(mail::video_packets);
-  const char *output = std::getenv("VIBEPOLLO_HDR_BITSTREAM");
-  std::ofstream bitstream(output ? output : "/tmp/vibepollo-hdr-pattern.hevc", std::ios::binary);
+  const char *output = std::getenv("ARTLIGHT_HDR_BITSTREAM");
+  std::ofstream bitstream(output ? output : "/tmp/artlight-hdr-pattern.hevc", std::ios::binary);
   if (!bitstream) {
     return 12;
   }

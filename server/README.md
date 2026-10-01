@@ -20,4 +20,4 @@ Install via the unified **ArtLight installer**, which sets up both ArtLight Serv
 
 ## Credits
 
-Built on the work of the Sunshine, Apollo and Vibepollo projects.
+Built on the work of the Sunshine, Apollo and ArtLight projects.

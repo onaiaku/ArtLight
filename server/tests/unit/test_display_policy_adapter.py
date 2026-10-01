@@ -26,7 +26,7 @@ def function(source, signature):
 
 adapter = function(adapter_source, 'policy::session_t to_policy_session(')
 refresh = function((root / 'src/rtsp.h').read_text(), 'inline std::uint32_t effective_display_refresh_millihz(')
-# Vibepollo's launch boundary stores millihertz, whereas Vibeshine stores Hz.
+# ArtLight's launch boundary stores millihertz, whereas Vibeshine stores Hz.
 scaled = 'normalize_refresh_millihz(session.fps)' in refresh
 program = r'''
 #include <cassert>

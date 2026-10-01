@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a native integration probe from a completed Ninja Vibepollo build.
+"""Build a native integration probe from a completed Ninja ArtLight build.
 Usage: build-hdr-probe.py BUILD_DIRECTORY OUTPUT_DIRECTORY
 """
 import json
@@ -20,10 +20,10 @@ args[args.index('-c') + 1] = str(source)
 args = ['-O0' if x == '-O3' else x for x in args]
 subprocess.run(args, cwd=build, check=True)
 main_object = out / 'main-for-probe.o'
-subprocess.run(['objcopy', '--redefine-sym', 'main=vibepollo_application_main',
+subprocess.run(['objcopy', '--redefine-sym', 'main=artlight_application_main',
                 str(build / 'CMakeFiles/sunshine.dir/src/main.cpp.o'), str(main_object)], check=True)
 lines = subprocess.check_output(['ninja', '-t', 'commands', 'sunshine'], cwd=build, text=True).splitlines()
-args = shlex.split(next(line for line in reversed(lines) if ' -o vibepollo ' in line))
+args = shlex.split(next(line for line in reversed(lines) if ' -o artlight ' in line))
 start = next(i for i, x in enumerate(args) if x.endswith('/c++'))
 args = args[start:]
 if '&&' in args:

@@ -38,7 +38,7 @@ namespace ArtLightControl
                 {
                     var d = DevicePath.ToLowerInvariant();
                     if (d.Contains("sudovda") || d.Contains("idd_") || d.Contains("mttvdd")
-                        || d.Contains("vibe") || d.Contains("vibepollo") || d.Contains("vibeshine")
+                        || d.Contains("vibe") || d.Contains("artlight") || d.Contains("vibeshine")
                         || d.Contains("moonlight") || d.Contains("vbox") || d.Contains("vmware")
                         || d.Contains("virtual") || d.Contains("root\\virtual") || d.Contains("root\\v")
                         || d.Contains("sunshine_virtual") || d.Contains("virtual_monitor"))

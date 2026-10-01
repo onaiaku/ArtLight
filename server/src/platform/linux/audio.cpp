@@ -71,7 +71,7 @@ namespace platf {
   };
 
   namespace {
-    constexpr auto session_exec_path = "/usr/libexec/vibeshine/vibepollo-session-exec";
+    constexpr auto session_exec_path = "/usr/libexec/vibeshine/artlight-session-exec";
 
     struct session_command_result_t {
       bool success {false};
@@ -795,7 +795,7 @@ namespace platf {
   }  // namespace pa
 
   std::unique_ptr<audio_control_t> audio_control() {
-    if (std::getenv("VIBEPOLLO_MACHINE_HOST")) {
+    if (std::getenv("ARTLIGHT_MACHINE_HOST")) {
       return std::make_unique<session_audio_control_t>();
     }
     auto audio = std::make_unique<pa::server_t>();

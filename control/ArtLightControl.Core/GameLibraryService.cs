@@ -26,7 +26,7 @@ namespace ArtLightControl
         // Guards against concurrent sync runs (e.g. auto-sync at startup + user clicking "Sync Now").
         private static readonly System.Threading.SemaphoreSlim _syncLock = new(1, 1);
 
-        // Detected streaming server name (Sunshine / Apollo / Vibeshine / Vibepollo).
+        // Detected streaming server name (Sunshine / Apollo / Vibeshine / ArtLight).
         // Lazily resolved once and cached for the app lifetime.
         private static string? _hostAppName;
         private static string HostAppName =>
@@ -47,7 +47,7 @@ namespace ArtLightControl
                 // 1. Find Sunshine
                 string? appsJson = SunshineSync.FindAppsJsonPath();
                 if (appsJson == null)
-                    return $"{HostAppName} not found. Make sure ArtLight Server, Sunshine, Apollo, Vibeshine or Vibepollo is installed.";
+                    return $"{HostAppName} not found. Make sure ArtLight Server, Sunshine, Apollo, Vibeshine or ArtLight is installed.";
 
                 var state = GameLibraryState.Current;
 

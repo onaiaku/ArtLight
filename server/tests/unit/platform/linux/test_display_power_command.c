@@ -1,5 +1,5 @@
 #define main display_power_helper_entry
-#include "../../../../packaging/linux/vibepollo-display-power.c"
+#include "../../../../packaging/linux/artlight-display-power.c"
 #undef main
 
 int main(void) {

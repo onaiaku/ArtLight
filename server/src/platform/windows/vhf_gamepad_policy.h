@@ -22,10 +22,10 @@ namespace platf::vhf_gamepad {
 
   /**
    * @brief Selects the backend used by the Automatic gamepad setting.
-   * @details ViGEm remains preferred when usable. Vibepollo's VHF driver is the fallback when
+   * @details ViGEm remains preferred when usable. ArtLight's VHF driver is the fallback when
    *          ViGEmBus is absent or cannot be opened.
    * @param vigem_available Whether a connection to ViGEmBus succeeded.
-   * @param vhf_available Whether Vibepollo's VHF driver exposes a usable controller profile.
+   * @param vhf_available Whether ArtLight's VHF driver exposes a usable controller profile.
    * @return The selected backend, or `unavailable` when neither backend can create controllers.
    */
   [[nodiscard]] constexpr backend_e select_automatic_backend(
@@ -42,7 +42,7 @@ namespace platf::vhf_gamepad {
   }
 
   /**
-   * @brief Vibepollo's normalized controller state, copied field-for-field out of `gamepad_state_t`.
+   * @brief ArtLight's normalized controller state, copied field-for-field out of `gamepad_state_t`.
    * @details Keeping this struct free of platform headers lets the translation be tested on its own.
    */
   struct normalized_state_t {

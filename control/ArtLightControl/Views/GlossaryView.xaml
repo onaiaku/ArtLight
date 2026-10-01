@@ -147,7 +147,7 @@
                                Margin="0,20,0,3"/>
                     <Rectangle Height="0.5" Fill="{StaticResource STBorderActive}" Margin="0,0,0,10"/>
 
-                    <local:GlossaryRow Term="Sunshine / Apollo / Vibeshine / Vibepollo"
+                    <local:GlossaryRow Term="Sunshine / Apollo / Vibeshine / ArtLight"
                                        Definition="Open-source game streaming server software installed on the host, all compatible with ArtLightControl."/>
 
                     <!-- ── SESSION QUALITY ── -->

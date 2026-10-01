@@ -1,6 +1,6 @@
 # PyroWave on Linux
 
-For PyroWave streaming and VRR playback with Vibepollo, use Nonary's
+For PyroWave streaming and VRR playback with ArtLight, use Nonary's
 [VRR Moonlight Client fork](https://github.com/Nonary/moonlight-qt). Select PyroWave
 in the client's codec settings and connect over a fast wired LAN; stock Moonlight
 does not support PyroWave.

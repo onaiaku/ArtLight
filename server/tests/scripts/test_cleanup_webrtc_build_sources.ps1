@@ -85,7 +85,7 @@ function Assert-CleanupFails {
   Assert-True (Test-Path -LiteralPath $Fixture.BuildDir) "Failed cleanup removed the build workspace."
 }
 
-$testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "vibepollo-webrtc-cleanup-$([System.Guid]::NewGuid().ToString('N'))"
+$testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "artlight-webrtc-cleanup-$([System.Guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 try {
   $success = New-WebrtcFixture -CaseRoot (Join-Path $testRoot "success")

@@ -18,21 +18,21 @@ def forbid(text: str, needle: str, label: str) -> None:
 
 root = pathlib.Path(sys.argv[1])
 linux = root / "packaging/linux"
-controller = (linux / "vibepollo-session-controller").read_text()
-controller_unit = (linux / "vibepollo-session-controller.service").read_text()
-kwin_environment = (linux / "vibepollo-kwin-session-environment.c").read_text()
-kwin_environment_dropin = (linux / "vibepollo-kwin-session-environment.conf").read_text()
+controller = (linux / "artlight-session-controller").read_text()
+controller_unit = (linux / "artlight-session-controller.service").read_text()
+kwin_environment = (linux / "artlight-kwin-session-environment.c").read_text()
+kwin_environment_dropin = (linux / "artlight-kwin-session-environment.conf").read_text()
 pairing_policy = (root / "src/http_pairing_policy.cpp").read_text()
-host = (linux / "vibepollo-machine-host").read_text()
-host_unit = (linux / "vibepollo.service").read_text()
-broker_unit = (linux / "vibepollo-session-exec@.service").read_text()
-broker_socket_unit = (linux / "vibepollo-session-exec.socket").read_text()
-launcher = (linux / "vibepollo-session-exec.c").read_text()
-broker = (linux / "vibepollo-session-broker.c").read_text()
-steam_launcher = (linux / "vibepollo-steam-launch.cpp").read_text()
+host = (linux / "artlight-machine-host").read_text()
+host_unit = (linux / "artlight.service").read_text()
+broker_unit = (linux / "artlight-session-exec@.service").read_text()
+broker_socket_unit = (linux / "artlight-session-exec.socket").read_text()
+launcher = (linux / "artlight-session-exec.c").read_text()
+broker = (linux / "artlight-session-broker.c").read_text()
+steam_launcher = (linux / "artlight-steam-launch.cpp").read_text()
 session_execution = launcher + "\n" + broker
 private_display = (root / "src/platform/linux/private_display.cpp").read_text()
-display_power = (linux / "vibepollo-display-power.h").read_text()
+display_power = (linux / "artlight-display-power.h").read_text()
 display_power_client = (root / "src/platform/linux/display_power.cpp").read_text()
 frame_limiter = (root / "src/platform/linux/frame_limiter.cpp").read_text()
 provider_scan_protocol = (root / "src/provider_scan_protocol.cpp").read_text()
@@ -46,16 +46,16 @@ state_storage = (root / "src/state_storage.cpp").read_text()
 confighttp = (root / "src/confighttp.cpp").read_text()
 linux_misc = (root / "src/platform/linux/misc.cpp").read_text()
 main_source = (root / "src/main.cpp").read_text()
-sysusers = (linux / "vibepollo.sysusers").read_text()
+sysusers = (linux / "artlight.sysusers").read_text()
 packaging = (root / "cmake/packaging/linux.cmake").read_text()
 special_packaging = (root / "cmake/prep/special_package_configuration.cmake").read_text()
-arch_install = (linux / "Arch/vibepollo.install").read_text()
+arch_install = (linux / "Arch/artlight.install").read_text()
 arch_pre = arch_install.split("\ndo_udev_reload()", 1)[0]
 arch_pkgbuild = (linux / "Arch/PKGBUILD").read_text()
 rpm = (linux / "copr/Sunshine.spec").read_text()
 preinst = (linux / "vibeshine-preinst.in").read_text()
-postinst = (linux / "vibepollo-postinst.in").read_text()
-prerm = (linux / "vibepollo-prerm.in").read_text()
+postinst = (linux / "artlight-postinst.in").read_text()
+prerm = (linux / "artlight-prerm.in").read_text()
 prelogin_apps = json.loads((linux / "prelogin/apps.json").read_text())
 rpm_pre = rpm.split("\n%pre\n", 1)[1].split("\n%post\n", 1)[0]
 rpm_post = rpm.split("\n%post\n", 1)[1].split("\n%preun\n", 1)[0]
@@ -68,13 +68,13 @@ host_unit_directives = "\n".join(
 )
 
 obsolete = (
-    "pam_vibepollo_session.c",
-    "vibepollo-machine-prepare.service",
-    "vibepollo-session-handoff",
-    "vibepollo-session-restore@.service",
-    "vibepollo-prelogin-sync",
-    "vibepollo-prelogin.service",
-    "vibepollo-session-ready",
+    "pam_artlight_session.c",
+    "artlight-machine-prepare.service",
+    "artlight-session-handoff",
+    "artlight-session-restore@.service",
+    "artlight-prelogin-sync",
+    "artlight-prelogin.service",
+    "artlight-session-ready",
 )
 for name in obsolete:
     if (linux / name).exists():
@@ -84,8 +84,8 @@ for name in obsolete:
 # state continuously and is deliberately not a dependency of Plasma/login.
 require(controller_unit, "Wants=display-manager.service systemd-logind.service systemd-user-sessions.service vibeshine-vkms.service", "controller unit")
 require(controller_unit, "After=display-manager.service systemd-logind.service systemd-user-sessions.service vibeshine-vkms.service", "controller unit")
-require(controller_unit, "ExecStart=/usr/libexec/vibeshine/vibepollo-session-controller run", "controller unit")
-require(controller_unit, "ExecStopPost=/usr/libexec/vibeshine/vibepollo-session-controller cleanup", "controller unit")
+require(controller_unit, "ExecStart=/usr/libexec/vibeshine/artlight-session-controller run", "controller unit")
+require(controller_unit, "ExecStopPost=/usr/libexec/vibeshine/artlight-session-controller cleanup", "controller unit")
 require(controller_unit, "Restart=always", "controller unit")
 require(controller_unit, "CapabilityBoundingSet=CAP_SETGID CAP_SETUID", "controller unit")
 require(controller_unit, "AmbientCapabilities=CAP_SETUID", "controller unit")
@@ -191,7 +191,7 @@ for forbidden in ("setuid(", "setgid(", "sudo", "systemctl"):
     forbid(kwin_environment, forbidden, "KWin session environment publication")
 require(
     kwin_environment_dropin,
-    "ExecStartPost=-/usr/libexec/vibeshine/vibepollo-kwin-session-environment",
+    "ExecStartPost=-/usr/libexec/vibeshine/artlight-kwin-session-environment",
     "KWin session environment drop-in",
 )
 for forbidden in ("ExecStart=", "ExecStartPre=", "WantedBy="):
@@ -211,7 +211,7 @@ require(controller, "host_unit_is_stopped", "systemd host stop proof")
 for stopped_property in ("ActiveState", "SubState", "MainPID", "ControlGroup", "populated 0"):
     require(controller, stopped_property, "systemd/cgroup host stop proof")
 forbid(controller, "/usr/bin/ss", "spoofable global port gating")
-require(controller, 'local pattern="vibepollo-app-${generation}-*.service"', "generation-scoped application cleanup")
+require(controller, 'local pattern="artlight-app-${generation}-*.service"', "generation-scoped application cleanup")
 require(controller, 'stop_bound_session_apps "$deadline" || success=1', "application cleanup transition ordering")
 require(controller, "host-stop-cleanup-failed", "stopped existing-binding cleanup")
 inactive_binding_at = controller.index("if ((binding_matches)) && ! host_is_active; then")
@@ -268,39 +268,39 @@ forbid(controller, '[[ -S "$candidate_runtime/bus" ]]', "capability-bounded runt
 
 # The network host owns machine state but no login lifecycle. Its only
 # privilege expansion is the existing KMS binary plus the narrow session shim.
-require(sysusers, 'u vibepollo - "Vibepollo machine host" /var/lib/vibepollo /usr/bin/nologin', "machine account")
-require(sysusers, "g vibepollo-uinput - -", "virtual input group the host unit joins")
-require(host_unit, "SupplementaryGroups=video render vibepollo-uinput vibeshine-vkms", "restricted virtual input membership")
-require(host, 'profile=$home/.config/vibepollo', "canonical pairing profile discovery")
+require(sysusers, 'u artlight - "ArtLight machine host" /var/lib/artlight /usr/bin/nologin', "machine account")
+require(sysusers, "g artlight-uinput - -", "virtual input group the host unit joins")
+require(host_unit, "SupplementaryGroups=video render artlight-uinput vibeshine-vkms", "restricted virtual input membership")
+require(host, 'profile=$home/.config/artlight', "canonical pairing profile discovery")
 require(host, 'profile=$home/.config/sunshine', "legacy pairing profile discovery")
-require(host, '"$profile/vibeshine_state.json"', "existing Vibepollo pairing profile discovery")
+require(host, '"$profile/vibeshine_state.json"', "existing ArtLight pairing profile discovery")
 require(host, '"$profile/sunshine_state.json"', "legacy pairing state discovery")
 require(controller, 'desktop_service_supported() { [[ "$1" =~ ^(plasmalogin|plasmalogin-autologin|sddm|sddm-autologin)$ ]]; }',
         "SDDM and Plasma Login Manager desktop sessions")
-uinput_rules = (linux / "70-vibepollo-uinput.rules").read_text()
+uinput_rules = (linux / "70-artlight-uinput.rules").read_text()
 for rule in (
-    'KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="vibepollo-uinput", MODE="0660"',
-    'KERNEL=="uhid", SUBSYSTEM=="misc", GROUP="vibepollo-uinput", MODE="0660"',
+    'KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="artlight-uinput", MODE="0660"',
+    'KERNEL=="uhid", SUBSYSTEM=="misc", GROUP="artlight-uinput", MODE="0660"',
 ):
     require(uinput_rules, rule, "dedicated virtual input device group")
 for native_asset in (
-    "%{_udevrulesdir}/70-vibepollo-uinput.rules",
-    "%{_prefix}/lib/firewalld/services/vibepollo.xml",
-    "%{_sysconfdir}/ufw/applications.d/vibepollo",
-    "%{_datadir}/pipewire/pipewire.conf.d/50-vibepollo-audio.conf",
+    "%{_udevrulesdir}/70-artlight-uinput.rules",
+    "%{_prefix}/lib/firewalld/services/artlight.xml",
+    "%{_sysconfdir}/ufw/applications.d/artlight",
+    "%{_datadir}/pipewire/pipewire.conf.d/50-artlight-audio.conf",
 ):
     require(rpm, native_asset, "RPM native setup asset manifest")
-require(host_unit, "Requires=vibepollo-session-exec.socket", "broker-loss host revocation")
+require(host_unit, "Requires=artlight-session-exec.socket", "broker-loss host revocation")
 require(host_unit, "Wants=vibeshine-vkms.service", "machine host unit")
-require(host_unit, "After=vibepollo-session-controller.service vibepollo-session-exec.socket", "ordered machine-host startup")
+require(host_unit, "After=artlight-session-controller.service artlight-session-exec.socket", "ordered machine-host startup")
 for unit_text, label in (
     (broker_socket_unit, "session broker socket"),
     (broker_unit, "session broker connection"),
 ):
-    require(unit_text, "After=vibepollo-session-controller.service", f"{label} startup ordering")
-    require(unit_text, "Before=vibepollo.service", f"{label} shutdown drain ordering")
-    forbid(unit_text, "BindsTo=vibepollo-session-controller.service", f"{label} ordered controller cleanup")
-    forbid(unit_text, "PartOf=vibepollo-session-controller.service", f"{label} ordered controller cleanup")
+    require(unit_text, "After=artlight-session-controller.service", f"{label} startup ordering")
+    require(unit_text, "Before=artlight.service", f"{label} shutdown drain ordering")
+    forbid(unit_text, "BindsTo=artlight-session-controller.service", f"{label} ordered controller cleanup")
+    forbid(unit_text, "PartOf=artlight-session-controller.service", f"{label} ordered controller cleanup")
 require(broker_unit.split("[Service]", 1)[0], "CollectMode=inactive-or-failed",
         "completed rejected broker requests must not exhaust handoff inventory")
 require(host_unit, "KillMode=mixed", "supervisor-owned host shutdown")
@@ -308,9 +308,9 @@ require(host_unit, "SendSIGKILL=no", "GPU-owner graceful shutdown")
 require(host_unit, "Type=notify", "encoder-gated machine host readiness")
 require(host_unit, "NotifyAccess=all", "encoder-gated machine host readiness")
 require(host_unit, "TimeoutStartSec=45", "encoder-gated machine host readiness")
-require(host_unit, "User=vibepollo", "machine host unit")
-require(host_unit, "Group=vibepollo", "machine host unit")
-require(host_unit, "StateDirectory=vibepollo", "machine host unit")
+require(host_unit, "User=artlight", "machine host unit")
+require(host_unit, "Group=artlight", "machine host unit")
+require(host_unit, "StateDirectory=artlight", "machine host unit")
 require(host_unit, "CapabilityBoundingSet=CAP_SYS_ADMIN CAP_SYS_NICE", "machine host unit")
 require(host_unit, "AmbientCapabilities=", "machine host unit")
 require(host_unit, "NoNewPrivileges=no", "machine host unit")
@@ -321,37 +321,37 @@ require(host_unit, "PrivateTmp=yes", "machine host unit")
 require(host_unit, "RestrictSUIDSGID=yes", "machine host unit")
 for forbidden in (
     "User=root", "CAP_DAC_OVERRIDE", "machine-prepare", "ExecStopPost=", "WantedBy=", "KillMode=control-group",
-    "BindsTo=vibepollo-session-controller.service",
+    "BindsTo=artlight-session-controller.service",
 ):
     forbid(host_unit_directives, forbidden, "machine host unit")
 require(host, "trap request_host_shutdown TERM INT HUP", "single service signal delivery")
 forbid(host, "trap 'forward_host_signal", "duplicate service signal delivery")
 
-for variable in ("VIBEPOLLO_MACHINE_HOST", "VIBEPOLLO_SESSION_ROLE"):
+for variable in ("ARTLIGHT_MACHINE_HOST", "ARTLIGHT_SESSION_ROLE"):
     require(host, variable, "machine-host provider scan environment")
     require(provider_scan_protocol, f'std::getenv("{variable}")', "provider scan machine-session guard")
 for variable in ("VIBESHINE_MACHINE_HOST", "VIBESHINE_SESSION_ROLE"):
     forbid(provider_scan_protocol, variable, "provider scan source-only environment")
-require(frame_limiter, 'std::getenv("VIBEPOLLO_MACHINE_HOST")', "machine-host global limiter routing")
-require(frame_limiter, '"/usr/libexec/vibeshine/vibepollo-session-exec", "global-limiter"',
+require(frame_limiter, 'std::getenv("ARTLIGHT_MACHINE_HOST")', "machine-host global limiter routing")
+require(frame_limiter, '"/usr/libexec/vibeshine/artlight-session-exec", "global-limiter"',
         "machine-host global limiter broker")
 forbid(frame_limiter, "VIBESHINE_MACHINE_HOST", "global limiter source-only environment")
-require(host, '"VIBEPOLLO_SESSION_TYPE=wayland"', "managed Wayland session type")
-require(wayland_hdr_policy, 'std::getenv("VIBEPOLLO_SESSION_TYPE")', "managed Wayland HDR policy")
+require(host, '"ARTLIGHT_SESSION_TYPE=wayland"', "managed Wayland session type")
+require(wayland_hdr_policy, 'std::getenv("ARTLIGHT_SESSION_TYPE")', "managed Wayland HDR policy")
 forbid(wayland_hdr_policy, "VIBESHINE_SESSION_TYPE", "Wayland HDR source-only environment")
 
 # API restart of the private child exits back to the readiness-gating wrapper.
 # Ordinary Linux launches retain the historical atexit self-reexec path.
 restart_body = linux_misc.split("\n  void restart() {\n", 1)[1].split("\n  }\n", 1)[0]
 for invariant in (
-    'std::getenv("VIBEPOLLO_MACHINE_HOST")',
+    'std::getenv("ARTLIGHT_MACHINE_HOST")',
     "machine_host[0] == '1'",
     "machine_host[1] == '\\0'",
     "lifetime::exit_sunshine(0, true);",
     "atexit(restart_on_exit);",
 ):
     require(restart_body, invariant, "machine-host restart delegation")
-machine_guard_at = restart_body.index('std::getenv("VIBEPOLLO_MACHINE_HOST")')
+machine_guard_at = restart_body.index('std::getenv("ARTLIGHT_MACHINE_HOST")')
 machine_return_at = restart_body.index("return;", machine_guard_at)
 self_reexec_at = restart_body.index("atexit(restart_on_exit);")
 if not machine_guard_at < machine_return_at < self_reexec_at:
@@ -361,7 +361,7 @@ require(linux_misc, "execv(executable, lifetime::get_argv())", "ordinary Linux s
 # A supervised machine child first requests display preservation and attempts
 # ordered GPU teardown. Bound hung joins before systemd's 20-second timeout.
 for invariant in (
-    'std::getenv("VIBEPOLLO_MACHINE_HOST")',
+    'std::getenv("ARTLIGHT_MACHINE_HOST")',
     "machine_host_environment[0] == '1'",
     "machine_host_environment[1] == '\\0'",
     "shutdown_deadline_t shutdown_deadline {&shutdown_signal_requested, supervised_machine_host}",
@@ -439,7 +439,7 @@ require(kmsgrab, "if (drmIsMaster(fd.el) && drmDropMaster(fd.el) != 0)", "all-GP
 forbid(kmsgrab, 'driver_name == "vibeshine_drm" && drmIsMaster', "physical GPU resume ownership")
 require(broker, '!strcmp(argv[1], "display-power") && argc == 2', "fixed power operation")
 execute_request = broker.split("static int execute_request(", 1)[1]
-if execute_request.index("drop_to_session(identity)") > execute_request.index('execv("/usr/libexec/vibeshine/vibepollo-display-power"'):
+if execute_request.index("drop_to_session(identity)") > execute_request.index('execv("/usr/libexec/vibeshine/artlight-display-power"'):
     raise AssertionError("display power must execute only after permanent capability/UID drop")
 for forbidden in ("chvt", "ActivateSession", "SwitchTo", "RestartUnit", "SetBrightness"):
     forbid(display_power, forbidden, "passive display power recovery")
@@ -449,8 +449,8 @@ require(display_power_client, 'token == \'R\'', "power readiness consumption")
 require(display_power_client, "std::chrono::seconds(8)", "bounded power readiness")
 require(display_power_client, "std::weak_ptr<lease_t> shared_lease", "shared power broker admission")
 require(display_power_client, 'start_ready("display-wake")', "new launch wakes retained display")
-require(packaging, "vibepollo_steam_launch vibepollo_display_power", "capability-free power helper installation")
-require(rpm, "%attr(0755,root,root) %{_prefix}/libexec/vibeshine/vibepollo-display-power", "COPR power helper payload")
+require(packaging, "artlight_steam_launch artlight_display_power", "capability-free power helper installation")
+require(rpm, "%attr(0755,root,root) %{_prefix}/libexec/vibeshine/artlight-display-power", "COPR power helper payload")
 prepare = private_display.split("prepare_result_t prepare_session(", 1)[1]
 if prepare.index("display_power::acquire()") > prepare.index("session.virtual_display = false"):
     raise AssertionError("power recovery must precede display topology preparation")
@@ -461,10 +461,10 @@ require(stream, "session->display_power_guard = launch_session.display_power_gua
 require(stream, "session.display_power_guard.reset()", "capture teardown releases display power")
 forbid(linux_misc, "display_power::acquire()", "retained shared runtime must not inhibit sleep")
 
-require(host, "readonly machine_profile=/var/lib/vibepollo", "machine host")
+require(host, "readonly machine_profile=/var/lib/artlight", "machine host")
 require(host, '"HOME=$machine_profile"', "machine host HOME isolation")
 require(host, '"XDG_CONFIG_HOME=/var/lib"', "machine host configuration isolation")
-require(host, "command_manifest_header='# vibepollo-session-commands-v2'", "versioned command authorization")
+require(host, "command_manifest_header='# artlight-session-commands-v2'", "versioned command authorization")
 require(host, "migrate_legacy_command_manifest", "command authorization migration")
 require(host, '/usr/bin/grep -Fqx -- "$authorization_command" "$command_manifest"', "no-new-command migration")
 require(host, "split_authorization_line", "lossless authorization field parsing")
@@ -624,7 +624,7 @@ require(primary_update_body, "policy::load_primary_state_for_update", "primary r
 require(state_storage, "const auto new_load_result = load_tree_for_read", "non-destructive state migration")
 save_snapshot_body = nvhttp.split("bool save_state_snapshot_locked", 1)[1].split("bool load_state()", 1)[0]
 require(save_snapshot_body, "const auto primary = statefile::load_primary_state(root)", "authoritative pairing save recovery")
-require(save_snapshot_body, "Refusing to replace unavailable Vibepollo pairing state", "pairing save recovery refusal")
+require(save_snapshot_body, "Refusing to replace unavailable ArtLight pairing state", "pairing save recovery refusal")
 require(save_body, "authorization_state_ready", "pairing persistence load gate")
 require(nvhttp, "durable pairing state could not be loaded", "pairing persistence load gate")
 
@@ -691,10 +691,10 @@ require(host, "/usr/bin/setpriv --inh-caps=-all --ambient-caps=-all", "private h
 
 # Native packages install and enable the controller, retain only the exact PAM
 # removal migration, and do not ship any obsolete login-path component.
-require(packaging, "vibepollo-session-controller", "native packaging")
-require(packaging, "vibepollo_kwin_session_environment", "native packaging")
-require(packaging, "vibepollo-kwin-session-environment.conf", "native packaging")
-if packaging.count("vibepollo-kwin-session-environment.conf") != 1:
+require(packaging, "artlight-session-controller", "native packaging")
+require(packaging, "artlight_kwin_session_environment", "native packaging")
+require(packaging, "artlight-kwin-session-environment.conf", "native packaging")
+if packaging.count("artlight-kwin-session-environment.conf") != 1:
     raise AssertionError("native packaging must define one shared KWin environment drop-in install rule")
 for kwin_unit in ("plasma-kwin_wayland", "plasma-login-kwin_wayland"):
     require(packaging, kwin_unit, "desktop and greeter KWin environment packaging")
@@ -703,8 +703,8 @@ require(
     '"${SYSTEMD_USER_UNIT_INSTALL_DIR}/${vibeshine_kwin_unit}.service.d"',
     "desktop and greeter KWin environment packaging",
 )
-require(packaging, "vibepollo-session-controller.service", "native packaging")
-require(packaging, "install(TARGETS vibepollo_session_broker", "native packaging")
+require(packaging, "artlight-session-controller.service", "native packaging")
+require(packaging, "install(TARGETS artlight_session_broker", "native packaging")
 require(packaging, "set(CPACK_DEB_COMPONENT_INSTALL OFF)", "monolithic native DEB")
 for deb_arch_contract in (
     'VIBESHINE_PACKAGE_PROCESSOR MATCHES "^(x86_64|amd64)$"',
@@ -720,42 +720,42 @@ if rpm_filelist_match is None:
     raise AssertionError("native packaging is missing the deterministic CPack RPM file list")
 rpm_filelist = rpm_filelist_match.group(1)
 rpm_entries = (
-    "%attr(0755,root,root) ${CMAKE_INSTALL_FULL_BINDIR}/vibepollo",
-    "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-session-exec",
-    "%attr(0700,root,root) %caps(cap_kill,cap_setgid,cap_setuid+p) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-session-broker",
-    "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-app-supervisor",
-    "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-steam-launch",
-    "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-kwin-session-environment",
-    "%attr(0750,root,vibepollo) %caps(cap_sys_admin,cap_sys_nice+p) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-host",
+    "%attr(0755,root,root) ${CMAKE_INSTALL_FULL_BINDIR}/artlight",
+    "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-session-exec",
+    "%attr(0700,root,root) %caps(cap_kill,cap_setgid,cap_setuid+p) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-session-broker",
+    "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-app-supervisor",
+    "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-steam-launch",
+    "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-kwin-session-environment",
+    "%attr(0750,root,artlight) %caps(cap_sys_admin,cap_sys_nice+p) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-host",
 )
 for rpm_entry in rpm_entries:
     require(rpm_filelist, rpm_entry, "deterministic CPack RPM file list")
 if rpm_filelist.count("%caps(") != 2:
     raise AssertionError("CPack RPM metadata must grant capabilities only to the broker and private host")
 for capability_free_path in (
-    "${CMAKE_INSTALL_FULL_BINDIR}/vibepollo",
-    "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-session-exec",
-    "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-app-supervisor",
-    "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-steam-launch",
-    "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-kwin-session-environment",
+    "${CMAKE_INSTALL_FULL_BINDIR}/artlight",
+    "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-session-exec",
+    "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-app-supervisor",
+    "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-steam-launch",
+    "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-kwin-session-environment",
 ):
     filelist_line = next(line for line in rpm_filelist.splitlines() if capability_free_path in line)
     forbid(filelist_line, "%caps(", f"capability-free RPM file {capability_free_path}")
-for forbidden in ("pam_vibepollo", "vibepollo-machine-prepare", "vibepollo-session-handoff", "vibepollo-session-restore"):
+for forbidden in ("pam_artlight", "artlight-machine-prepare", "artlight-session-handoff", "artlight-session-restore"):
     forbid(packaging, forbidden, "native packaging")
 for dependency_file, label in ((arch_pkgbuild, "Arch dependencies"), (rpm, "RPM dependencies"), (packaging, "native dependencies")):
     forbid(dependency_file, "pam-devel", label)
     forbid(dependency_file, "libpam0g", label)
 for lifecycle, label in ((arch_install, "Arch lifecycle"), (rpm, "RPM lifecycle"), (postinst, "native lifecycle")):
-    require(lifecycle, "enable vibepollo-session-controller.service", label)
+    require(lifecycle, "enable artlight-session-controller.service", label)
     if label != "Arch lifecycle":
-        require(lifecycle, "disable vibepollo.service", label)
+        require(lifecycle, "disable artlight.service", label)
     require(lifecycle, "remove-pam", label)
-require(arch_install, "vibepollo_retire_obsolete_boot_links || return 1", "Arch lifecycle")
-require(arch_install, "for unit in vibepollo.service vibepollo-session-exec.socket", "Arch lifecycle")
+require(arch_install, "artlight_retire_obsolete_boot_links || return 1", "Arch lifecycle")
+require(arch_install, "for unit in artlight.service artlight-session-exec.socket", "Arch lifecycle")
 require(arch_install, 'resolved=$(readlink -f -- "$link")', "Arch lifecycle")
 for lifecycle, label in ((arch_install, "Arch removal"), (rpm, "RPM removal"), (prerm, "native removal")):
-    require(lifecycle, "vibepollo-session-controller", label)
+    require(lifecycle, "artlight-session-controller", label)
 
 # Every replacement/removal compatibility path uses one systemd snapshot plus
 # the exact cgroup.events state, and converges over strictly validated broker
@@ -777,16 +777,16 @@ for lifecycle, label in (
         "ulimit -f 128",
         "65536",
         "mask --runtime",
-        "vibepollo-session-exec.socket",
-        "vibepollo.service",
+        "artlight-session-exec.socket",
+        "artlight.service",
     ):
         require(lifecycle, invariant, label)
     if "-lt 20" not in lifecycle and "attempt < 20" not in lifecycle:
         raise AssertionError(f"{label} lacks bounded broker convergence")
     if "-lt 5" not in lifecycle and "clean_passes < 5" not in lifecycle:
         raise AssertionError(f"{label} lacks sustained clean broker enumeration")
-    forbid(lifecycle, "systemctl stop 'vibepollo-session-exec@*.service'", label)
-    forbid(lifecycle, 'systemctl stop "vibepollo-session-exec@*.service"', label)
+    forbid(lifecycle, "systemctl stop 'artlight-session-exec@*.service'", label)
+    forbid(lifecycle, 'systemctl stop "artlight-session-exec@*.service"', label)
     forbid(lifecycle, "systemctl kill --kill-whom=all --signal=KILL", label)
 
 # Pre-replacement hooks must quiesce both the immediately prior architecture
@@ -798,19 +798,19 @@ for lifecycle, label in (
 ):
     normalized = " ".join(lifecycle.replace("\\\n", " ").split())
     for invariant in (
-        "vibepollo_broker_socket_is_masked",
-        "vibepollo_stop_brokers",
-        "vibepollo_broker_unit_is_safe",
+        "artlight_broker_socket_is_masked",
+        "artlight_stop_brokers",
+        "artlight_broker_unit_is_safe",
         "vibeshine-vkms-control.socket",
-        "vibepollo_control_unit_is_safe",
-        "vibepollo_control_instances_are_quiescent",
-        "vibepollo_select_upgrade_kill_mode",
-        "vibepollo_prepare_host_upgrade_fence",
-        "vibepollo_activate_host_upgrade_fence",
+        "artlight_control_unit_is_safe",
+        "artlight_control_instances_are_quiescent",
+        "artlight_select_upgrade_kill_mode",
+        "artlight_prepare_host_upgrade_fence",
+        "artlight_activate_host_upgrade_fence",
         "RefuseManualStart=yes",
-        "vibepollo_upgrade_kill_mode=process",
-        "vibepollo_upgrade_kill_mode=control-group",
-        "vibepollo_upgrade_kill_mode=mixed",
+        "artlight_upgrade_kill_mode=process",
+        "artlight_upgrade_kill_mode=control-group",
+        "artlight_upgrade_kill_mode=mixed",
         "trap request_host_shutdown TERM INT HUP",
         "SendSIGKILL=no",
         "--property=Job",
@@ -818,74 +818,74 @@ for lifecycle, label in (
         "--kill-after=2 60 systemctl stop",
         "FreezerState=frozen",
         "frozen 1",
-        "vibepollo_controller_remains_frozen",
-        "vibepollo_thaw_controller",
+        "artlight_controller_remains_frozen",
+        "artlight_thaw_controller",
         "systemctl thaw",
         "FreezerState=running",
-        "vibepollo-session-controller.service",
-        "vibepollo.service",
-        "vibepollo-prelogin.service",
-        "vibepollo-machine-prepare.service",
-        "vibepollo_run_optional_legacy_command cleanup",
-        "vibepollo_run_optional_legacy_command remove-pam",
+        "artlight-session-controller.service",
+        "artlight.service",
+        "artlight-prelogin.service",
+        "artlight-machine-prepare.service",
+        "artlight_run_optional_legacy_command cleanup",
+        "artlight_run_optional_legacy_command remove-pam",
         "mask --runtime",
-        "vibepollo-session-restore@.service",
-        "vibepollo_restore_template_is_masked",
-        "vibepollo_host_unit_is_masked",
-        "vibepollo_restore_unit_is_safe",
-        "vibepollo_stop_restore_instances",
-        "vibepollo_restore_instances_are_quiescent",
+        "artlight-session-restore@.service",
+        "artlight_restore_template_is_masked",
+        "artlight_host_unit_is_masked",
+        "artlight_restore_unit_is_safe",
+        "artlight_stop_restore_instances",
+        "artlight_restore_instances_are_quiescent",
         "--property=ControlGroup",
         "populated 0",
-        "vibepollo_unit_is_disabled",
-        "/run/vibepollo/session-broker.sock",
-        "/run/vibepollo/session-handoffs",
-        "/run/vibepollo/session-restores",
-        "/run/vibepollo/session-handoff.lock",
-        "/run/vibepollo/prelogin-handoff-complete",
-        "vibepollo_disable_legacy_handoff",
+        "artlight_unit_is_disabled",
+        "/run/artlight/session-broker.sock",
+        "/run/artlight/session-handoffs",
+        "/run/artlight/session-restores",
+        "/run/artlight/session-handoff.lock",
+        "/run/artlight/prelogin-handoff-complete",
+        "artlight_disable_legacy_handoff",
         "chmod 000",
         "grep -Fzxq",
-        "vibepollo_wait_for_legacy_handoff",
+        "artlight_wait_for_legacy_handoff",
         "flock --exclusive",
-        "vibepollo_cleanup_legacy_transition_state",
+        "artlight_cleanup_legacy_transition_state",
         "LoadState=masked",
         "privileged_helper_is_safe",
         "ulimit -f 128",
         "65536",
     ):
         require(lifecycle, invariant, label)
-    forbid(lifecycle, "systemctl stop 'vibepollo-session-exec@*.service'", label)
-    forbid(lifecycle, 'systemctl stop "vibepollo-session-exec@*.service"', label)
-    forbid(lifecycle, "systemctl stop 'vibepollo-session-restore@*.service'", label)
-    forbid(lifecycle, 'systemctl stop "vibepollo-session-restore@*.service"', label)
+    forbid(lifecycle, "systemctl stop 'artlight-session-exec@*.service'", label)
+    forbid(lifecycle, 'systemctl stop "artlight-session-exec@*.service"', label)
+    forbid(lifecycle, "systemctl stop 'artlight-session-restore@*.service'", label)
+    forbid(lifecycle, 'systemctl stop "artlight-session-restore@*.service"', label)
     forbid(lifecycle, "systemctl unmask", label)
     forbid(lifecycle, "systemctl kill --kill-whom=all --signal=KILL", label)
-    forbid(lifecycle, "vibepollo_session_record=", label)
-    forbid(lifecycle, "vibepollo_legacy_acl=", label)
-    function_name = "do_quiesce_machine_host" if label.startswith("Arch") else "vibepollo_quiesce_machine_host"
+    forbid(lifecycle, "artlight_session_record=", label)
+    forbid(lifecycle, "artlight_legacy_acl=", label)
+    function_name = "do_quiesce_machine_host" if label.startswith("Arch") else "artlight_quiesce_machine_host"
     quiesce_source = lifecycle.rsplit(f"\n{function_name}() {{\n", 1)[1].split("\n}\n", 1)[0]
     quiesce = " ".join(quiesce_source.replace("\\\n", " ").split())
-    prepare_at = quiesce.index("vibepollo_prepare_host_upgrade_fence || return 1")
-    freeze_at = quiesce.index("vibepollo_freeze_controller || return 1", prepare_at)
-    activate_at = quiesce.index("vibepollo_activate_host_upgrade_fence || return 1", freeze_at)
+    prepare_at = quiesce.index("artlight_prepare_host_upgrade_fence || return 1")
+    freeze_at = quiesce.index("artlight_freeze_controller || return 1", prepare_at)
+    activate_at = quiesce.index("artlight_activate_host_upgrade_fence || return 1", freeze_at)
     control_mask_at = quiesce.index("systemctl mask --runtime vibeshine-vkms-control.socket", activate_at)
-    control_stop_at = quiesce.index("vibepollo_stop_exact_unit vibeshine-vkms-control.socket", control_mask_at)
-    control_drain_at = quiesce.index("vibepollo_control_instances_are_quiescent || return 1", control_stop_at)
-    restore_mask_at = quiesce.index("systemctl mask --runtime 'vibepollo-session-restore@.service'", activate_at)
-    helper_close_at = quiesce.index("vibepollo_disable_legacy_handoff || return 1", restore_mask_at)
-    broker_admission_at = quiesce.index("systemctl mask --runtime vibepollo-session-exec.socket", control_drain_at)
-    broker_stop_at = quiesce.index("vibepollo_stop_exact_unit vibepollo-session-exec.socket", broker_admission_at)
-    host_stop_at = quiesce.index("vibepollo_stop_exact_unit vibepollo.service", broker_stop_at)
-    host_mask_at = quiesce.index("systemctl mask --runtime vibepollo.service", host_stop_at)
-    first_restore_stop = quiesce.index("vibepollo_stop_restore_instances || return 1", host_mask_at)
-    broker_drain_at = quiesce.index("vibepollo_stop_brokers || return 1", first_restore_stop)
-    frozen_proof_at = quiesce.index("vibepollo_controller_remains_frozen || return 1", broker_drain_at)
-    thaw_at = quiesce.index("vibepollo_thaw_controller || return 1", frozen_proof_at)
-    controller_stop_at = quiesce.index("vibepollo_stop_exact_unit vibepollo-session-controller.service", thaw_at)
-    remove_pam_at = normalized.index("vibepollo_run_optional_legacy_command remove-pam", first_restore_stop)
-    last_restore_stop = normalized.rindex("vibepollo_stop_restore_instances || return 1")
-    legacy_cleanup_at = normalized.rindex("vibepollo_cleanup_legacy_transition_state || return 1")
+    control_stop_at = quiesce.index("artlight_stop_exact_unit vibeshine-vkms-control.socket", control_mask_at)
+    control_drain_at = quiesce.index("artlight_control_instances_are_quiescent || return 1", control_stop_at)
+    restore_mask_at = quiesce.index("systemctl mask --runtime 'artlight-session-restore@.service'", activate_at)
+    helper_close_at = quiesce.index("artlight_disable_legacy_handoff || return 1", restore_mask_at)
+    broker_admission_at = quiesce.index("systemctl mask --runtime artlight-session-exec.socket", control_drain_at)
+    broker_stop_at = quiesce.index("artlight_stop_exact_unit artlight-session-exec.socket", broker_admission_at)
+    host_stop_at = quiesce.index("artlight_stop_exact_unit artlight.service", broker_stop_at)
+    host_mask_at = quiesce.index("systemctl mask --runtime artlight.service", host_stop_at)
+    first_restore_stop = quiesce.index("artlight_stop_restore_instances || return 1", host_mask_at)
+    broker_drain_at = quiesce.index("artlight_stop_brokers || return 1", first_restore_stop)
+    frozen_proof_at = quiesce.index("artlight_controller_remains_frozen || return 1", broker_drain_at)
+    thaw_at = quiesce.index("artlight_thaw_controller || return 1", frozen_proof_at)
+    controller_stop_at = quiesce.index("artlight_stop_exact_unit artlight-session-controller.service", thaw_at)
+    remove_pam_at = normalized.index("artlight_run_optional_legacy_command remove-pam", first_restore_stop)
+    last_restore_stop = normalized.rindex("artlight_stop_restore_instances || return 1")
+    legacy_cleanup_at = normalized.rindex("artlight_cleanup_legacy_transition_state || return 1")
     if not (
         prepare_at
         < freeze_at
@@ -912,41 +912,41 @@ for lifecycle, label in (
         raise AssertionError(f"{label} rejects masked legacy restore instances during exact cgroup cleanup")
 
 for function_name in (
-    "vibepollo_control_instances_are_quiescent",
-    "vibepollo_stop_brokers",
-    "vibepollo_stop_restore_instances",
-    "vibepollo_restore_instances_are_quiescent",
+    "artlight_control_instances_are_quiescent",
+    "artlight_stop_brokers",
+    "artlight_stop_restore_instances",
+    "artlight_restore_instances_are_quiescent",
 ):
     require(rpm_pre, f"{function_name}() (", "RPM pre-replacement subshell isolation")
-require(rpm_post, "vibepollo_stop_brokers() (", "RPM post-replacement subshell isolation")
-require(rpm_preun, "vibepollo_preun_stop_brokers() (", "RPM preun subshell isolation")
+require(rpm_post, "artlight_stop_brokers() (", "RPM post-replacement subshell isolation")
+require(rpm_preun, "artlight_preun_stop_brokers() (", "RPM preun subshell isolation")
 
 # Pacman runs the same install script before and after replacement. The second
 # invocation must accept the fully masked, quiescent state left by the first
 # instead of attempting to activate a drop-in through the runtime host mask.
 for invariant in (
-    "vibepollo_preserved_quiesce_is_safe",
-    "vibepollo_runtime_root_is_safe_or_absent",
-    "vibepollo_control_socket_is_masked",
-    "vibepollo_broker_socket_is_masked",
-    "vibepollo_host_unit_is_masked",
-    "vibepollo_control_instances_are_quiescent",
-    "vibepollo_brokers_are_quiescent",
-    "vibepollo_restore_instances_are_quiescent",
-    "! -e \"$vibepollo_broker_socket\"",
-    "! -e \"$vibepollo_control_socket\"",
+    "artlight_preserved_quiesce_is_safe",
+    "artlight_runtime_root_is_safe_or_absent",
+    "artlight_control_socket_is_masked",
+    "artlight_broker_socket_is_masked",
+    "artlight_host_unit_is_masked",
+    "artlight_control_instances_are_quiescent",
+    "artlight_brokers_are_quiescent",
+    "artlight_restore_instances_are_quiescent",
+    "! -e \"$artlight_broker_socket\"",
+    "! -e \"$artlight_control_socket\"",
 ):
     require(arch_pre, invariant, "Arch preserved quiesce detection")
 arch_quiesce = arch_pre.rsplit("\ndo_quiesce_machine_host() {\n", 1)[1].split("\n}\n", 1)[0]
-preserved_at = arch_quiesce.index("vibepollo_preserved_quiesce_is_safe && return 0")
-select_at = arch_quiesce.index("vibepollo_select_upgrade_kill_mode || return 1")
+preserved_at = arch_quiesce.index("artlight_preserved_quiesce_is_safe && return 0")
+select_at = arch_quiesce.index("artlight_select_upgrade_kill_mode || return 1")
 if not preserved_at < select_at:
     raise AssertionError("Arch post-upgrade does not recognize preserved quiesce before fence activation")
 for command in (
     "systemctl daemon-reload || exit 1",
     ") || exit 1",
     "grep -qx 'RefuseManualStart=yes' || exit 1",
-    'grep -qx "KillMode=$vibepollo_upgrade_kill_mode" || exit 1',
+    'grep -qx "KillMode=$artlight_upgrade_kill_mode" || exit 1',
     "grep -qx 'SendSIGKILL=no' || exit 1",
 ):
     require(rpm_pre, command, "RPM upgrade-fence fail-closed activation")
@@ -959,35 +959,35 @@ for lifecycle, label in (
     (rpm_post, "RPM post-replacement"),
 ):
     for invariant in (
-        "vibepollo_unmask_host_for_controller",
-        "90-vibepollo-safe-upgrade.conf",
+        "artlight_unmask_host_for_controller",
+        "90-artlight-safe-upgrade.conf",
         "RefuseManualStart=no",
         "KillMode=mixed",
         "SendSIGKILL=no",
         "unmask --runtime vibeshine-vkms-control.socket",
         "start vibeshine-vkms-control.socket",
-        "unmask --runtime vibepollo-session-exec.socket",
-        "unmask --runtime vibepollo.service",
+        "unmask --runtime artlight-session-exec.socket",
+        "unmask --runtime artlight.service",
         "LoadState=loaded",
-        "systemctl enable vibepollo-session-controller.service",
-        "systemctl start vibepollo-session-controller.service",
+        "systemctl enable artlight-session-controller.service",
+        "systemctl start artlight-session-controller.service",
         "cap_sys_admin,cap_sys_nice=p",
         "cap_kill,cap_setgid,cap_setuid=p",
-        "vibepollo-host",
-        "vibepollo-session-broker",
+        "artlight-host",
+        "artlight-session-broker",
         "distinct inodes",
-        "root:vibepollo",
+        "root:artlight",
         "0750",
         "0700",
     ):
         require(lifecycle, invariant, label)
-    forbid(lifecycle, "enable vibepollo-session-exec.socket", label)
-    forbid(lifecycle, "start vibepollo-session-exec.socket", label)
-    forbid(lifecycle, "unmask --runtime vibepollo-session-restore@.service", label)
+    forbid(lifecycle, "enable artlight-session-exec.socket", label)
+    forbid(lifecycle, "start artlight-session-exec.socket", label)
+    forbid(lifecycle, "unmask --runtime artlight-session-restore@.service", label)
     normalized = " ".join(lifecycle.replace("\\\n", " ").split())
-    enable_at = normalized.rindex("systemctl enable vibepollo-session-controller.service")
-    unmask_at = normalized.rindex("! vibepollo_unmask_host_for_controller")
-    start_at = normalized.rindex("systemctl start vibepollo-session-controller.service")
+    enable_at = normalized.rindex("systemctl enable artlight-session-controller.service")
+    unmask_at = normalized.rindex("! artlight_unmask_host_for_controller")
+    start_at = normalized.rindex("systemctl start artlight-session-controller.service")
     if not enable_at < unmask_at < start_at:
         raise AssertionError(f"{label} does not unmask the host immediately before controller activation")
 
@@ -1008,17 +1008,17 @@ for invariant in (
 ):
     require(host, invariant, "machine-host reset quiescence")
 for unsafe_stop in (
-    "systemctl stop 'vibepollo-session-exec@*.service'",
-    'systemctl stop "vibepollo-session-exec@*.service"',
+    "systemctl stop 'artlight-session-exec@*.service'",
+    'systemctl stop "artlight-session-exec@*.service"',
 ):
     forbid(host, unsafe_stop, "machine-host reset quiescence")
 
-require(rpm, "%{_bindir}/vibepollo-mangohud", "RPM deterministic manifest")
-require(rpm, "%attr(0755,root,root) %{_prefix}/libexec/vibeshine/vibepollo-app-supervisor", "RPM deterministic manifest")
-require(rpm, "%attr(0755,root,root) %{_prefix}/libexec/vibeshine/vibepollo-steam-launch", "RPM deterministic manifest")
-require(rpm, "%attr(0755,root,root) %{_prefix}/libexec/vibeshine/vibepollo-kwin-session-environment", "RPM deterministic manifest")
-require(rpm, "%attr(0750,root,vibepollo) %caps(cap_sys_admin,cap_sys_nice+p) %{_prefix}/libexec/vibeshine/vibepollo-host", "RPM deterministic manifest")
-require(rpm, "%attr(0700,root,root) %caps(cap_kill,cap_setgid,cap_setuid+p) %{_prefix}/libexec/vibeshine/vibepollo-session-broker", "RPM deterministic manifest")
+require(rpm, "%{_bindir}/artlight-mangohud", "RPM deterministic manifest")
+require(rpm, "%attr(0755,root,root) %{_prefix}/libexec/vibeshine/artlight-app-supervisor", "RPM deterministic manifest")
+require(rpm, "%attr(0755,root,root) %{_prefix}/libexec/vibeshine/artlight-steam-launch", "RPM deterministic manifest")
+require(rpm, "%attr(0755,root,root) %{_prefix}/libexec/vibeshine/artlight-kwin-session-environment", "RPM deterministic manifest")
+require(rpm, "%attr(0750,root,artlight) %caps(cap_sys_admin,cap_sys_nice+p) %{_prefix}/libexec/vibeshine/artlight-host", "RPM deterministic manifest")
+require(rpm, "%attr(0700,root,root) %caps(cap_kill,cap_setgid,cap_setuid+p) %{_prefix}/libexec/vibeshine/artlight-session-broker", "RPM deterministic manifest")
 require(rpm, "%global build_semver %{lua:", "RPM application SemVer")
 require(rpm, "%global rpm_version %{lua:", "RPM native version normalization")
 require(rpm, "Version: %{rpm_version}", "RPM native version normalization")
@@ -1028,16 +1028,16 @@ for obsolete_version_contract in ("Version: %{build_version}", "BUILD_VERSION=v%
 forbid(rpm, "%{_userunitdir}/*.service", "RPM deterministic manifest")
 for dropin in (
     "%{_userunitdir}/plasma-kwin_wayland.service.d/vibeshine-kwin-gpu.conf",
-    "%{_userunitdir}/plasma-kwin_wayland.service.d/vibepollo-kwin-session-environment.conf",
+    "%{_userunitdir}/plasma-kwin_wayland.service.d/artlight-kwin-session-environment.conf",
     "%{_userunitdir}/plasma-login-kwin_wayland.service.d/vibeshine-kwin-gpu.conf",
-    "%{_userunitdir}/plasma-login-kwin_wayland.service.d/vibepollo-kwin-session-environment.conf",
+    "%{_userunitdir}/plasma-login-kwin_wayland.service.d/artlight-kwin-session-environment.conf",
 ):
     require(rpm, dropin, "RPM deterministic manifest")
 require(rpm, "%attr(4755,root,root) %{_libdir}/libvibeshine-kwin-gpu.so", "shared trusted GPU bridge manifest")
 for lifecycle in (arch_install, postinst):
     require(lifecycle, "user.vibeshine.cap_sys_nice_removed", "shared previous GPU bridge marker")
-    require(lifecycle, "vibepollo-kwin-capability.path vibeshine-kwin-capability.path", "legacy watcher retirement")
+    require(lifecycle, "artlight-kwin-capability.path vibeshine-kwin-capability.path", "legacy watcher retirement")
 require(special_packaging, 'SUNSHINE_SERVICE_READINESS_COMMAND "ExecStartPre=/bin/sleep 5"', "ordinary user service")
-forbid(special_packaging, "vibepollo-session-ready", "ordinary user service")
+forbid(special_packaging, "artlight-session-ready", "ordinary user service")
 
 print("PASS: least-privilege Linux machine-session controller contract")

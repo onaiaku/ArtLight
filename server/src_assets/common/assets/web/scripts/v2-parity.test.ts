@@ -399,7 +399,7 @@ test('client command edits survive the latest-device merge before save', () => {
   );
 });
 
-test('server command rows round-trip for the Vibepollo editor', () => {
+test('server command rows round-trip for the ArtLight editor', () => {
   const server = normalizeServerCommandRows(
     JSON.stringify([{ name: 'Open overlay', cmd: 'overlay.exe', elevated: true }]),
     'windows',

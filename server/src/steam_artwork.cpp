@@ -27,7 +27,7 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
-#ifdef VIBEPOLLO_STEAM_ARTWORK_IMAGE_LIBS
+#ifdef ARTLIGHT_STEAM_ARTWORK_IMAGE_LIBS
 extern "C" {
 #include <jpeglib.h>
 #include <png.h>
@@ -287,7 +287,7 @@ namespace {
     return AV_CODEC_ID_NONE;
   }
 
-#ifdef VIBEPOLLO_STEAM_ARTWORK_IMAGE_LIBS
+#ifdef ARTLIGHT_STEAM_ARTWORK_IMAGE_LIBS
   struct rgba_image_t {
     int width = 0;
     int height = 0;
@@ -402,7 +402,7 @@ namespace {
     if (id == AV_CODEC_ID_PNG) {
       return valid_png_bytes(bytes) ? std::optional {bytes} : std::nullopt;
     }
-#ifdef VIBEPOLLO_STEAM_ARTWORK_IMAGE_LIBS
+#ifdef ARTLIGHT_STEAM_ARTWORK_IMAGE_LIBS
     if (const auto converted = convert_with_image_libs(source, bytes)) return converted;
 #endif
     if (id == AV_CODEC_ID_NONE) return std::nullopt;
@@ -607,7 +607,7 @@ namespace {
     // Never weaken certificate or hostname verification for artwork.
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Vibepollo-Steam-Artwork/1.0");
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "ArtLight-Steam-Artwork/1.0");
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buffer);
     const auto result = curl_easy_perform(curl);
@@ -701,7 +701,7 @@ namespace platf::steam::artwork {
       bytes = fetcher(request);
     } else {
       const auto payload = provider_scan::detail::capture_command(
-        "/usr/libexec/vibeshine/vibepollo-session-exec", request,
+        "/usr/libexec/vibeshine/artlight-session-exec", request,
         {std::chrono::duration_cast<std::chrono::milliseconds>(provider_scan::command_timeout), max_remote_bytes});
       if (payload) bytes.emplace(payload->begin(), payload->end());
     }

@@ -56,7 +56,7 @@ const libraries = computed(() => [
           benefit:
             'Bring games from multiple stores into one Windows library, with Playnite artwork and launch settings.',
           detail:
-            'Requires Playnite and the Vibepollo extension. Setup installs the extension for you.',
+            'Requires Playnite and the ArtLight extension. Setup installs the extension for you.',
           recommended: true,
         },
       ]

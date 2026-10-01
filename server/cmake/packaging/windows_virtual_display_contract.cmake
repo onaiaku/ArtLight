@@ -20,7 +20,7 @@ set(SUNSHINE_VDD_TRUEHDR_FILES vibeshine_truehdr.dll nvngx_truehdr.dll)
 set(SUNSHINE_VDD_DRIVER_DESTINATION "drivers/sunshine")
 set(SUNSHINE_VDD_VULKAN_LAYER_DESTINATION "drivers/sunshine/vulkan-layer")
 set(SUNSHINE_VDD_SUDOVDA_DESTINATION "drivers/sudovda")
-set(SUNSHINE_VDD_TRUEHDR_REPOSITORY "Nonary/vibeshine_truehdr_runtime")
+set(SUNSHINE_VDD_TRUEHDR_REPOSITORY "onaiaku/vibeshine_truehdr_runtime")
 set(SUNSHINE_VDD_TRUEHDR_RELEASE_TAG "v1.0.0")
 set(SUNSHINE_VDD_LIBVIRTUALDISPLAY_REPOSITORY "Nonary/libvirtualdisplay")
 # Windows packaging always stages this pinned release before it refreshes the

@@ -35,7 +35,7 @@ namespace platf::linux_security {
       if (original) {
         cap_free(original);
       }
-      std::fprintf(stderr, "Vibepollo: capability sanitization failed while %s\n", operation);
+      std::fprintf(stderr, "ArtLight: capability sanitization failed while %s\n", operation);
       errno = error_number ? error_number : EPERM;
       return false;
     };

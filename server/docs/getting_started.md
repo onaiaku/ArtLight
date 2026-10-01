@@ -1,14 +1,14 @@
 # Getting Started
 
-The recommended method for running Vibepollo is to use the [binaries](#binaries) included in the
+The recommended method for running ArtLight is to use the [binaries](#binaries) included in the
 [latest release][latest-release], unless otherwise specified.
 
-[Pre-releases](https://github.com/Nonary/Vibepollo/releases) are also available. These should be considered beta,
+[Pre-releases](https://github.com/onaiaku/ArtLight/releases) are also available. These should be considered beta,
 and release artifacts may be missing when merging changes on a faster cadence.
 
 ## Binaries
 
-Binaries of Vibepollo are created for each release. Availability varies by platform while the distribution channels are being established.
+Binaries of ArtLight are created for each release. Availability varies by platform while the distribution channels are being established.
 Binaries can be found in the [latest release][latest-release].
 
 > [!NOTE]
@@ -51,7 +51,7 @@ sudo pkg delete Sunshine
 ### Linux
 
 Linux support is in **beta** and ships as a native package for **Arch Linux and CachyOS** (x86_64).
-Vibepollo is developed and tested on **CachyOS with KDE Plasma 6 on Wayland**; other Arch-based
+ArtLight is developed and tested on **CachyOS with KDE Plasma 6 on Wayland**; other Arch-based
 distributions are supported on a best-effort basis. AppImage, Flatpak, Debian/Ubuntu,
 Fedora/openSUSE, Homebrew, and Docker builds are not produced for this beta.
 
@@ -70,7 +70,7 @@ layout, is [docs/linux/install.md](linux/install.md).
   use VAAPI (`libva-mesa-driver` or `intel-media-driver`). Testing has focused on NVIDIA and modern
   AMD GPUs; older cards may not work properly. Pre-login streaming is NVIDIA-only.
 - **A single interactive desktop account**, or run
-  `sudo vibepollo configure USER` once to choose the owner.
+  `sudo artlight configure USER` once to choose the owner.
 
 ##### Install
 
@@ -79,18 +79,18 @@ running kernel, installs the package from the signed repository (or the latest G
 the repository is unavailable), opens firewalld or ufw, and tells you whether to reboot:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/Nonary/Vibepollo/vibe-test/scripts/linux_install.sh
+curl -fsSLO https://raw.githubusercontent.com/onaiaku/ArtLight/vibe-test/scripts/linux_install.sh
 sudo bash linux_install.sh
 ```
 
 To install a specific release, pass `--version 2.0.0`. To install a package you already
-downloaded from the [releases page](https://github.com/Nonary/Vibepollo/releases), pass
-`--package ./vibepollo-*.pkg.tar.zst`. Manual repository and `pacman -U` steps are in the
+downloaded from the [releases page](https://github.com/onaiaku/ArtLight/releases), pass
+`--package ./artlight-*.pkg.tar.zst`. Manual repository and `pacman -U` steps are in the
 [Linux install guide](linux/install.md#install-manually).
 
 ##### After installation
 
-1. **Reboot after the first installation.** The login screen and desktop need to load Vibepollo's
+1. **Reboot after the first installation.** The login screen and desktop need to load ArtLight's
    display and session integration. On updates, reboot if asked. A kernel that still holds an older
    driver, or a one-time Secure Boot key enrollment, needs one reboot.
 2. **Log in to Plasma (Wayland) and pair.** Open `https://localhost:47990` on the machine, create
@@ -100,24 +100,24 @@ downloaded from the [releases page](https://github.com/Nonary/Vibepollo/releases
 
    ```bash
    # firewalld
-   sudo firewall-cmd --permanent --add-service=vibepollo && sudo firewall-cmd --reload
+   sudo firewall-cmd --permanent --add-service=artlight && sudo firewall-cmd --reload
    # ufw
-   sudo ufw allow Vibepollo
+   sudo ufw allow ArtLight
    ```
 
-   Vibepollo listens on TCP 47984, 47989, 47990, and 48010, and UDP 47998 to 48000 and 48010.
+   ArtLight listens on TCP 47984, 47989, 47990, and 48010, and UDP 47998 to 48000 and 48010.
 4. **Start a new login session** so the PipeWire audio drop-in the package installs takes effect.
    The first-install reboot above already does this.
 
 Check the host with:
 
 ```bash
-sudo systemctl status vibepollo-session-controller.service vibepollo.service
-sudo journalctl -u vibepollo-session-controller.service -u vibepollo.service -b
+sudo systemctl status artlight-session-controller.service artlight.service
+sudo journalctl -u artlight-session-controller.service -u artlight.service -b
 ```
 ##### Uninstall
 ```bash
-sudo pacman -R vibepollo
+sudo pacman -R artlight
 ```
 
 ### macOS
@@ -264,26 +264,26 @@ After adding yourself to the group, log out and log back in for the changes to t
 
 #### Services
 
-The Arch/CachyOS package installs Vibepollo as machine-wide system services.
+The Arch/CachyOS package installs ArtLight as machine-wide system services.
 The session controller is enabled during installation and starts the streaming host whenever the
 configured user's KDE Plasma Wayland session is active:
 
 ```bash
-sudo systemctl status vibepollo-session-controller.service vibepollo.service
-sudo journalctl -u vibepollo-session-controller.service -u vibepollo.service --since '-10 minutes'
+sudo systemctl status artlight-session-controller.service artlight.service
+sudo journalctl -u artlight-session-controller.service -u artlight.service --since '-10 minutes'
 ```
 
-Do not start `vibepollo.service` directly; the controller binds the login session first. If the
+Do not start `artlight.service` directly; the controller binds the login session first. If the
 installer could not pick the desktop account automatically, choose it once and enable the
 controller:
 
 ```bash
-sudo vibepollo configure USER
-sudo systemctl enable --now vibepollo-session-controller.service
+sudo artlight configure USER
+sudo systemctl enable --now artlight-session-controller.service
 ```
 
-There is no per-user unit on Linux. Never enable `app-io.github.Nonary.vibepollo` with
-`systemctl --user`, and never add file capabilities to `/usr/bin/vibepollo`; the packaged host
+There is no per-user unit on Linux. Never enable `app-io.github.onaiaku.ArtLight` with
+`systemctl --user`, and never add file capabilities to `/usr/bin/artlight`; the packaged host
 already carries the capabilities it needs.
 
 ### macOS
@@ -313,20 +313,20 @@ recommended to restart your computer.
 ## Usage
 
 ### Basic usage
-On Windows and Linux, Vibepollo runs as a service that the installer sets up; you do not start it by
+On Windows and Linux, ArtLight runs as a service that the installer sets up; you do not start it by
 hand. On Linux the session controller starts the host whenever the configured user's Plasma Wayland
 session is active (see the [Linux install guide](linux/install.md)). Elsewhere, start it with:
 
 ```bash
-vibepollo
+artlight
 ```
 
 > [!NOTE]
-> Running multiple instances of Vibepollo is not advised.
+> Running multiple instances of ArtLight is not advised.
 
 ### Specify config file
 ```bash
-vibepollo <directory of conf file>/vibepollo.conf
+artlight <directory of conf file>/artlight.conf
 ```
 
 > [!NOTE]
@@ -335,7 +335,7 @@ vibepollo <directory of conf file>/vibepollo.conf
 > The configuration file specified will be created if it doesn't exist.
 
 ### Headless Linux hosts
-Vibepollo does not stream X11 sessions or manually started hosts. On a headless Linux machine keep
+ArtLight does not stream X11 sessions or manually started hosts. On a headless Linux machine keep
 the SDDM or Plasma Login Manager greeter running: NVIDIA hosts stream the login screen itself and
 you sign in from Moonlight, while AMD and Intel hosts need an autologin or a local sign-in before
 the stream starts. The managed virtual display replaces dummy plugs.
@@ -377,7 +377,7 @@ by default. You may replace *localhost* with your internal ip address.
 To get a list of available arguments, run the following command.
 
 ```bash
-vibepollo --help
+artlight --help
 ```
 
 ### Shortcuts
@@ -412,9 +412,9 @@ All shortcuts start with `Ctrl+Alt+Shift`, just like Moonlight.
   the name "Desktop" and "desktop.png" as the image path.
 * If inputs (mouse, keyboard, gamepads...) aren't working after connecting:
 
-  * On Linux the packaged host already belongs to the `vibepollo-uinput` group that owns
-    `/dev/uinput` and `/dev/uhid`; check `journalctl -u vibepollo.service` for uinput errors.
-  * On FreeBSD, add the user running Vibepollo to the `input` group.
+  * On Linux the packaged host already belongs to the `artlight-uinput` group that owns
+    `/dev/uinput` and `/dev/uhid`; check `journalctl -u artlight.service` for uinput errors.
+  * On FreeBSD, add the user running ArtLight to the `input` group.
 
 * The FreeBSD version of Sunshine is missing some features that are present on Linux.
   The following are known limitations.
@@ -429,7 +429,7 @@ Streaming HDR content is officially supported on Windows hosts and experimentall
 * General HDR support information and requirements:
 
   * HDR must be activated in the host OS, which may require an HDR-capable physical display, an EDID
-    emulator dongle, or a managed Vibepollo HDR virtual display connected to the desktop session.
+    emulator dongle, or a managed ArtLight HDR virtual display connected to the desktop session.
   * You must also enable the HDR option in your Moonlight client settings, otherwise the stream will be SDR
     (and probably overexposed if your host is HDR).
   * A good HDR experience relies on proper HDR display calibration both in the OS and in game. HDR calibration can
@@ -455,7 +455,7 @@ Additional information:
     encoder. KWin ScreenCast remains recommended for managed SDR capture. NvFBC and X11 capture do
     not support HDR.
   - You will need a desktop environment with a compositor that supports HDR rendering, such as Gamescope or KDE Plasma 6.
-  - Native Vibepollo installations can provide private HDR10 virtual outputs through the
+  - Native ArtLight installations can provide private HDR10 virtual outputs through the
     `vibeshine_drm` compatibility module supplied by `libvirtualdisplay`. It requires Linux 6.16 or newer and matching kernel headers. Its EDID
     advertises BT.2020, PQ, and HDR static metadata, while its connector and planes support 10-bit output.
     The driver notifies direct KMS capture when a presentation completes and exports the exact pinned
@@ -468,7 +468,7 @@ Additional information:
   To retry the build by hand or inspect the installed module:
 
   ```bash
-  sudo vibepollo driver install
+  sudo artlight driver install
   modinfo vibeshine_drm
   ```
 
@@ -497,7 +497,7 @@ Additional information:
   Only a custom kernel configured to enforce trusted module signatures needs additional
   authorization. When that is detected, the package installation launches the one-time signing-key
   confirmation automatically. After confirming it, reboot and approve the pending firmware
-  confirmations once; future kernel and Vibepollo updates remain automatic. If a noninteractive
+  confirmations once; future kernel and ArtLight updates remain automatic. If a noninteractive
   package frontend cannot display the prompt, retry the package installation from a terminal.
 
   @seealso{[Arch wiki on HDR Support for Linux](https://wiki.archlinux.org/title/HDR_monitor_support) and
@@ -536,4 +536,4 @@ Commit distance is determined using the GitHub compare endpoint between the late
   [TOC]
 </details>
 
-[latest-release]: https://github.com/Nonary/Vibepollo/releases/latest
+[latest-release]: https://github.com/onaiaku/ArtLight/releases/latest

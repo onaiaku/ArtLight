@@ -1,8 +1,8 @@
 # linux specific target definitions
 
-# Keep the inherited target name stable while exposing the Vibepollo product
+# Keep the inherited target name stable while exposing the ArtLight product
 # name to Linux users and package managers.
-set_target_properties(sunshine PROPERTIES OUTPUT_NAME vibepollo)
+set_target_properties(sunshine PROPERTIES OUTPUT_NAME artlight)
 
 # Using newer c++ compilers / features on older distros causes runtime dyn link errors.
 # CUDA can require an older host compiler than the system C++ compiler (for

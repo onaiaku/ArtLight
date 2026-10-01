@@ -31,7 +31,7 @@ static int run_command_bounded(const char *path, char *const arguments[],
   return wake_result;
 }
 
-#include "../../../../packaging/linux/vibepollo-display-power.h"
+#include "../../../../packaging/linux/artlight-display-power.h"
 
 struct provider {
   const char *address;
@@ -63,7 +63,7 @@ static void power_call(GDBusConnection *bus, const char *sender, const char *pat
     // A suspend-only inhibitor still lets DPMS remove capture's scanout.
     // Require both InterruptSession (1) and ChangeScreenSettings (4).
     g_assert_cmpuint(policies, ==, 5u);
-    g_assert_cmpstr(app, ==, "Vibepollo");
+    g_assert_cmpstr(app, ==, "ArtLight");
     g_assert_cmpstr(reason, ==, "Active remote display");
     if (g_atomic_int_get(&provider->reject)) {
       g_dbus_method_invocation_return_dbus_error(invocation, "org.test.Unavailable", "restarting");
@@ -249,7 +249,7 @@ int main(int argc, char **argv) {
 
   // A Unix socket that accepts connections but never authenticates must not
   // strand a power worker. The hard deadline must also unblock inherited ALRM.
-  char *temporary = g_dir_make_tmp("vibepollo-power-test-XXXXXX", NULL);
+  char *temporary = g_dir_make_tmp("artlight-power-test-XXXXXX", NULL);
   g_assert_nonnull(temporary);
   struct sockaddr_un stalled = {.sun_family = AF_UNIX};
   g_snprintf(stalled.sun_path, sizeof(stalled.sun_path), "%s/bus", temporary);

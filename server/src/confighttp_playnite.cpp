@@ -786,7 +786,7 @@ namespace confighttp {
       }
     };
 
-    // Vibepollo log directory (session logging). Retention keeps up to ~30
+    // ArtLight log directory (session logging). Retention keeps up to ~30
     // sessions x 5 rollover files here; exporting all of them made the bundle
     // hundreds of megabytes and blew past the HTTP content deadline. Newest
     // files win, bounded by both a file count and a total byte budget.
@@ -996,7 +996,7 @@ namespace confighttp {
     };
 
     // The known-folder and CSIDL passes below resolve to the same directories
-    // when Vibepollo runs in a user session; without dedup every helper log was
+    // when ArtLight runs in a user session; without dedup every helper log was
     // read from disk and regex-sanitized twice.
     std::unordered_set<std::wstring> visited_helper_bases;
     auto mark_base_visited = [&](const std::filesystem::path &base) {

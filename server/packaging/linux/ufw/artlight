@@ -1,0 +1,4 @@
+[ArtLight]
+title=ArtLight
+description=ArtLight game-streaming host for Moonlight clients
+ports=47984,47989,47990,48010/tcp|47998:48000,48010/udp

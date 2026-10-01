@@ -184,7 +184,7 @@ test('Linux maintenance offers logs and display setup', async ({ page }) => {
 for (const theme of ['dark', 'light']) {
   test(`${theme} theme and keyboard switches remain usable`, async ({ page }) => {
     await host(page);
-    await page.addInitScript((theme) => localStorage.setItem('vibepollo.theme', theme), theme);
+    await page.addInitScript((theme) => localStorage.setItem('artlight.theme', theme), theme);
     await page.goto('/v2/settings');
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     await page.locator('#setting-stream_audio').focus();
@@ -400,7 +400,7 @@ test('mobile navigation keeps hidden controls out of the tab order and releases 
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeFocused();
   await menu.click();
-  const brand = navigation.getByRole('link', { name: 'Vibepollo overview' });
+  const brand = navigation.getByRole('link', { name: 'ArtLight overview' });
   await expect(brand).toBeFocused();
   await page.keyboard.press('Shift+Tab');
   await expect(navigation.getByRole('button', { name: 'Logout' })).toBeFocused();
@@ -838,7 +838,7 @@ for (const width of [390, 1440]) {
     );
     await page
       .locator('.app-compatibility')
-      .screenshot({ path: `/tmp/vibepollo-ui-results/app-behavior-${width}.png` });
+      .screenshot({ path: `/tmp/artlight-ui-results/app-behavior-${width}.png` });
     await page.locator('#app-state-do-0').fill('new start');
     await page.locator('#app-terminate-on-pause').selectOption('true');
     await page.getByRole('button', { name: 'Save application', exact: true }).first().click();
@@ -889,8 +889,8 @@ test('app behavior validates edited scaling and can return explicit options to d
 
 for (const platform of ['windows', 'linux']) {
   test(`classic game library setup and search work on ${platform}`, async ({ page }) => {
-    const legacyUrl = process.env.VIBEPOLLO_LEGACY_TEST_URL;
-    test.skip(!legacyUrl, 'Set VIBEPOLLO_LEGACY_TEST_URL to a served classic UI build.');
+    const legacyUrl = process.env.ARTLIGHT_LEGACY_TEST_URL;
+    test.skip(!legacyUrl, 'Set ARTLIGHT_LEGACY_TEST_URL to a served classic UI build.');
     const patches = await host(page, platform, {}, true, {
       steam: true,
       lutris: platform === 'linux',
@@ -1046,13 +1046,13 @@ for (const platform of ['linux', 'windows'] as const) {
       route.fulfill({
         body: 'test bundle',
         contentType: 'application/zip',
-        headers: { 'Content-Disposition': 'attachment; filename="vibepollo_logs.zip"' },
+        headers: { 'Content-Disposition': 'attachment; filename="artlight_logs.zip"' },
       }),
     );
     await page.goto('/v2/logs');
     const download = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Download logs bundle' }).click();
-    expect((await download).suggestedFilename()).toBe('vibepollo_logs.zip');
+    expect((await download).suggestedFilename()).toBe('artlight_logs.zip');
   });
 }
 
@@ -1083,13 +1083,13 @@ test('Linux shows an automatic update notice across pages and retries failed che
   ).toBeVisible();
   unavailable = false;
   await notice.getByRole('button', { name: 'Check for updates' }).click();
-  await expect(notice.getByText('Vibepollo 1.1.0 is available')).toBeVisible();
+  await expect(notice.getByText('ArtLight 1.1.0 is available')).toBeVisible();
   await expect(notice.getByRole('link', { name: 'Read release notes' })).toHaveAttribute(
     'href',
     'https://github.com/onaiaku/ArtLight/releases/tag/v1.1.0',
   );
   await page.getByRole('link', { name: 'Library', exact: true }).click();
-  await expect(notice.getByText('Vibepollo 1.1.0 is available')).toBeVisible();
+  await expect(notice.getByText('ArtLight 1.1.0 is available')).toBeVisible();
 });
 
 test('Linux stable install does not advertise a prerelease without opt-in', async ({ page }) => {

@@ -10,7 +10,7 @@ namespace {
     std::filesystem::path root;
 
     void SetUp() override {
-      char path[] = "/tmp/vibepollo-render-topology-XXXXXX";
+      char path[] = "/tmp/artlight-render-topology-XXXXXX";
       const auto created = mkdtemp(path);
       ASSERT_NE(created, nullptr);
       root = created;

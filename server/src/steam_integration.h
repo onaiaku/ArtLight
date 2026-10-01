@@ -120,7 +120,7 @@ namespace platf::steam {
 #endif
 
   // Build a direct Linux launch that preserves Steam's user launch options
-  // while placing Vibepollo's game-process wrapper at %command%. Falls back
+  // while placing ArtLight's game-process wrapper at %command%. Falls back
   // to the Steam broker when local metadata is incomplete.
   std::string launch_command(const game_t &game);
   bool launch(std::uint32_t app_id);

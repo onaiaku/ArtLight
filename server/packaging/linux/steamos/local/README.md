@@ -34,7 +34,7 @@ The test must decode the produced HEVC and verify its pixels, not just open the
 encoder. `../tests/run-hdr-smoke.py` owns a separate headless compositor.
 
 `env.conf` contains only `LIBVA_DRIVERS_PATH`, `LIBVA_DRIVER_NAME` and
-`VIBEPOLLO_PRIVATE_VAAPI=1`. The marker tells the SteamOS host to remove those
+`ARTLIGHT_PRIVATE_VAAPI=1`. The marker tells the SteamOS host to remove those
 inherited driver choices from launched games and preparation commands. If the
 runtime is copied to a permanent release directory, update the absolute driver
 path in `env.conf` and its manifest checksum before passing it to the cutover
@@ -85,7 +85,7 @@ protection. Use the concrete destination printed by the staging command:
 sudo python3 packaging/linux/steamos/local/activate-gamescope.py install-root \
   --stage "$PWD/build/gamescope-local"
 python3 packaging/linux/steamos/local/activate-gamescope.py activate-user \
-  --installed /opt/vibepollo-gamescope/local/BUILD-PATCH
+  --installed /opt/artlight-gamescope/local/BUILD-PATCH
 ```
 
 The user drop-in takes effect on the next Gaming Mode entry. Neither command
@@ -109,7 +109,7 @@ helper; its backup records the previous service and installation state.
 
 The module, pool units, and restricted capture helper retain their shared
 Vibeshine DRM names and paths; the streaming host and its user profile use
-Vibepollo names.
+ArtLight names.
 
 The native host must be built with `SUNSHINE_ENABLE_DRM=ON` for this path.
 It remains an ordinary capability-free user bundle. A separate C helper uses

@@ -83,7 +83,7 @@ for (const [name, status] of [
           : 'Unknown',
     );
     await expect(page.locator('#windows-display-status')).toContainText(
-      'Observed by host: Vibepollo',
+      'Observed by host: ArtLight',
     );
     await page.screenshot({
       path: `/tmp/vibeshine-ui-results/windows-driver-${name}.png`,
@@ -100,7 +100,7 @@ test('Windows display status keeps observed and configured drivers distinct', as
   });
   await page.goto('/v2/settings?category=display');
   await expect(page.locator('#windows-display-status')).toContainText('Observed by host: SudoVDA');
-  await expect(page.locator('#windows-display-status')).toContainText('Settings select Vibepollo');
+  await expect(page.locator('#windows-display-status')).toContainText('Settings select ArtLight');
 });
 
 test('active dummy-plug HDR dependency is visible on desktop and narrow layouts', async ({

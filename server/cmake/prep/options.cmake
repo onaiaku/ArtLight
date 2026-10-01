@@ -62,7 +62,7 @@ elseif(UNIX)  # Linux
         # backend choice remains available for other Gamescope hardware.
         option(SUNSHINE_ENABLE_CUDA "Enable cuda specific code." OFF)
         option(SUNSHINE_ENABLE_DRM "Enable KMS grab if available." OFF)
-        set(SUNSHINE_ASSETS_DIR "share/vibepollo")
+        set(SUNSHINE_ASSETS_DIR "share/artlight")
     endif()
     option(SUNSHINE_BUILD_APPIMAGE
             "Enable an AppImage build." OFF)

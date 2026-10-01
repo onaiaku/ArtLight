@@ -29,7 +29,7 @@ namespace statefile {
   /**
    * @brief Write a property-tree JSON file through a temporary file and atomic replace.
    *
-   * Callers that are updating shared Vibepollo state should still hold state_mutex()
+   * Callers that are updating shared ArtLight state should still hold state_mutex()
    * around their read/modify/write transaction; this helper only prevents partial or
    * interleaved on-disk writes from leaving malformed JSON behind. Configured
    * primary and auxiliary state writes also refresh their .bak recovery copy.
@@ -45,7 +45,7 @@ namespace statefile {
    */
   void write_sunshine_state_atomic(const boost::property_tree::ptree &tree);
 
-  // Preserve Vibepollo JSON types in paired-client permissions and commands.
+  // Preserve ArtLight JSON types in paired-client permissions and commands.
   void write_sunshine_state_atomic(const nlohmann::json &tree);
   void write_json_atomic(const std::string &path, const nlohmann::json &tree);
 

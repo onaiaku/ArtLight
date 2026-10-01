@@ -35,7 +35,7 @@ namespace platf::wayland_hdr_compatibility {
   }
 
   inline bool selected_session_is_wayland(bool process_uses_wayland) {
-    const char *managed_session_type = std::getenv("VIBEPOLLO_SESSION_TYPE");
+    const char *managed_session_type = std::getenv("ARTLIGHT_SESSION_TYPE");
     return selected_session_is_wayland(
       process_uses_wayland,
       managed_session_type ? std::string_view {managed_session_type} : std::string_view {}

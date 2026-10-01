@@ -3114,7 +3114,7 @@ namespace confighttp {
 #if defined(__linux__)
     output_tree["providers"]["lutris"] = true;
     output_tree["providers"]["mangohud"] = true;
-    const char *session_role = std::getenv("VIBEPOLLO_SESSION_ROLE");
+    const char *session_role = std::getenv("ARTLIGHT_SESSION_ROLE");
     const std::string role = session_role ? session_role : "unknown";
     output_tree["linux"] = {{"session_role", role == "desktop" || role == "greeter" ? role : "unknown"}};
     const bool managed_active = platf::linux_capture_status::managed_event_capture_active();
@@ -4631,7 +4631,7 @@ namespace confighttp {
       }
       SimpleWeb::CaseInsensitiveMultimap headers;
       headers.emplace("Content-Type", "application/zip");
-      headers.emplace("Content-Disposition", "attachment; filename=\"vibepollo_logs.zip\"");
+      headers.emplace("Content-Disposition", "attachment; filename=\"artlight_logs.zip\"");
       headers.emplace("Cache-Control", "no-store");
       headers.emplace("X-Frame-Options", "DENY");
       headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
@@ -5875,7 +5875,7 @@ namespace confighttp {
     output_tree["version_compatible"] = version_compatible;
     output_tree["packaged_version"] = VIGEMBUS_PACKAGED_VERSION;
     // Drives whether the UI presents a missing ViGEmBus as a problem or as an
-    // unused option: Vibepollo's own driver provides controllers without it.
+    // unused option: ArtLight's own driver provides controllers without it.
     output_tree["required"] = is_vigem_required();
 #else
     output_tree["error"] = "ViGEmBus is only available on Windows";

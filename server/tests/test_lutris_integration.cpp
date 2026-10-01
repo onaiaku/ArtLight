@@ -10,7 +10,7 @@
 #include <optional>
 #include <sqlite3.h>
 
-#ifdef VIBEPOLLO_STEAM_ARTWORK_IMAGE_LIBS
+#ifdef ARTLIGHT_STEAM_ARTWORK_IMAGE_LIBS
 extern "C" {
 #include <jpeglib.h>
 }
@@ -38,7 +38,7 @@ namespace {
 #endif
 
   void write_test_cover(const fs::path &path) {
-#ifdef VIBEPOLLO_STEAM_ARTWORK_IMAGE_LIBS
+#ifdef ARTLIGHT_STEAM_ARTWORK_IMAGE_LIBS
     auto *file = std::fopen(path.string().c_str(), "wb");
     ASSERT_NE(file, nullptr);
     jpeg_compress_struct compressor {};
@@ -83,8 +83,8 @@ TEST(LutrisDiscovery, MachineHostDoesNotParseSessionHome) {
   fs::create_directories(service_home / ".local/share/lutris");
   std::ofstream(session_home / ".local/share/lutris/pga.db").put('x');
   std::ofstream(service_home / ".local/share/lutris/pga.db").put('x');
-  scoped_environment machine {"VIBEPOLLO_MACHINE_HOST", "1"};
-  scoped_environment session {"VIBEPOLLO_SESSION_HOME", session_home.string()};
+  scoped_environment machine {"ARTLIGHT_MACHINE_HOST", "1"};
+  scoped_environment session {"ARTLIGHT_SESSION_HOME", session_home.string()};
   scoped_environment home {"HOME", service_home.string()};
   scoped_environment xdg {"XDG_DATA_HOME", (service_home / ".local/share").string()};
 
@@ -95,7 +95,7 @@ TEST(LutrisDiscovery, MachineHostDoesNotParseSessionHome) {
 
 TEST(LutrisDiscovery, ReadsInstalledGamesAndClassifiesSteam) {
   const auto base = fs::temp_directory_path() /
-                    ("vibepollo-lutris-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+                    ("artlight-lutris-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
   const auto lutris_data = base / "lutris";
   fs::create_directories(lutris_data / "coverart");
   fs::create_directories(base / "icons/hicolor/128x128/apps");
@@ -129,7 +129,7 @@ TEST(LutrisDiscovery, ReadsInstalledGamesAndClassifiesSteam) {
 
 TEST(LutrisArtwork, PreparesPortraitAsProviderSpecificPng) {
   const auto base = fs::temp_directory_path() /
-                    ("vibepollo-lutris-artwork-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+                    ("artlight-lutris-artwork-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
   fs::create_directories(base);
   const auto source = base / "portrait.jpg";
   write_test_cover(source);

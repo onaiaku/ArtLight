@@ -53,7 +53,7 @@ TEST(SunshineVirtualDisplayPackaging, VulkanHdrLayerContractIsOptOutAndCoLocated
 }
 
 TEST(SunshineVirtualDisplayPackaging, TrueHdrRuntimeIsRequiredAndPinned) {
-  EXPECT_EQ(contract::truehdr_repository, "Nonary/vibeshine_truehdr_runtime");
+  EXPECT_EQ(contract::truehdr_repository, "onaiaku/vibeshine_truehdr_runtime");
   EXPECT_EQ(contract::truehdr_release_tag, "v1.0.0");
   EXPECT_TRUE(contains(contract::truehdr_files, "vibeshine_truehdr.dll"));
   EXPECT_TRUE(contains(contract::truehdr_files, "nvngx_truehdr.dll"));

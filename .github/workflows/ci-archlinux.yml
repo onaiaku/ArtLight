@@ -143,7 +143,7 @@ jobs:
         shell: bash
         run: python3 tests/unit/test_cuda_release_policy.py
 
-      - name: Compile Vibepollo DRM against Arch kernel
+      - name: Compile ArtLight DRM against Arch kernel
         shell: bash
         run: |
           set -euo pipefail
@@ -257,7 +257,7 @@ jobs:
           # Create pkg directory and move files (as root)
           mkdir -p pkg
           mv build/PKGBUILD pkg/
-          mv build/vibepollo.install pkg/
+          mv build/artlight.install pkg/
 
           # Change ownership to builder
           chown -R builder:builder pkg
@@ -268,7 +268,7 @@ jobs:
 
           # create a PKGBUILD archive
           cd ..
-          tar -czf vibepollo.pkg.tar.gz -C pkg .
+          tar -czf artlight.pkg.tar.gz -C pkg .
 
       - name: Build PKGBUILD
         id: build
@@ -296,7 +296,7 @@ jobs:
             makepkg -si --noconfirm
 
           # Remove debug package
-          rm -f vibepollo-debug*.pkg.tar.zst
+          rm -f artlight-debug*.pkg.tar.zst
 
           # Remove problem matcher
           echo "::remove-matcher owner=gcc::"
@@ -307,7 +307,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          mapfile -t packages < <(find . -maxdepth 1 -type f -name 'vibepollo-*.pkg.tar.zst' ! -name '*-debug-*' | sort)
+          mapfile -t packages < <(find . -maxdepth 1 -type f -name 'artlight-*.pkg.tar.zst' ! -name '*-debug-*' | sort)
           if (( ${#packages[@]} != 1 )); then
             echo "::error::Expected exactly one non-debug Arch package, found ${#packages[@]}."
             printf '%s\n' "${packages[@]}" >&2
@@ -317,7 +317,7 @@ jobs:
           package="${packages[0]}"
           package_info="$(bsdtar -xOf "${package}" .PKGINFO)"
           package_files="$(bsdtar -tf "${package}")"
-          grep -qx 'pkgname = vibepollo' <<< "${package_info}"
+          grep -qx 'pkgname = artlight' <<< "${package_info}"
           grep -qx 'provides = sunshine' <<< "${package_info}"
           grep -qx 'conflict = sunshine' <<< "${package_info}"
           grep -qx 'depend = dkms' <<< "${package_info}"
@@ -327,21 +327,21 @@ jobs:
           grep -qx $'\tmakedepends = nodejs' .SRCINFO
           grep -qx $'\tmakedepends = npm' .SRCINFO
           grep -qx $'\tmakedepends = ninja' .SRCINFO
-          grep -qx 'usr/bin/vibepollo' <<< "${package_files}"
+          grep -qx 'usr/bin/artlight' <<< "${package_files}"
           if grep -qx 'usr/bin/sunshine' <<< "${package_files}"; then
-            echo "::error::The Vibepollo package unexpectedly contains the legacy Sunshine executable."
+            echo "::error::The ArtLight package unexpectedly contains the legacy Sunshine executable."
             exit 1
           fi
-          grep -qx 'usr/lib/systemd/system/vibepollo-session-controller.service' <<< "${package_files}"
-          grep -qx 'usr/lib/systemd/system/vibepollo-session-exec.socket' <<< "${package_files}"
-          grep -qx 'usr/lib/systemd/system/vibepollo-session-exec@.service' <<< "${package_files}"
-          grep -qx 'usr/lib/systemd/system/vibepollo.service' <<< "${package_files}"
-          grep -qx 'usr/libexec/vibeshine/vibepollo-session-controller' <<< "${package_files}"
-          grep -qx 'usr/libexec/vibeshine/vibepollo-session-exec' <<< "${package_files}"
-          grep -qx 'usr/libexec/vibeshine/vibepollo-session-broker' <<< "${package_files}"
-          grep -qx 'usr/libexec/vibeshine/vibepollo-provider-scan' <<< "${package_files}"
-          grep -qx 'usr/libexec/vibeshine/vibepollo-profile-import' <<< "${package_files}"
-          grep -qx 'usr/lib/sysusers.d/vibepollo.conf' <<< "${package_files}"
+          grep -qx 'usr/lib/systemd/system/artlight-session-controller.service' <<< "${package_files}"
+          grep -qx 'usr/lib/systemd/system/artlight-session-exec.socket' <<< "${package_files}"
+          grep -qx 'usr/lib/systemd/system/artlight-session-exec@.service' <<< "${package_files}"
+          grep -qx 'usr/lib/systemd/system/artlight.service' <<< "${package_files}"
+          grep -qx 'usr/libexec/vibeshine/artlight-session-controller' <<< "${package_files}"
+          grep -qx 'usr/libexec/vibeshine/artlight-session-exec' <<< "${package_files}"
+          grep -qx 'usr/libexec/vibeshine/artlight-session-broker' <<< "${package_files}"
+          grep -qx 'usr/libexec/vibeshine/artlight-provider-scan' <<< "${package_files}"
+          grep -qx 'usr/libexec/vibeshine/artlight-profile-import' <<< "${package_files}"
+          grep -qx 'usr/lib/sysusers.d/artlight.conf' <<< "${package_files}"
 
           # Extract only the two network-facing execution-chain binaries and
           # verify that the package archive does not grant either file
@@ -349,42 +349,42 @@ jobs:
           # capabilities; the session client must remain entirely unprivileged.
           capability_check_root="$(mktemp -d)"
           bsdtar --xattrs -xpf "${package}" -C "${capability_check_root}" \
-            usr/bin/vibepollo \
-            usr/libexec/vibeshine/vibepollo-session-exec
+            usr/bin/artlight \
+            usr/libexec/vibeshine/artlight-session-exec
           for capability_path in \
-            "${capability_check_root}/usr/bin/vibepollo" \
-            "${capability_check_root}/usr/libexec/vibeshine/vibepollo-session-exec"; do
+            "${capability_check_root}/usr/bin/artlight" \
+            "${capability_check_root}/usr/libexec/vibeshine/artlight-session-exec"; do
             if [[ -n "$(getcap -n "${capability_path}" 2>/dev/null)" ]]; then
               echo "::error::The package unexpectedly grants file capabilities to ${capability_path#${capability_check_root}/}."
               exit 1
             fi
           done
           for obsolete_path in \
-            usr/lib/systemd/system/vibepollo-machine-prepare.service \
-            usr/lib/systemd/system/vibepollo-prelogin.service \
-            usr/lib/systemd/system/vibepollo-session-restore@.service \
-            usr/libexec/vibeshine/vibepollo-prelogin-sync \
-            usr/libexec/vibeshine/vibepollo-session-handoff \
-            usr/libexec/vibeshine/vibepollo-session-ready; do
+            usr/lib/systemd/system/artlight-machine-prepare.service \
+            usr/lib/systemd/system/artlight-prelogin.service \
+            usr/lib/systemd/system/artlight-session-restore@.service \
+            usr/libexec/vibeshine/artlight-prelogin-sync \
+            usr/libexec/vibeshine/artlight-session-handoff \
+            usr/libexec/vibeshine/artlight-session-ready; do
             if grep -qx "${obsolete_path}" <<< "${package_files}"; then
               echo "::error::The Vibeshine package unexpectedly contains obsolete login-path file ${obsolete_path}."
               exit 1
             fi
           done
-          if grep -Eq '(^|/)pam_vibepollo_session\.so$' <<< "${package_files}"; then
+          if grep -Eq '(^|/)pam_artlight_session\.so$' <<< "${package_files}"; then
             echo "::error::The Vibeshine package unexpectedly contains the obsolete PAM handoff module."
             exit 1
           fi
-          if grep -qx 'usr/lib/systemd/user/app-io.github.Nonary.vibepollo.service' <<< "${package_files}"; then
+          if grep -qx 'usr/lib/systemd/user/app-io.github.onaiaku.ArtLight.service' <<< "${package_files}"; then
             echo "::error::The native package unexpectedly contains the legacy per-user host service."
             exit 1
           fi
-          grep -qx 'usr/share/applications/io.github.Nonary.vibepollo.desktop' <<< "${package_files}"
+          grep -qx 'usr/share/applications/io.github.onaiaku.ArtLight.desktop' <<< "${package_files}"
           grep -qx 'usr/libexec/vibeshine/vibeshine-drm-install' <<< "${package_files}"
           grep -qx 'usr/src/vibeshine-drm-[^/]*/dkms.conf' <<< "${package_files}"
           bsdtar -xOf "${package}" usr/libexec/vibeshine/vibeshine-drm-install | bash -n
-          bsdtar -xOf "${package}" usr/libexec/vibeshine/vibepollo-session-controller | bash -n
-          bsdtar -xOf "${package}" usr/libexec/vibeshine/vibepollo-machine-host | bash -n
+          bsdtar -xOf "${package}" usr/libexec/vibeshine/artlight-session-controller | bash -n
+          bsdtar -xOf "${package}" usr/libexec/vibeshine/artlight-machine-host | bash -n
           package_install_script="$(bsdtar -xOf "${package}" .INSTALL)"
           bash -n <<< "${package_install_script}"
           grep -Fq 'vibeshine-drm-install install-package' <<< "${package_install_script}"
@@ -396,8 +396,8 @@ jobs:
           mkdir -p artifacts
 
           # Copy built packages to artifacts
-          cp pkg/vibepollo*.pkg.tar.zst artifacts/
-          cp vibepollo.pkg.tar.gz artifacts/
+          cp pkg/artlight*.pkg.tar.zst artifacts/
+          cp artlight.pkg.tar.gz artifacts/
 
           # List artifacts
           ls -la artifacts/

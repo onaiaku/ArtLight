@@ -72,7 +72,7 @@ namespace {
   }
 
   // The legacy and v2 engines intentionally share one executable and one IPC
-  // pipe. Keep the engine selected for the process owned by this Vibepollo
+  // pipe. Keep the engine selected for the process owned by this ArtLight
   // instance so a configuration change cannot reuse the other engine merely
   // because it answers the common ping frame.
   static std::optional<bool> g_running_helper_legacy;

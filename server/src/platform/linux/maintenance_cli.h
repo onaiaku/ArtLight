@@ -16,15 +16,15 @@
 namespace platf::linux_cli {
   inline constexpr const char *help =
     "Linux maintenance (native packages):\n"
-    "  vibepollo paths                    Show settings and program locations\n"
-    "  vibepollo status                   Show machine service status\n"
-    "  sudo vibepollo logs                 Show recent service logs\n"
-    "  sudo vibepollo configure USER       Select the desktop owner and migrate settings\n"
-    "  sudo vibepollo migrate              Prepare existing settings after an upgrade\n"
-    "  sudo vibepollo authorize-commands   Approve commands in the application list\n"
-    "  sudo vibepollo driver install       Install/update the virtual-display driver\n"
-    "  sudo vibepollo driver status        Show virtual-display driver status\n"
-    "  sudo vibepollo reset                Erase settings and pairings; ends active streams\n";
+    "  artlight paths                    Show settings and program locations\n"
+    "  artlight status                   Show machine service status\n"
+    "  sudo artlight logs                 Show recent service logs\n"
+    "  sudo artlight configure USER       Select the desktop owner and migrate settings\n"
+    "  sudo artlight migrate              Prepare existing settings after an upgrade\n"
+    "  sudo artlight authorize-commands   Approve commands in the application list\n"
+    "  sudo artlight driver install       Install/update the virtual-display driver\n"
+    "  sudo artlight driver status        Show virtual-display driver status\n"
+    "  sudo artlight reset                Erase settings and pairings; ends active streams\n";
 
   // A missing optional means this is a normal host invocation. An empty vector
   // denotes a recognized command with invalid arguments; it must never fall
@@ -34,7 +34,7 @@ namespace platf::linux_cli {
       return std::nullopt;
     }
     const std::string_view name {argv[1]};
-    constexpr auto machine = "/usr/libexec/vibeshine/vibepollo-machine-host";
+    constexpr auto machine = "/usr/libexec/vibeshine/artlight-machine-host";
     if (name == "configure") {
       if (argc == 3 && argv[2][0] != '\0' && argv[2][0] != '-') {
         return std::vector<const char *> {machine, "configure", argv[2]};
@@ -50,13 +50,13 @@ namespace platf::linux_cli {
     } else if (name == "status") {
       if (argc == 2) {
         return std::vector<const char *> {"/usr/bin/systemctl", "--no-pager", "--full", "status",
-                                        "vibepollo-session-controller.service", "vibepollo-session-exec.socket", "vibepollo.service"};
+                                        "artlight-session-controller.service", "artlight-session-exec.socket", "artlight.service"};
       }
     } else if (name == "logs") {
       if (argc == 2) {
         return std::vector<const char *> {"/usr/bin/journalctl", "--no-pager", "-n", "200",
-                                        "-u", "vibepollo-session-controller.service", "-u", "vibepollo-session-exec@.service",
-                                        "-u", "vibepollo.service"};
+                                        "-u", "artlight-session-controller.service", "-u", "artlight-session-exec@.service",
+                                        "-u", "artlight.service"};
       }
     } else if (name != "paths" && name != "maintenance-help") {
       return std::nullopt;
@@ -71,14 +71,14 @@ namespace platf::linux_cli {
     }
     if (argc == 2 && std::string_view {argv[1]} == "paths") {
       std::puts("Native Linux package locations:\n"
-                "  Settings, credentials, pairings, apps: /var/lib/vibepollo\n"
-                "  Configuration file: /var/lib/vibepollo/vibepollo.conf\n"
-                "  Administrator policy: /etc/vibepollo\n"
-                "  Temporary session data: /run/vibepollo\n"
-                "  Programs: /usr/bin/vibepollo, /usr/libexec/vibeshine\n"
-                "  Assets: /usr/share/vibepollo\n"
-                "  Logs: sudo vibepollo logs\n"
-                "  Legacy user settings (imported once): ~/.config/vibepollo");
+                "  Settings, credentials, pairings, apps: /var/lib/artlight\n"
+                "  Configuration file: /var/lib/artlight/artlight.conf\n"
+                "  Administrator policy: /etc/artlight\n"
+                "  Temporary session data: /run/artlight\n"
+                "  Programs: /usr/bin/artlight, /usr/libexec/vibeshine\n"
+                "  Assets: /usr/share/artlight\n"
+                "  Logs: sudo artlight logs\n"
+                "  Legacy user settings (imported once): ~/.config/artlight");
       return 0;
     }
     if (argc == 2 && std::string_view {argv[1]} == "maintenance-help") {
@@ -93,7 +93,7 @@ namespace platf::linux_cli {
     // Fixed executables and separate arguments: no shell, PATH search, or
     // privilege escalation. Administrative helpers enforce their own UID check.
     execv(arguments->front(), const_cast<char *const *>(arguments->data()));
-    std::fprintf(stderr, "Vibepollo: cannot execute %s: %s\n", arguments->front(), std::strerror(errno));
+    std::fprintf(stderr, "ArtLight: cannot execute %s: %s\n", arguments->front(), std::strerror(errno));
     return 1;
   }
 }  // namespace platf::linux_cli

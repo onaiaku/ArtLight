@@ -185,19 +185,19 @@ if (-not $RootDir) {
 $RootDir = (Resolve-Path $RootDir).Path
 
 # Resolve a per-user shared cache root for libwebrtc build artifacts so the
-# multi-hour build is not coupled to any single Vibepollo build directory.
-# Override priority: VIBEPOLLO_DEPS_DIR env var > legacy VIBESHINE_DEPS_DIR env
+# multi-hour build is not coupled to any single ArtLight build directory.
+# Override priority: ARTLIGHT_DEPS_DIR env var > legacy VIBESHINE_DEPS_DIR env
 # var > WEBRTC_BUILD_DIR/WEBRTC_OUT_DIR (legacy, unchanged) >
-# %LOCALAPPDATA%\Vibepollo\deps default.
-$DepsRoot = $env:VIBEPOLLO_DEPS_DIR
+# %LOCALAPPDATA%\ArtLight\deps default.
+$DepsRoot = $env:ARTLIGHT_DEPS_DIR
 if (-not $DepsRoot) {
   $DepsRoot = $env:VIBESHINE_DEPS_DIR
 }
 if (-not $DepsRoot) {
   if ($env:LOCALAPPDATA) {
-    $DepsRoot = Join-Path $env:LOCALAPPDATA "Vibepollo\deps"
+    $DepsRoot = Join-Path $env:LOCALAPPDATA "ArtLight\deps"
   } else {
-    $DepsRoot = Join-Path $RootDir ".vibepollo-deps"
+    $DepsRoot = Join-Path $RootDir ".artlight-deps"
   }
 }
 

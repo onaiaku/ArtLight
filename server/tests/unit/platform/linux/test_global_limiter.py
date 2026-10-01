@@ -10,7 +10,7 @@ import tempfile
 import unittest
 import uuid
 
-SOURCE = Path(__file__).resolve().parents[4] / "packaging/linux/vibepollo-global-limiter.py"
+SOURCE = Path(__file__).resolve().parents[4] / "packaging/linux/artlight-global-limiter.py"
 spec = importlib.util.spec_from_file_location("limiter", SOURCE)
 limiter = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(limiter)
@@ -22,7 +22,7 @@ class GlobalLimiter(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.tool = Path(self.temporary.name)
         self.source = self.tool / "helper.py"
-        self.source.write_bytes(SOURCE.read_bytes().replace(b"vibepollo.proton-limiter.v1.", ("vibepollo.test." + uuid.uuid4().hex + ".").encode()))
+        self.source.write_bytes(SOURCE.read_bytes().replace(b"artlight.proton-limiter.v1.", ("artlight.test." + uuid.uuid4().hex + ".").encode()))
         (self.tool / "user_settings.sample.py").write_text("user_settings = {}\n")
         # Match Proton's copy-before-import and missing-keys-only semantics.
         (self.tool / "proton").write_text('''import os, json
@@ -70,7 +70,7 @@ print(json.dumps({k: v for k, v in g_session.env.items() if k.startswith(("DXVK"
         self.assertEqual(active["DXVK_HDR"], "0")
         self.assertEqual(active["KEEP_ENV"], "untouched")
         self.assertEqual(active["KEEP_SETTING"], "yes")
-        managed = self.launch(VIBEPOLLO_LIMITER_MANAGED="1", VKD3D_FRAME_RATE="45")
+        managed = self.launch(ARTLIGHT_LIMITER_MANAGED="1", VKD3D_FRAME_RATE="45")
         self.assertEqual(managed["VKD3D_FRAME_RATE"], "45")
         self.assertEqual(self.settings.read_bytes(), self.original + limiter.BLOCK)
         self.assertEqual(self.settings.stat().st_mode & 0o777, 0o640)
@@ -122,7 +122,7 @@ print(json.dumps({k: v for k, v in g_session.env.items() if k.startswith(("DXVK"
     def test_managed_limiter_still_receives_wayland_hdr_flags(self):
         child = self.server("mangohud-proton", 120000, "hdr", True)
         managed = self.launch(
-            VIBEPOLLO_LIMITER_MANAGED="1",
+            ARTLIGHT_LIMITER_MANAGED="1",
             VKD3D_FRAME_RATE="120",
             MANGOHUD="1",
             MANGOHUD_CONFIG="read_cfg,fps_limit=0",
@@ -145,7 +145,7 @@ print(json.dumps({k: v for k, v in g_session.env.items() if k.startswith(("DXVK"
         child = self.server("disabled", 0, "sdr")
         for app_id in ("3768760", "1182900"):
             for managed in ("0", "1"):
-                active = self.launch(SteamAppId=app_id, VIBEPOLLO_LIMITER_MANAGED=managed)
+                active = self.launch(SteamAppId=app_id, ARTLIGHT_LIMITER_MANAGED=managed)
                 self.assertEqual(active["PROTON_KEEP_SONY_AUDIO_ENDPOINT_VISIBLE"], "1")
                 self.assertEqual(active["PROTON_SONY_WINDOWS_DEVICE_NAMES"], "1")
                 self.assertNotIn("VKD3D_FRAME_RATE", active)

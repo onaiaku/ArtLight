@@ -51,7 +51,7 @@ static void probe(int profile) {
   std::snprintf(address, sizeof(address), "02:76:%02x:%02x:%02x:%02x", profile,
                 (getpid() >> 16) & 255, (getpid() >> 8) & 255, getpid() & 255);
   inputtino::DeviceDefinition definition{
-    .name = "Vibepollo PlayStation USB probe",
+    .name = "ArtLight PlayStation USB probe",
     .vendor_id = 0x054c,
     .product_id = profile == 4 ? 0x05c4 : 0x0ce6,
     .version = 0x0100,

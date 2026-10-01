@@ -116,7 +116,7 @@ namespace {
   }
 
   TEST_F(VhfGamepadPolicyTest, VerticalAxesGoOverTheWireUnchanged) {
-    // The wire contract is Vibepollo's normalized state, positive-up. Each driver profile
+    // The wire contract is ArtLight's normalized state, positive-up. Each driver profile
     // converts to its own device's convention, so converting here too inverted both sticks.
     normalized_state_t state {};
     state.left_y = 20000;

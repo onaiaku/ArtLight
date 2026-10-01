@@ -302,8 +302,8 @@ Feature: Recovery, events, watchdogs, and Windows platform safety
     Scenario: The durable safeguard has one replaceable restore definition
       Given durable recovery is required for a possibly changed desktop
       When the safeguard is created or refreshed
-      Then it uses the single compatibility identity "VibepolloDisplayRestore" whose existing definition is replaced or updated idempotently
-      And it attempts author text "Vibepollo Display Helper", description text "Automatically restores display settings after reboot", and logon-trigger identity "VibepolloDisplayHelperLogonTrigger"
+      Then it uses the single compatibility identity "ArtLightDisplayRestore" whose existing definition is replaced or updated idempotently
+      And it attempts author text "ArtLight Display Helper", description text "Automatically restores display settings after reboot", and logon-trigger identity "ArtLightDisplayHelperLogonTrigger"
       And it attempts to start the helper path returned by the fixed-capacity executable-path query with the sole restore argument "--restore"
       And it attempts ordinary user privilege, hidden execution, start-when-available behavior, no execution time limit, and continued eligibility across battery transitions
       And it attempts a logon trigger for the identity resolved at safeguard creation time

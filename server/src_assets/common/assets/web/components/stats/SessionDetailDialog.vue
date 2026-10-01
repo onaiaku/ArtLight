@@ -114,7 +114,7 @@ function buildExportFilename(source: SessionDetail): string {
     .toISOString()
     .replace(/[:.]/g, '-')
     .slice(0, 19);
-  return `vibepollo-session-${safeName}-${timestamp}.json`;
+  return `artlight-session-${safeName}-${timestamp}.json`;
 }
 
 async function exportJson(): Promise<void> {

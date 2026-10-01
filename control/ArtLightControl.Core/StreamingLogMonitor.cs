@@ -19,7 +19,7 @@ namespace ArtLightControl
         private bool seenStreamStarted = false;
 
         // How often to re-run the full discovery to catch dynamic logs
-        // that appear after startup (e.g. Vibepollo creating logs\ after ArtLightControl starts)
+        // that appear after startup (e.g. ArtLight creating logs\ after ArtLightControl starts)
         private const int REDISCOVERY_INTERVAL_MS = 10000;
         private DateTime lastRediscoveryTime = DateTime.MinValue;
 
@@ -97,7 +97,7 @@ namespace ArtLightControl
         /// <summary>
         /// True for the line a server writes when the launched app has no direct command.
         /// <b>The wording differs between forks and both must be matched:</b> Sunshine,
-        /// Vibeshine and Vibepollo write <c>Executing [Desktop]</c>, while Apollo writes
+        /// Vibeshine and ArtLight write <c>Executing [Desktop]</c>, while Apollo writes
         /// <c>No commands configured, showing desktop...</c>. Verified in each fork's
         /// <c>process.cpp</c> — the same class of mistake that once made a launcher's
         /// "App exited with code" look like a game exit.
@@ -121,7 +121,7 @@ namespace ArtLightControl
 
         /// <summary>
         /// The uuid of the session the server most recently declared open, on the two forks that
-        /// declare one (Vibeshine, Vibepollo — <c>session_history: begin_session uuid=…</c>).
+        /// declare one (Vibeshine, ArtLight — <c>session_history: begin_session uuid=…</c>).
         /// Null on Sunshine and Apollo, and until the first such line is read.
         /// </summary>
         private string? openHistoryUuid;
@@ -292,7 +292,7 @@ namespace ArtLightControl
                                 // session than the one running is not this session's end. Without
                                 // it a stale line — the tail re-read at every startup routinely
                                 // hands us the previous session's "Session ended" — can close a
-                                // session that is actually live. Only Vibeshine and Vibepollo
+                                // session that is actually live. Only Vibeshine and ArtLight
                                 // declare uuids; elsewhere openHistoryUuid stays null and this
                                 // check stands aside.
                                 if (IsHistoryEnd(line) && openHistoryUuid != null)
@@ -339,7 +339,7 @@ namespace ArtLightControl
 
         /// <summary>
         /// Every REDISCOVERY_INTERVAL_MS, re-runs the full FindStreamingServiceLogFile() discovery.
-        /// This handles the case where a dynamic log file (e.g. Vibepollo logs\sunshine-*.log)
+        /// This handles the case where a dynamic log file (e.g. ArtLight logs\sunshine-*.log)
         /// appears after ArtLightControl has already started monitoring a static fallback file.
         /// If a better or different log is found, switches to it.
         /// </summary>
@@ -522,7 +522,7 @@ namespace ArtLightControl
                 }
 
                 // Phase 2: no events found in the tail.
-                // For per-session log files (Vibeshine/Vibepollo style), a long-running session
+                // For per-session log files (Vibeshine/ArtLight style), a long-running session
                 // produces enough verbose output to push the initial CLIENT CONNECTED line outside
                 // the tail window. Check the file head for a StreamStarted event.
                 //

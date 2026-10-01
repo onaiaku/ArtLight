@@ -242,7 +242,7 @@ Explicit `WEBRTC_GIT_CACHE_DIR` or `WEBRTC_DEPOT_TOOLS_DIR` paths outside `WEBRT
 external caches and are not removed.
 
 `cmake/dependencies/webrtc.cmake` looks at the same default location, so no `-DWEBRTC_ROOT=...` is needed after the
-first build. To relocate the cache, set `VIBEPOLLO_DEPS_DIR=<path>` in your environment before invoking either the
+first build. To relocate the cache, set `ARTLIGHT_DEPS_DIR=<path>` in your environment before invoking either the
 script or CMake.
 
 For finer control the script accepts overrides via `-BuildDir`/`-OutDir` parameters or the legacy

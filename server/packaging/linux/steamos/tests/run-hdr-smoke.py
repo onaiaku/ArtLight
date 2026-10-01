@@ -51,20 +51,20 @@ try:
     else:
         raise RuntimeError('Test source did not become ready within 15 seconds')
     bitstream = (args.output / 'pattern.hevc').resolve()
-    env['VIBEPOLLO_HDR_BITSTREAM'] = str(bitstream)
-    env['VIBEPOLLO_HDR_ENCODER'] = args.encoder
-    env.pop('VIBEPOLLO_HDR_FULL_RANGE', None)
+    env['ARTLIGHT_HDR_BITSTREAM'] = str(bitstream)
+    env['ARTLIGHT_HDR_ENCODER'] = args.encoder
+    env.pop('ARTLIGHT_HDR_FULL_RANGE', None)
     if args.full_range:
-        env['VIBEPOLLO_HDR_FULL_RANGE'] = '1'
-    env.pop('VIBEPOLLO_HDR_CAPTURE_ONLY', None)
+        env['ARTLIGHT_HDR_FULL_RANGE'] = '1'
+    env.pop('ARTLIGHT_HDR_CAPTURE_ONLY', None)
     if args.capture_only:
-        env['VIBEPOLLO_HDR_CAPTURE_ONLY'] = '1'
+        env['ARTLIGHT_HDR_CAPTURE_ONLY'] = '1'
     command = [str(args.probe.resolve())]
     if args.mode != 'hdr':
         command.append('--' + args.mode)
     if args.probe_container:
         prefix = ['podman', 'exec', '--user', str(os.getuid()), '--workdir', str(args.payload.resolve())]
-        for key in ['XDG_RUNTIME_DIR', 'GAMESCOPE_WAYLAND_DISPLAY', 'VIBEPOLLO_HDR_BITSTREAM', 'VIBEPOLLO_HDR_ENCODER', 'VIBEPOLLO_HDR_CAPTURE_ONLY', 'VIBEPOLLO_HDR_FULL_RANGE']:
+        for key in ['XDG_RUNTIME_DIR', 'GAMESCOPE_WAYLAND_DISPLAY', 'ARTLIGHT_HDR_BITSTREAM', 'ARTLIGHT_HDR_ENCODER', 'ARTLIGHT_HDR_CAPTURE_ONLY', 'ARTLIGHT_HDR_FULL_RANGE']:
             if key in env:
                 prefix += ['--env', key + '=' + env[key]]
         prefix += ['--env', 'LD_LIBRARY_PATH=/usr/lib:' + env['LD_LIBRARY_PATH']]

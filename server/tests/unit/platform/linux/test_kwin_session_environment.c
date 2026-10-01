@@ -4,8 +4,8 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-#define main vibepollo_kwin_session_environment_entrypoint
-#include "../../../../packaging/linux/vibepollo-kwin-session-environment.c"
+#define main artlight_kwin_session_environment_entrypoint
+#include "../../../../packaging/linux/artlight-kwin-session-environment.c"
 #undef main
 
 #define CHECK(expression) \
@@ -17,7 +17,7 @@
   } while (0)
 
 static int filesystem_validation_works(void) {
-  char runtime[] = "/tmp/vibepollo-kwin-environment.XXXXXX";
+  char runtime[] = "/tmp/artlight-kwin-environment.XXXXXX";
   CHECK(mkdtemp(runtime));
   CHECK(!chmod(runtime, 0700));
 

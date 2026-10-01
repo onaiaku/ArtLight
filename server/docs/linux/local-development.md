@@ -23,7 +23,7 @@ both web interfaces and the host, stages a SHA-256-pinned payload, and
 prompts before elevating for installation. Tests are skipped by default;
 `--enforce` runs the full suite and blocks installation on **any** failure.
 Archive, ownership, driver and startup checks always apply. Arch installations
-retain a local `build/vibepollo-*.pkg.tar.gz` and a SHA-256-verified root-private
+retain a local `build/artlight-*.pkg.tar.gz` and a SHA-256-verified root-private
 copy. Pacman performs the installation and conflict removal in one transaction;
 no prebuilt host release is downloaded. This tool does not commit, push, or
 delete itself. The normal CMake/npm build may download its declared
@@ -35,16 +35,16 @@ build dependencies.
   CMake, Ninja, npm, and Git must already be available. CUDA is optional.
 - Live deployment requires systemd, cgroup v2, Linux 6.16+, and a merged module
   layout where `/lib/modules` resolves to `/usr/lib/modules`. It requires the
-  existing Vibepollo service account, machine configuration, shared state,
+  existing ArtLight service account, machine configuration, shared state,
   controller/socket architecture, and managed virtual-display setup **only for
   the file updater on non-Arch systems**. On Arch/CachyOS the native package
   lifecycle creates these prerequisites.
 - Runtime operation targets the native controller's KDE/Wayland seat0 desktop
   or greeter sessions. On Arch, confirmed installation disables the invoking
-  user's obsolete Sunshine/Vibeshine/Vibepollo service and imports the selected
+  user's obsolete Sunshine/Vibeshine/ArtLight service and imports the selected
   desktop profile into service-owned state. Original profiles remain intact. If
   automatic setup finds multiple desktop accounts, select one with
-  `sudo vibepollo configure USER` before retrying setup.
+  `sudo artlight configure USER` before retrying setup.
   It does not support arbitrary compositors, Windows, macOS, live deployment
   inside containers, or cross-compiling. `--stage-only` can be used in Linux build
   containers: it skips the live-host requirements and does not elevate.
@@ -126,7 +126,7 @@ requirement; it never applies a file rollback over the package database. Package
 hooks and dependency changes are not covered by the file updater's rollback journal.
 
 On both paths, installation refuses to start while an application launched by
-the host (`vibepollo-app-*.service` in the selected desktop user manager) is still running,
+the host (`artlight-app-*.service` in the selected desktop user manager) is still running,
 because installing stops it together with the capture host. Quit the game or end
 the stream and rerun with `--skip-build`, or pass `--allow-disruption`.
 
@@ -143,7 +143,7 @@ installation.
 
 Readiness checks use the current host invocation, its Web UI listener, H.264
 discovery, a generation-bound broker
-display-power probe, and active Vibepollo virtual kernel scanout (a working
+display-power probe, and active ArtLight virtual kernel scanout (a working
 physical monitor cannot hide a broken virtual output). They do not prove
 client video delivery or suspend/resume; test those
 with Moonlight afterwards. Capture log messages are not a startup gate: synthetic
@@ -171,14 +171,14 @@ Restore the previous installation only when requested:
 python3 scripts/linux_local_deploy.py install --recover
 ```
 
-On hosts with the `vibepollo-install` alias, use `vibepollo-install --part2`
-and `vibepollo-install --recover`. Both select the latest transaction under the
+On hosts with the `artlight-install` alias, use `artlight-install --part2`
+and `artlight-install --recover`. Both select the latest transaction under the
 root-owned deployment lock; no transaction ID is needed. The flags cannot be
 combined with build options. The legacy `finalize [TRANSACTION_ID]` and
 `rollback [TRANSACTION_ID]` commands remain available for explicit operations.
 Old transactions' automatic rollback policies are no longer used.
 
-Backups and transaction records remain under `/var/lib/vibepollo-local-deploy`.
+Backups and transaction records remain under `/var/lib/artlight-local-deploy`.
 An unfinished transaction blocks another installation until it is validated or
 recovered. Changed installed files or corrupt backups stop recovery rather than
 overwriting a later/manual upgrade. Failed recovery keeps admission closed.
@@ -206,7 +206,7 @@ python3 scripts/linux_local_deploy.py install --enforce
 
 ## Driver upgrades and reboot
 
-The transaction backs up Vibepollo DRM sources, its DKMS registrations/builds,
+The transaction backs up ArtLight DRM sources, its DKMS registrations/builds,
 its installation markers, and installed module files across kernels. It invokes
 the official signed driver installer for the running kernel, previously installed
 module kernels, and other installed kernels with headers. Same-version source

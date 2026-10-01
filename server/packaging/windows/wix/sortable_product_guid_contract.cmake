@@ -1,6 +1,6 @@
 include_guard(GLOBAL)
 
-function(vibepollo_is_sortable_product_guid output_variable value)
+function(artlight_is_sortable_product_guid output_variable value)
   set(is_valid FALSE)
   string(LENGTH "${value}" value_length)
   if(value_length EQUAL 38)

@@ -271,7 +271,7 @@ namespace platf::audio {
    * only after the endpoint is visible again. Endpoint visibility is persisted
    * device state: if the process dies between the hide and the show, the
    * endpoint stays hidden across reboots and DEVICE_STATE_ACTIVE enumeration
-   * can never find it again, so the marker is the only record that Vibepollo
+   * can never find it again, so the marker is the only record that ArtLight
    * owns the hidden state and must restore it.
    */
   static std::filesystem::path visibility_marker_path() {
@@ -1532,7 +1532,7 @@ namespace platf::audio {
      * The failed-role fallback hides the endpoint and shows it again. If the
      * process dies in between, the endpoint stays hidden across reboots and
      * every DEVICE_STATE_ACTIVE enumeration misses it, so nothing else can
-     * ever heal it. The persisted marker records that Vibepollo owns the hidden
+     * ever heal it. The persisted marker records that ArtLight owns the hidden
      * state, which keeps this pass from overriding a deliberate user choice.
      */
     void recover_interrupted_visibility_transition() {

@@ -692,7 +692,7 @@ TEST(DisplayHelperV2RecoveryEngine, KeepsGoldenPendingWhenBaselineDeviceIsMissin
   EXPECT_TRUE(harness.storage.exists(display_helper::v2::SnapshotTier::Golden));
 }
 
-// --- rotation reassert on the matching fast path (Vibepollo #406 class) ---
+// --- rotation reassert on the matching fast path (ArtLight #406 class) ---
 
 // The OS can report a fully matching layout while the driver's pointer
 // transform is stale; a confirmed match with a non-default rotation must force

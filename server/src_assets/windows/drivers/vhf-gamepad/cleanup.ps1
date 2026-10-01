@@ -55,9 +55,9 @@ function Remove-OwnedRootDevices {
     }
 
     if ($instances.Count -eq 0) {
-        Write-DriverMessage 'No Vibepollo-managed VHF source devices were present.'
+        Write-DriverMessage 'No ArtLight-managed VHF source devices were present.'
     } else {
-        Write-DriverMessage 'Removed only Vibepollo-managed VHF source devices.'
+        Write-DriverMessage 'Removed only ArtLight-managed VHF source devices.'
     }
     return $rebootRequired
 }

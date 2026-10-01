@@ -1,7 +1,7 @@
 # common packaging
 
 # common cpack options
-# Branding: show ArtLight Server by Nonary in installer UI
+# Branding: show ArtLight Server by onaiaku in installer UI
 set(CPACK_PACKAGE_NAME "ArtLight Server")
 set(CPACK_PACKAGE_VENDOR "onaiaku")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION_NUMERIC})

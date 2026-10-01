@@ -1,6 +1,6 @@
 /**
  * @file src/platform/windows/vhf_gamepad.h
- * @brief Declarations for the Vibepollo VHF virtual gamepad input backend.
+ * @brief Declarations for the ArtLight VHF virtual gamepad input backend.
  */
 #pragma once
 
@@ -25,7 +25,7 @@ namespace platf {
   };
 
   /**
-   * @brief Drives virtual controllers through Vibepollo's own UMDF/VHF gamepad driver.
+   * @brief Drives virtual controllers through ArtLight's own UMDF/VHF gamepad driver.
    * @details This is the alternative to the ViGEmBus backend. Which controller a slot presents
    *          depends on the profile chosen at allocation; the PlayStation profiles additionally
    *          carry a touchpad, motion sensors, a battery, and a lightbar.

@@ -133,8 +133,8 @@ TEST(SteamDiscovery, MachineHostDoesNotParseSessionHome) {
   std::error_code ec;
   fs::create_directories(session_home / ".local/share/Steam", ec);
   fs::create_directories(service_home / ".local/share/Steam", ec);
-  scoped_environment machine {"VIBEPOLLO_MACHINE_HOST", "1"};
-  scoped_environment session {"VIBEPOLLO_SESSION_HOME", session_home.string()};
+  scoped_environment machine {"ARTLIGHT_MACHINE_HOST", "1"};
+  scoped_environment session {"ARTLIGHT_SESSION_HOME", session_home.string()};
   scoped_environment home {"HOME", service_home.string()};
   scoped_environment xdg {"XDG_DATA_HOME", (service_home / ".local/share").string()};
 
@@ -148,7 +148,7 @@ TEST(SteamDiscovery, MachineHostDoesNotParseSessionHome) {
 
 TEST(SteamDiscovery, CatalogIncludesPlayedUninstalledGamesWithNames) {
   const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count() ^ static_cast<long long>(std::random_device {}());
-  const auto base = fs::temp_directory_path() / ("vibepollo-steam-catalog-test-" + std::to_string(nonce));
+  const auto base = fs::temp_directory_path() / ("artlight-steam-catalog-test-" + std::to_string(nonce));
   std::error_code ec;
   fs::create_directories(base / "steamapps", ec);
   fs::create_directories(base / "appcache", ec);
@@ -193,7 +193,7 @@ TEST(SteamVdf, IgnoresStrayRootBracesWithoutStalling) {
 
 TEST(SteamDiscovery, ReadsManifestsAndLibraryFolders) {
   const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count() ^ static_cast<long long>(std::random_device {}());
-  const auto base = fs::temp_directory_path() / ("vibepollo-steam-test-" + std::to_string(nonce));
+  const auto base = fs::temp_directory_path() / ("artlight-steam-test-" + std::to_string(nonce));
   std::error_code ec;
   fs::remove_all(base, ec);
   fs::create_directories(base / "steamapps", ec);
@@ -216,7 +216,7 @@ TEST(SteamDiscovery, ReadsManifestsAndLibraryFolders) {
 
 TEST(SteamDiscovery, FindsModernCentralPortraitForExternalLibrary) {
   const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count() ^ static_cast<long long>(std::random_device {}());
-  const auto base = fs::temp_directory_path() / ("vibepollo-steam-art-test-" + std::to_string(nonce));
+  const auto base = fs::temp_directory_path() / ("artlight-steam-art-test-" + std::to_string(nonce));
   const auto library = base / "external";
   std::error_code ec;
   fs::create_directories(base / "steamapps", ec);
@@ -247,7 +247,7 @@ TEST(SteamDiscovery, FindsModernCentralPortraitForExternalLibrary) {
 
 TEST(SteamDiscovery, FindsContentHashedLibraryCapsule) {
   const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count() ^ static_cast<long long>(std::random_device {}());
-  const auto base = fs::temp_directory_path() / ("vibepollo-steam-hashed-art-test-" + std::to_string(nonce));
+  const auto base = fs::temp_directory_path() / ("artlight-steam-hashed-art-test-" + std::to_string(nonce));
   std::error_code ec;
   fs::create_directories(base / "steamapps/common/HashedCoverGame", ec);
   fs::create_directories(base / "appcache/librarycache/84/capsule-hash", ec);
@@ -270,7 +270,7 @@ TEST(SteamDiscovery, FindsContentHashedLibraryCapsule) {
 
 TEST(SteamDiscovery, IgnoresManifestWithoutInstalledDirectory) {
   const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count() ^ static_cast<long long>(std::random_device {}());
-  const auto base = fs::temp_directory_path() / ("vibepollo-steam-stale-test-" + std::to_string(nonce));
+  const auto base = fs::temp_directory_path() / ("artlight-steam-stale-test-" + std::to_string(nonce));
   std::error_code ec;
   fs::create_directories(base / "steamapps", ec);
   {
@@ -284,7 +284,7 @@ TEST(SteamDiscovery, IgnoresManifestWithoutInstalledDirectory) {
 #ifdef __linux__
 TEST(SteamDiscovery, ResolvesDirectLaunchMetadataOptionsAndExistingProton) {
   const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count() ^ static_cast<long long>(std::random_device {}());
-  const auto base = fs::temp_directory_path() / ("vibepollo-steam-direct-test-" + std::to_string(nonce));
+  const auto base = fs::temp_directory_path() / ("artlight-steam-direct-test-" + std::to_string(nonce));
   const auto install = base / "steamapps/common/DirectGame";
   const auto compatdata = base / "steamapps/compatdata/42";
   const auto proton = base / "steamapps/common/TestProton";
@@ -334,7 +334,7 @@ TEST(SteamDiscovery, ResolvesDirectLaunchMetadataOptionsAndExistingProton) {
   EXPECT_EQ(games[0].proton_path, proton);
   EXPECT_EQ(games[0].proton_runtime_path, runtime);
   EXPECT_EQ(games[0].steam_client_path, base);
-  EXPECT_NE(launch_command(games[0]).find("mangohud /usr/bin/vibepollo-mangohud --appid 42 -- env"), std::string::npos);
+  EXPECT_NE(launch_command(games[0]).find("mangohud /usr/bin/artlight-mangohud --appid 42 -- env"), std::string::npos);
 
   // Custom compatibility tools live outside steamapps. Modern config_info
   // records the Steam client root explicitly, which must be used to resolve
@@ -399,7 +399,7 @@ TEST(SteamLaunch, StreamOwnedEnvironmentFeaturesRequireDirectLaunch) {
 }
 
 TEST(SteamLaunch, GamingModeReplacesCachedDesktopProtonCommand) {
-  const std::string cached = "/bin/sh -c 'old-release/vibepollo-mangohud --appid 1145350 -- proton waitforexitandrun Hades2.exe'";
+  const std::string cached = "/bin/sh -c 'old-release/artlight-mangohud --appid 1145350 -- proton waitforexitandrun Hades2.exe'";
   EXPECT_EQ(runtime_launch_command("1145350", cached, true), launch_command(1145350));
   EXPECT_EQ(runtime_launch_command("1145350", cached, false), cached);
   EXPECT_EQ(runtime_launch_command("", "custom-game", true), "custom-game");
@@ -426,7 +426,7 @@ TEST(SteamLaunch, MachineSessionLaunchUsesCanonicalSemanticArguments) {
   const auto command = session_launch_command(1182900, policy);
   EXPECT_EQ(
     command,
-    "/usr/libexec/vibeshine/vibepollo-session-exec steam-direct "
+    "/usr/libexec/vibeshine/artlight-session-exec steam-direct "
     "1182900 mangohud-proton 116000 3 1 late 1 1 1 1 1 1"
   );
   const auto arguments = session_launch_arguments(command);
@@ -440,22 +440,22 @@ TEST(SteamLaunch, MachineSessionLaunchUsesCanonicalSemanticArguments) {
   );
 
   const auto fallback = session_launch_arguments(
-    "/usr/libexec/vibeshine/vibepollo-session-exec steam 1182900"
+    "/usr/libexec/vibeshine/artlight-session-exec steam 1182900"
   );
   ASSERT_TRUE(fallback);
   EXPECT_EQ(*fallback, (std::vector<std::string> {"steam", "1182900"}));
   EXPECT_FALSE(session_launch_arguments(
-    "/usr/libexec/vibeshine/vibepollo-session-exec steam 01182900"
+    "/usr/libexec/vibeshine/artlight-session-exec steam 01182900"
   ));
   EXPECT_FALSE(session_launch_arguments(
-    "/usr/libexec/vibeshine/vibepollo-session-exec steam 0"
+    "/usr/libexec/vibeshine/artlight-session-exec steam 0"
   ));
 
   policy.provider = "disabled";
   EXPECT_TRUE(session_launch_command(1182900, policy).empty());
   EXPECT_FALSE(session_launch_arguments(command + " trailing"));
   EXPECT_FALSE(session_launch_arguments(
-    "/usr/libexec/vibeshine/vibepollo-session-exec steam-direct "
+    "/usr/libexec/vibeshine/artlight-session-exec steam-direct "
     "1182900 proton 116000 custom 1 late 0 0 0"
   ));
 }
@@ -478,7 +478,7 @@ TEST(SteamLaunch, DualSenseOnlyPolicyRoundTripsWithoutHdrOrLimiter) {
   EXPECT_TRUE(session_launch_command(3768760, policy).empty());
 }
 
-TEST(SteamLaunch, DirectLaunchPlacesVibepolloInsideInheritedSteamOptions) {
+TEST(SteamLaunch, DirectLaunchPlacesArtLightInsideInheritedSteamOptions) {
   game_t game;
   game.app_id = 1182900;
   game.launch_executable = "/games/A Plague Tale/APlagueTaleRequiem_x64.exe";
@@ -494,7 +494,7 @@ TEST(SteamLaunch, DirectLaunchPlacesVibepolloInsideInheritedSteamOptions) {
 
   const auto command = launch_command(game);
   EXPECT_TRUE(command.starts_with("/bin/sh -c 'PROTON_DLSS_UPGRADE=3.7 mangohud "));
-  EXPECT_NE(command.find("/usr/bin/vibepollo-mangohud --appid 1182900 -- env"), std::string::npos);
+  EXPECT_NE(command.find("/usr/bin/artlight-mangohud --appid 1182900 -- env"), std::string::npos);
   EXPECT_NE(command.find("STEAM_COMPAT_APP_ID=1182900"), std::string::npos);
   EXPECT_NE(command.find("STEAM_COMPAT_SHADER_PATH="), std::string::npos);
   EXPECT_NE(command.find("STEAM_COMPAT_MEDIA_PATH="), std::string::npos);
@@ -516,7 +516,7 @@ TEST(SteamLaunch, DirectNativeLaunchTreatsOptionsWithoutPlaceholderAsArguments) 
 
   EXPECT_EQ(
     launch_command(game),
-    "/bin/sh -c '/usr/bin/vibepollo-mangohud --appid 480 -- env SteamAppId=480 SteamGameId=480 "
+    "/bin/sh -c '/usr/bin/artlight-mangohud --appid 480 -- env SteamAppId=480 SteamGameId=480 "
     "'\\''/games/Spacewar/spacewar'\\'' -default -user-option'"
   );
 }
@@ -538,7 +538,7 @@ TEST(SteamLaunch, RelocatedBundleExecutesItsOwnHelperWithQuotedPath) {
   }
 
   const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count() ^ static_cast<long long>(std::random_device {}());
-  const auto bundle = fs::temp_directory_path() / ("vibepollo Steam's bundle " + std::to_string(nonce));
+  const auto bundle = fs::temp_directory_path() / ("artlight Steam's bundle " + std::to_string(nonce));
   struct fixture_cleanup {
     fs::path path;
     ~fixture_cleanup() {
@@ -547,9 +547,9 @@ TEST(SteamLaunch, RelocatedBundleExecutesItsOwnHelperWithQuotedPath) {
     }
   } cleanup {bundle};
   fs::create_directories(bundle);
-  const auto host = bundle / "vibepollo-test";
+  const auto host = bundle / "artlight-test";
   fs::copy_file(fs::read_symlink("/proc/self/exe"), host);
-  const auto helper = bundle / "vibepollo-mangohud";
+  const auto helper = bundle / "artlight-mangohud";
   {
     std::ofstream output(helper);
     output << "#!/bin/sh\nset -eu\n"

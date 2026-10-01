@@ -62,7 +62,7 @@
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/video.h"
-#include "packaging/linux/vibepollo-session-stream-environment.h"
+#include "packaging/linux/artlight-session-stream-environment.h"
 #ifdef __linux__
   #include "src/platform/linux/display_backend.h"
   #include "src/platform/linux/private_display_capture_policy.h"
@@ -186,25 +186,25 @@ namespace platf {
       // May be set if running under a systemd service with the ConfigurationDirectory= option set.
       if ((dir = getenv("CONFIGURATION_DIRECTORY")) != nullptr && strlen(dir) > 0) {
         found = true;
-        config_path = fs::path(dir) / "vibepollo"sv;
+        config_path = fs::path(dir) / "artlight"sv;
       }
       // Otherwise, follow the XDG base directory specification:
       // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
       if (!found && (dir = getenv("XDG_CONFIG_HOME")) != nullptr && strlen(dir) > 0) {
         found = true;
-        config_path = fs::path(dir) / "vibepollo"sv;
+        config_path = fs::path(dir) / "artlight"sv;
       }
       // As a last resort, use the home directory
       if (!found) {
         migrate_config = false;
-        config_path = fs::path(homedir) / ".config/vibepollo"sv;
+        config_path = fs::path(homedir) / ".config/artlight"sv;
       }
 
       // migrate from the old config location if necessary
-      migrate_envvar = getenv("VIBEPOLLO_MIGRATE_CONFIG");
+      migrate_envvar = getenv("ARTLIGHT_MIGRATE_CONFIG");
       if (migrate_config && found && migrate_envvar && strcmp(migrate_envvar, "1") == 0) {
         std::error_code ec;
-        fs::path old_config_path = fs::path(homedir) / ".config/vibepollo"sv;
+        fs::path old_config_path = fs::path(homedir) / ".config/artlight"sv;
         if (old_config_path != config_path && fs::exists(old_config_path, ec)) {
           if (!fs::exists(config_path, ec)) {
             std::cout << "Migrating config from "sv << old_config_path << " to "sv << config_path << std::endl;
@@ -417,13 +417,13 @@ namespace platf {
 
     std::vector<std::string> args;
     v2::filesystem::path exe_path;
-    const bool session_command = std::getenv("VIBEPOLLO_MACHINE_HOST") != nullptr;
+    const bool session_command = std::getenv("ARTLIGHT_MACHINE_HOST") != nullptr;
     if (session_command) {
       if (cmd.empty()) {
         ec = std::make_error_code(std::errc::invalid_argument);
         return bp::child();
       }
-      exe_path = v2::filesystem::path("/usr/libexec/vibeshine/vibepollo-session-exec");
+      exe_path = v2::filesystem::path("/usr/libexec/vibeshine/artlight-session-exec");
       if (const auto semantic_steam = platf::steam::session_launch_arguments(cmd)) {
         // Direct Steam launch is deliberately semantic: the capability-free
         // client sends only validated policy values, and the broker resolves
@@ -448,7 +448,7 @@ namespace platf {
         // loader settings remain broker-owned, and cmd still matches the
         // administrator's exact command manifest.
         size_t stream_environment_bytes = 0;
-        for (const auto &field : vibepollo_stream_environment_fields) {
+        for (const auto &field : artlight_stream_environment_fields) {
           const auto it = std::find_if(env.cbegin(), env.cend(), [&field](const auto &entry) {
             return entry.get_name() == field.name;
           });
@@ -456,10 +456,10 @@ namespace platf {
           const auto value = it->to_string();
           // Empty optional toggles/numeric settings must not turn a bootstrap
           // request into a failed launch. Text fields preserve empty values.
-          if (value.empty() && field.type != VIBEPOLLO_STREAM_TEXT) continue;
+          if (value.empty() && field.type != ARTLIGHT_STREAM_TEXT) continue;
           auto assignment = std::string {field.name} + '=' + value;
-          if (!vibepollo_stream_environment_entry_is_safe(assignment.c_str(), nullptr) ||
-              assignment.size() + 1 > VIBEPOLLO_STREAM_ENVIRONMENT_MAX_BYTES - stream_environment_bytes) {
+          if (!artlight_stream_environment_entry_is_safe(assignment.c_str(), nullptr) ||
+              assignment.size() + 1 > ARTLIGHT_STREAM_ENVIRONMENT_MAX_BYTES - stream_environment_bytes) {
             BOOST_LOG(error) << "Invalid session launch metadata: " << field.name;
             ec = std::make_error_code(std::errc::invalid_argument);
             return bp::child();
@@ -502,7 +502,7 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_STEAMOS
     const auto child_env = linux_private_vaapi::child_environment(
       env,
-      std::getenv("VIBEPOLLO_PRIVATE_VAAPI"),
+      std::getenv("ARTLIGHT_PRIVATE_VAAPI"),
       std::getenv("LIBVA_DRIVERS_PATH"),
       std::getenv("LIBVA_DRIVER_NAME")
     );
@@ -697,7 +697,7 @@ namespace platf {
   }
 
   void restart() {
-    const char *machine_host = std::getenv("VIBEPOLLO_MACHINE_HOST");
+    const char *machine_host = std::getenv("ARTLIGHT_MACHINE_HOST");
     if (machine_host && machine_host[0] == '1' && machine_host[1] == '\0') {
       // The machine-service wrapper owns readiness and the controller owns
       // restart authority. Re-execing this private child would bypass the

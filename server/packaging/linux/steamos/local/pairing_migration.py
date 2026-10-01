@@ -11,7 +11,7 @@ def normalize_pairing_state(path: pathlib.Path) -> int:
     """Retain the first record for an otherwise identical certificate identity.
 
     Sunshine can save several names/UUIDs for the same client certificate.
-    Vibepollo requires a single unambiguous authorization record per certificate.
+    ArtLight requires a single unambiguous authorization record per certificate.
     Conflicting permissions or configuration must never be silently discarded.
     The caller must pass a private copy, leaving the source and backup intact.
     """

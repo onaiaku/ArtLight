@@ -2,13 +2,13 @@
 set -euo pipefail
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/../../../.." && pwd -P)
 source "$repo/scripts/linux_install.sh"
-workdir=$(mktemp -d /tmp/vibepollo-installer-test.XXXXXXXX)
-local_package="$workdir/vibepollo.pkg.tar.zst"
-printf 'vibepollo_quiesce_or_abort() { return 1; }\n' > "$workdir/.INSTALL"
+workdir=$(mktemp -d /tmp/artlight-installer-test.XXXXXXXX)
+local_package="$workdir/artlight.pkg.tar.zst"
+printf 'artlight_quiesce_or_abort() { return 1; }\n' > "$workdir/.INSTALL"
 bsdtar -cf "$local_package" -C "$workdir" .INSTALL
 stage_upgrade_guard "$local_package"
-grep -Fxq 'AbortOnFail' "$workdir/hooks/00-vibepollo-quiesce.hook"
-grep -Fxq "Exec = $workdir/preflight" "$workdir/hooks/00-vibepollo-quiesce.hook"
+grep -Fxq 'AbortOnFail' "$workdir/hooks/00-artlight-quiesce.hook"
+grep -Fxq "Exec = $workdir/preflight" "$workdir/hooks/00-artlight-quiesce.hook"
 if "$workdir/preflight"; then exit 1; fi
 calls="$workdir/calls"
 source_root="$workdir/usr/src"
@@ -23,8 +23,8 @@ stat() {
   # Our fixture's /tmp ancestor is intentionally the only mocked metadata.
   if [[ "${!#}" == /tmp ]]; then printf '%s 755\n' "$EUID"; else command stat "$@"; fi
 }
-package_name=vibepollo
-directory_owner=vibepollo
+package_name=artlight
+directory_owner=artlight
 ownership_error=0
 repository_metadata_available=1
 pacman() {
@@ -32,7 +32,7 @@ pacman() {
   if [[ "$1" == -Si ]]; then ((repository_metadata_available)); return; fi
   if [[ "$1" == -Sw ]]; then
     mkdir -p "$workdir/cache"
-    command cp "$local_package" "$workdir/cache/vibepollo-1.0-1-x86_64.pkg.tar.zst"
+    command cp "$local_package" "$workdir/cache/artlight-1.0-1-x86_64.pkg.tar.zst"
     return
   fi
   if [[ "$1" == -Qp ]]; then printf '%s 1.0-1\n' "$package_name"; fi
@@ -64,7 +64,7 @@ if (install_from_package); then exit 1; fi
 [[ $(wc -l < "$calls") == 1 ]]
 ! grep -Eq -- '^-R|^-U|^-S' "$calls"
 : > "$calls"
-package_name=vibepollo
+package_name=artlight
 pacman_confirm=(); replacement_confirm=()
 install_from_package
 grep -Fx -- "-U --hookdir $workdir/hooks -- $local_package" "$calls"
@@ -93,7 +93,7 @@ cmp "$directory/vibeshine_drm_vrr.h" "${backups[0]}"
 directory_owner=unrelated
 prepare_driver_replacement
 [[ ${#driver_overwrite[@]} == 0 ]]
-directory_owner=vibepollo
+directory_owner=artlight
 
 # Ownership-query failures are not evidence of an unowned file.
 ownership_error=1
@@ -116,7 +116,7 @@ configure_pacman_repo() { :; }
 parse_args --yes
 : > "$calls"
 install_from_repo
-grep -Fx -- "-S --noconfirm --ask=4 $expected --cachedir $workdir/cache --hookdir $workdir/hooks vibepollo" "$calls"
+grep -Fx -- "-S --noconfirm --ask=4 $expected --cachedir $workdir/cache --hookdir $workdir/hooks artlight" "$calls"
 ! grep -Eq -- '^-S[^ ]*[yu]' "$calls"
 download_release_package() { printf 'download-release\n' >> "$calls"; }
 repository_metadata_available=0
@@ -272,7 +272,7 @@ printf 'Retired running kernels require a reboot, not mismatched header installa
 
 # First install must request a reboot even if driver status later reports loaded.
 (
-  pacman() { [[ "$*" == '-Q vibepollo' ]] && return "$package_status"; }
+  pacman() { [[ "$*" == '-Q artlight' ]] && return "$package_status"; }
   package_status=1; reboot_required=0
   check_session_restart
   [[ $reboot_required == 1 ]]
@@ -289,50 +289,50 @@ printf 'Fresh installs require a compositor restart even when the driver loads i
 # Evaluate only this pure selector from each package hook; never execute a
 # package hook's top-level host mutations in the test environment.
 for package_hook in \
-  "$repo/packaging/linux/Arch/vibepollo.install" \
+  "$repo/packaging/linux/Arch/artlight.install" \
   "$repo/packaging/linux/vibeshine-preinst.in" \
   "$repo/packaging/linux/copr/Sunshine.spec"; do
   (
-    eval "$(sed -n '/^vibepollo_select_upgrade_kill_mode() {$/,/^}$/p' "$package_hook")"
-    declare -F vibepollo_select_upgrade_kill_mode >/dev/null
-    vibepollo_legacy_host="$workdir/supervisor-fixture"
+    eval "$(sed -n '/^artlight_select_upgrade_kill_mode() {$/,/^}$/p' "$package_hook")"
+    declare -F artlight_select_upgrade_kill_mode >/dev/null
+    artlight_legacy_host="$workdir/supervisor-fixture"
     helper_safe=1
     host_quiescent=1
-    vibepollo_privileged_helper_is_safe() { ((helper_safe)); }
-    vibepollo_unit_is_quiescent() { [[ "$1" == vibepollo.service ]] && ((host_quiescent)); }
+    artlight_privileged_helper_is_safe() { ((helper_safe)); }
+    artlight_unit_is_quiescent() { [[ "$1" == artlight.service ]] && ((host_quiescent)); }
 
-    printf '%s\n' '  trap request_host_shutdown TERM INT HUP' > "$vibepollo_legacy_host"
-    vibepollo_select_upgrade_kill_mode
-    [[ "$vibepollo_upgrade_kill_mode" == mixed ]]
+    printf '%s\n' '  trap request_host_shutdown TERM INT HUP' > "$artlight_legacy_host"
+    artlight_select_upgrade_kill_mode
+    [[ "$artlight_upgrade_kill_mode" == mixed ]]
     # Prefer the new contract if a transitional helper retains the old marker.
-    printf '%s\n' '  trap mark_host_shutdown TERM INT HUP' >> "$vibepollo_legacy_host"
-    vibepollo_select_upgrade_kill_mode
-    [[ "$vibepollo_upgrade_kill_mode" == mixed ]]
+    printf '%s\n' '  trap mark_host_shutdown TERM INT HUP' >> "$artlight_legacy_host"
+    artlight_select_upgrade_kill_mode
+    [[ "$artlight_upgrade_kill_mode" == mixed ]]
     helper_safe=0
-    if vibepollo_select_upgrade_kill_mode; then exit 1; fi
+    if artlight_select_upgrade_kill_mode; then exit 1; fi
     helper_safe=1
 
-    printf '%s\n' '  trap mark_host_shutdown TERM INT HUP' > "$vibepollo_legacy_host"
-    vibepollo_select_upgrade_kill_mode
-    [[ "$vibepollo_upgrade_kill_mode" == control-group ]]
+    printf '%s\n' '  trap mark_host_shutdown TERM INT HUP' > "$artlight_legacy_host"
+    artlight_select_upgrade_kill_mode
+    [[ "$artlight_upgrade_kill_mode" == control-group ]]
     printf '%s\n' \
       "  trap 'forward_host_signal TERM' TERM" \
       "  trap 'forward_host_signal INT' INT" \
-      "  trap 'forward_host_signal HUP' HUP" > "$vibepollo_legacy_host"
-    vibepollo_select_upgrade_kill_mode
-    [[ "$vibepollo_upgrade_kill_mode" == process ]]
+      "  trap 'forward_host_signal HUP' HUP" > "$artlight_legacy_host"
+    artlight_select_upgrade_kill_mode
+    [[ "$artlight_upgrade_kill_mode" == process ]]
 
-    printf '%s\n' "  trap 'forward_host_signal TERM' TERM" > "$vibepollo_legacy_host"
-    if vibepollo_select_upgrade_kill_mode; then exit 1; fi
-    printf '%s\n' 'unrecognized supervisor' > "$vibepollo_legacy_host"
-    if vibepollo_select_upgrade_kill_mode; then exit 1; fi
+    printf '%s\n' "  trap 'forward_host_signal TERM' TERM" > "$artlight_legacy_host"
+    if artlight_select_upgrade_kill_mode; then exit 1; fi
+    printf '%s\n' 'unrecognized supervisor' > "$artlight_legacy_host"
+    if artlight_select_upgrade_kill_mode; then exit 1; fi
 
-    vibepollo_legacy_host="$workdir/absent-supervisor"
+    artlight_legacy_host="$workdir/absent-supervisor"
     host_quiescent=0
-    if vibepollo_select_upgrade_kill_mode; then exit 1; fi
+    if artlight_select_upgrade_kill_mode; then exit 1; fi
     host_quiescent=1
-    vibepollo_select_upgrade_kill_mode
-    [[ "$vibepollo_upgrade_kill_mode" == control-group ]]
+    artlight_select_upgrade_kill_mode
+    [[ "$artlight_upgrade_kill_mode" == control-group ]]
   )
 done
 printf 'Package upgrades preserve new and legacy supervisor shutdown contracts.\n'
@@ -340,10 +340,10 @@ printf 'Package upgrades preserve new and legacy supervisor shutdown contracts.\
 # Removal and post-install recovery must leave broker/app workers untouched
 # when the GPU host has not drained, even if the admission socket has stopped.
 for hook_case in \
-  'packaging/linux/vibepollo-prerm.in:vibepollo_quiesce_for_removal' \
-  'packaging/linux/vibepollo-postinst.in:vibepollo_quiesce_machine_host' \
-  'packaging/linux/copr/Sunshine.spec:vibepollo_quiesce_machine_host' \
-  'packaging/linux/copr/Sunshine.spec:vibepollo_preun_quiesce'; do
+  'packaging/linux/artlight-prerm.in:artlight_quiesce_for_removal' \
+  'packaging/linux/artlight-postinst.in:artlight_quiesce_machine_host' \
+  'packaging/linux/copr/Sunshine.spec:artlight_quiesce_machine_host' \
+  'packaging/linux/copr/Sunshine.spec:artlight_preun_quiesce'; do
   (
     package_hook="$repo/${hook_case%%:*}"
     quiesce_function=${hook_case#*:}
@@ -351,42 +351,42 @@ for hook_case in \
     # namesake. Redirect runtime-presence checks and paths into this fixture.
     eval "$(sed -n "/^${quiesce_function}() {$/,/^}$/p" "$package_hook" |
       sed -e "s|/run/systemd/system|$workdir|g" \
-          -e "s|/run/vibepollo/|$workdir/absent-runtime/|g")"
+          -e "s|/run/artlight/|$workdir/absent-runtime/|g")"
     declare -F "$quiesce_function" >/dev/null
-    vibepollo_controller="$workdir/absent-controller"
-    vibepollo_broker_socket="$workdir/absent-runtime/session-broker.sock"
-    vibepollo_session_record="$workdir/absent-runtime/session.env"
-    vibepollo_legacy_acl="$workdir/absent-runtime/session.acl"
+    artlight_controller="$workdir/absent-controller"
+    artlight_broker_socket="$workdir/absent-runtime/session-broker.sock"
+    artlight_session_record="$workdir/absent-runtime/session.env"
+    artlight_legacy_acl="$workdir/absent-runtime/session.acl"
     hook_calls="$workdir/hook-calls"
     host_verified=0
     host_quiescent=0
     systemctl() { return 0; }
     timeout() { return 0; }
-    vibepollo_stop_exact_unit() { printf 'stop %s\n' "$1" >> "$hook_calls"; }
-    vibepollo_unit_is_quiescent() {
-      if [[ "$1" == vibepollo.service ]]; then
+    artlight_stop_exact_unit() { printf 'stop %s\n' "$1" >> "$hook_calls"; }
+    artlight_unit_is_quiescent() {
+      if [[ "$1" == artlight.service ]]; then
         ((host_quiescent)) || return 1
         host_verified=1
         printf 'host drained\n' >> "$hook_calls"
       fi
     }
-    vibepollo_stop_brokers() {
+    artlight_stop_brokers() {
       ((host_verified)) || return 1
       printf 'stop brokers\n' >> "$hook_calls"
     }
-    vibepollo_unit_is_masked() { return 0; }
-    vibepollo_unit_is_disabled() { return 0; }
-    vibepollo_remove_pam_hook() { return 0; }
-    vibepollo_preun_stop_exact_unit() { vibepollo_stop_exact_unit "$@"; }
-    vibepollo_preun_unit_is_quiescent() { vibepollo_unit_is_quiescent "$@"; }
-    vibepollo_preun_stop_brokers() { vibepollo_stop_brokers; }
-    vibepollo_preun_unit_is_masked() { return 0; }
-    vibepollo_preun_unit_is_disabled() { return 0; }
-    vibepollo_preun_remove_pam() { return 0; }
+    artlight_unit_is_masked() { return 0; }
+    artlight_unit_is_disabled() { return 0; }
+    artlight_remove_pam_hook() { return 0; }
+    artlight_preun_stop_exact_unit() { artlight_stop_exact_unit "$@"; }
+    artlight_preun_unit_is_quiescent() { artlight_unit_is_quiescent "$@"; }
+    artlight_preun_stop_brokers() { artlight_stop_brokers; }
+    artlight_preun_unit_is_masked() { return 0; }
+    artlight_preun_unit_is_disabled() { return 0; }
+    artlight_preun_remove_pam() { return 0; }
 
     : > "$hook_calls"
     if "$quiesce_function"; then exit 1; fi
-    grep -Fxq 'stop vibepollo.service' "$hook_calls"
+    grep -Fxq 'stop artlight.service' "$hook_calls"
     ! grep -Fxq 'stop brokers' "$hook_calls"
 
     host_quiescent=1
@@ -400,39 +400,39 @@ printf 'Removal and repair refuse broker teardown until the GPU host has drained
 # A pre-replacement failure must not stop the GPU host before broker admission
 # was touched. Once that shutdown begins, retain the runtime restart fence and
 # recover the installed unit enablement for the next boot.
-for hook in packaging/linux/vibeshine-preinst.in packaging/linux/Arch/vibepollo.install packaging/linux/copr/Sunshine.spec; do
+for hook in packaging/linux/vibeshine-preinst.in packaging/linux/Arch/artlight.install packaging/linux/copr/Sunshine.spec; do
   (
-    eval "$(sed -n '/^vibepollo_abort_quiesce() {$/,/^}$/p' "$repo/$hook")"
+    eval "$(sed -n '/^artlight_abort_quiesce() {$/,/^}$/p' "$repo/$hook")"
     actions=''
     systemctl() { actions="$actions $*"; }
     timeout() { shift 2; "$@"; }
     stat() { printf '%s\n' '1:2:0:0:0:1'; }
     chmod() { actions="$actions CHMOD:$*"; }
-    vibepollo_legacy_handoff="$workdir/handoff-fixture"
-    : > "$vibepollo_legacy_handoff"
-    vibepollo_pre_handoff_identity='1:2:0:0:755:1'
-    vibepollo_stop_exact_unit() { actions="$actions STOP:$1"; }
-    vibepollo_unit_is_quiescent() { return 1; }
-    vibepollo_controller_was_frozen=1
-    vibepollo_shutdown_started=0
-    vibepollo_quiesce_step='early fixture failure'
-    vibepollo_abort_quiesce 2>/dev/null
-    [[ "$actions" == *'thaw vibepollo-session-controller.service'* ]]
+    artlight_legacy_handoff="$workdir/handoff-fixture"
+    : > "$artlight_legacy_handoff"
+    artlight_pre_handoff_identity='1:2:0:0:755:1'
+    artlight_stop_exact_unit() { actions="$actions STOP:$1"; }
+    artlight_unit_is_quiescent() { return 1; }
+    artlight_controller_was_frozen=1
+    artlight_shutdown_started=0
+    artlight_quiesce_step='early fixture failure'
+    artlight_abort_quiesce 2>/dev/null
+    [[ "$actions" == *'thaw artlight-session-controller.service'* ]]
     [[ "$actions" == *'CHMOD:0755 --'* ]]
-    [[ "$actions" == *'CHMOD:0755 --'*'thaw vibepollo-session-controller.service'* ]]
+    [[ "$actions" == *'CHMOD:0755 --'*'thaw artlight-session-controller.service'* ]]
     [[ "$actions" != *'STOP:'* && "$actions" != *'unmask'* ]]
     actions=''
-    vibepollo_controller_was_frozen=0
-    vibepollo_shutdown_started=1
-    vibepollo_pre_controller_enabled=enabled
-    vibepollo_pre_host_enabled=disabled
-    vibepollo_pre_prelogin_enabled=disabled
-    vibepollo_pre_prepare_enabled=disabled
-    vibepollo_broker_socket="$workdir/absent-broker-socket"
-    vibepollo_control_socket="$workdir/absent-control-socket"
-    vibepollo_abort_quiesce 2>/dev/null
-    [[ "$actions" == *'STOP:vibepollo-session-controller.service'* ]]
-    [[ "$actions" == *'STOP:vibepollo.service'* ]]
+    artlight_controller_was_frozen=0
+    artlight_shutdown_started=1
+    artlight_pre_controller_enabled=enabled
+    artlight_pre_host_enabled=disabled
+    artlight_pre_prelogin_enabled=disabled
+    artlight_pre_prepare_enabled=disabled
+    artlight_broker_socket="$workdir/absent-broker-socket"
+    artlight_control_socket="$workdir/absent-control-socket"
+    artlight_abort_quiesce 2>/dev/null
+    [[ "$actions" == *'STOP:artlight-session-controller.service'* ]]
+    [[ "$actions" == *'STOP:artlight.service'* ]]
     [[ "$actions" != *'enable '* && "$actions" != *'disable '* && "$actions" != *'unmask'* ]]
   )
 done
@@ -440,61 +440,61 @@ printf 'Failed pre-upgrade quiesce preserves the early host, prior enablement, a
 # Socket units have no MainPID property. All package formats must accept a
 # stopped four-property socket while still rejecting a malformed service.
 for package_hook in packaging/linux/vibeshine-preinst.in \
-  packaging/linux/vibepollo-postinst.in \
-  packaging/linux/vibepollo-prerm.in \
+  packaging/linux/artlight-postinst.in \
+  packaging/linux/artlight-prerm.in \
   packaging/linux/copr/Sunshine.spec; do
   (
-    unit_function=$(sed -n '/^vibepollo_unit_is_quiescent() {$/,/^}$/p' "$repo/$package_hook")
+    unit_function=$(sed -n '/^artlight_unit_is_quiescent() {$/,/^}$/p' "$repo/$package_hook")
     if [[ "$package_hook" == *.spec ]]; then unit_function=${unit_function//%%/%}; fi
     eval "$unit_function"
     timeout() { printf '%s\n' "$property_fixture"; }
-    vibepollo_cgroup_is_quiescent() { [[ -z "$1" ]]; }
+    artlight_cgroup_is_quiescent() { [[ -z "$1" ]]; }
     property_fixture=$'LoadState=loaded\nActiveState=inactive\nSubState=dead\nControlGroup='
-    vibepollo_unit_is_quiescent vibepollo-session-exec.socket
-    if vibepollo_unit_is_quiescent vibepollo.service; then exit 1; fi
+    artlight_unit_is_quiescent artlight-session-exec.socket
+    if artlight_unit_is_quiescent artlight.service; then exit 1; fi
     property_fixture+=$'\nMainPID=1'
-    if vibepollo_unit_is_quiescent vibepollo-session-exec.socket; then exit 1; fi
+    if artlight_unit_is_quiescent artlight-session-exec.socket; then exit 1; fi
     property_fixture=${property_fixture%$'\nMainPID=1'}$'\nMainPID=0'
-    vibepollo_unit_is_quiescent vibepollo-session-exec.socket
+    artlight_unit_is_quiescent artlight-session-exec.socket
   )
 done
 printf 'Debian and RPM package guards accept stopped sockets without MainPID.\n'
 (
-  preun_function=$(sed -n '/^vibepollo_preun_unit_is_quiescent() {$/,/^}$/p' \
+  preun_function=$(sed -n '/^artlight_preun_unit_is_quiescent() {$/,/^}$/p' \
     "$repo/packaging/linux/copr/Sunshine.spec")
   preun_function=${preun_function//%%/%}
   eval "$preun_function"
   timeout() { printf '%s\n' "$property_fixture"; }
-  vibepollo_preun_cgroup_is_quiescent() { [[ -z "$1" ]]; }
+  artlight_preun_cgroup_is_quiescent() { [[ -z "$1" ]]; }
   property_fixture=$'LoadState=loaded\nActiveState=inactive\nSubState=dead\nControlGroup='
-  vibepollo_preun_unit_is_quiescent vibepollo-session-exec.socket
-  if vibepollo_preun_unit_is_quiescent vibepollo.service; then exit 1; fi
+  artlight_preun_unit_is_quiescent artlight-session-exec.socket
+  if artlight_preun_unit_is_quiescent artlight.service; then exit 1; fi
 )
 printf 'RPM removal accepts stopped sockets without MainPID.\n'
 
 (
-  source "$repo/packaging/linux/Arch/vibepollo.install"
-  fixture=$(mktemp -d /tmp/vibepollo-masked-links.XXXXXXXX)
+  source "$repo/packaging/linux/Arch/artlight.install"
+  fixture=$(mktemp -d /tmp/artlight-masked-links.XXXXXXXX)
   trap 'rm -rf -- "$fixture"' EXIT
   mkdir -p "$fixture/usr/lib/systemd/system" \
     "$fixture/etc/systemd/system/graphical.target.wants" \
     "$fixture/etc/systemd/system/sockets.target.wants" \
     "$fixture/run/systemd/system"
-  for unit in vibepollo.service vibepollo-session-exec.socket; do
+  for unit in artlight.service artlight-session-exec.socket; do
     printf '[Unit]\nDescription=Fixture\n' > "$fixture/usr/lib/systemd/system/$unit"
     ln -s /dev/null "$fixture/run/systemd/system/$unit"
   done
-  ln -s "$fixture/usr/lib/systemd/system/vibepollo.service" \
-    "$fixture/etc/systemd/system/graphical.target.wants/vibepollo.service"
-  ln -s "$fixture/usr/lib/systemd/system/vibepollo-session-exec.socket" \
-    "$fixture/etc/systemd/system/sockets.target.wants/vibepollo-session-exec.socket"
-  [[ $(systemctl --root="$fixture" is-enabled vibepollo.service) == masked-runtime ]]
-  vibepollo_retire_obsolete_boot_links "$fixture"
-  [[ ! -e "$fixture/etc/systemd/system/graphical.target.wants/vibepollo.service" ]]
-  [[ ! -e "$fixture/etc/systemd/system/sockets.target.wants/vibepollo-session-exec.socket" ]]
-  [[ $(systemctl --root="$fixture" is-enabled vibepollo.service) == masked-runtime ]]
-  ln -s /dev/null "$fixture/etc/systemd/system/graphical.target.wants/vibepollo.service"
-  if vibepollo_retire_obsolete_boot_links "$fixture"; then exit 1; fi
-  [[ -L "$fixture/etc/systemd/system/graphical.target.wants/vibepollo.service" ]]
+  ln -s "$fixture/usr/lib/systemd/system/artlight.service" \
+    "$fixture/etc/systemd/system/graphical.target.wants/artlight.service"
+  ln -s "$fixture/usr/lib/systemd/system/artlight-session-exec.socket" \
+    "$fixture/etc/systemd/system/sockets.target.wants/artlight-session-exec.socket"
+  [[ $(systemctl --root="$fixture" is-enabled artlight.service) == masked-runtime ]]
+  artlight_retire_obsolete_boot_links "$fixture"
+  [[ ! -e "$fixture/etc/systemd/system/graphical.target.wants/artlight.service" ]]
+  [[ ! -e "$fixture/etc/systemd/system/sockets.target.wants/artlight-session-exec.socket" ]]
+  [[ $(systemctl --root="$fixture" is-enabled artlight.service) == masked-runtime ]]
+  ln -s /dev/null "$fixture/etc/systemd/system/graphical.target.wants/artlight.service"
+  if artlight_retire_obsolete_boot_links "$fixture"; then exit 1; fi
+  [[ -L "$fixture/etc/systemd/system/graphical.target.wants/artlight.service" ]]
 )
 printf 'Arch upgrade retires only matching boot links while runtime masks remain.\n'

@@ -18,7 +18,7 @@ static bool reject_wake;
 static GSubprocess *observed_worker;
 
 static GSubprocess *test_spawn(GSubprocessFlags flags, GError **error, const char *path, ...) {
-  g_assert_cmpstr(path, ==, "/usr/libexec/vibeshine/vibepollo-session-exec");
+  g_assert_cmpstr(path, ==, "/usr/libexec/vibeshine/artlight-session-exec");
   va_list arguments;
   va_start(arguments, path);
   const char *operation = va_arg(arguments, const char *);
@@ -52,10 +52,10 @@ int main(int argc, char **argv) {
     return 0;
   }
   test_executable = argv[0];
-  unsetenv("VIBEPOLLO_MACHINE_HOST");
+  unsetenv("ARTLIGHT_MACHINE_HOST");
   g_assert_nonnull(platf::display_power::acquire().get());
   g_assert_cmpuint(power_spawns, ==, 0);
-  setenv("VIBEPOLLO_MACHINE_HOST", "1", 1);
+  setenv("ARTLIGHT_MACHINE_HOST", "1", 1);
   auto first = platf::display_power::acquire();
   g_assert_nonnull(first.get());
   auto second = platf::display_power::acquire();

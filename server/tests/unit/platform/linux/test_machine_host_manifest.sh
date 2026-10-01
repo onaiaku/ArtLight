@@ -35,7 +35,7 @@ run_definition=$(declare -f run_host)
 profile_definition=$(declare -f prepare_service_profile)
 [[ "$run_definition" == *'capability_free_exec "$machine_host" prepare-profile'* ]] ||
   fail_test 'capability-free supervisor does not delegate profile preparation'
-[[ "$run_definition" == *'"$machine_host_executable" "$machine_profile/vibepollo.conf"'* ]] ||
+[[ "$run_definition" == *'"$machine_host_executable" "$machine_profile/artlight.conf"'* ]] ||
   fail_test 'supervisor does not launch the private permitted-only host'
 [[ "$run_definition" != *'rewrite_machine_cover_paths'* &&
    "$run_definition" != *'profile_tree_is_sanitized "$machine_profile"'* ]] ||
@@ -61,8 +61,8 @@ fi
 test_logs=$(mktemp -d)
 trap 'rm -rf -- "$test_logs"' EXIT
 expected_owner=$(stat -c '%U:%G' "$test_logs")
-old_log=$test_logs/vibepollo-20260901-120000-000.log
-new_log=$test_logs/vibepollo-20260904-120000-000.log
+old_log=$test_logs/artlight-20260901-120000-000.log
+new_log=$test_logs/artlight-20260904-120000-000.log
 printf 'Configuration UI available at localhost\nFound H.264 encoder: h264_nvenc\n' >"$old_log"
 declare -A retained_logs=(["$old_log"]=1)
 if find_host_readiness_log "$test_logs" "$expected_owner" retained_logs; then
@@ -80,7 +80,7 @@ if find_host_readiness_log "$test_logs" "$expected_owner" retained_logs; then
   fail_test 'publicly readable host log was accepted'
 fi
 chmod 600 "$new_log"
-second_log=$test_logs/vibepollo-20260904-120001-000.log
+second_log=$test_logs/artlight-20260904-120001-000.log
 printf 'starting\n' >"$second_log"
 if find_host_readiness_log "$test_logs" "$expected_owner" retained_logs; then
   fail_test 'ambiguous new host logs were accepted'

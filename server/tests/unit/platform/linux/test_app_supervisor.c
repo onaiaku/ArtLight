@@ -18,9 +18,9 @@
 #include <time.h>
 #include <unistd.h>
 
-int vibepollo_app_supervisor_entrypoint(int argc, char **argv);
-#define main vibepollo_app_supervisor_entrypoint
-#include "../../../../packaging/linux/vibepollo-app-supervisor.c"
+int artlight_app_supervisor_entrypoint(int argc, char **argv);
+#define main artlight_app_supervisor_entrypoint
+#include "../../../../packaging/linux/artlight-app-supervisor.c"
 #undef main
 
 #define CHECK(expression) do { \
@@ -169,9 +169,9 @@ int main(int argc, char **argv) {
   CHECK(self_length > 0 && (size_t) self_length < sizeof(self) - 1);
   self[self_length] = 0;
 
-  char *valid[] = {"vibepollo-app-supervisor", "--", "/usr/bin/true", NULL};
-  char *relative[] = {"vibepollo-app-supervisor", "--", "usr/bin/true", NULL};
-  char *wrong_separator[] = {"vibepollo-app-supervisor", "-", "/usr/bin/true", NULL};
+  char *valid[] = {"artlight-app-supervisor", "--", "/usr/bin/true", NULL};
+  char *relative[] = {"artlight-app-supervisor", "--", "usr/bin/true", NULL};
+  char *wrong_separator[] = {"artlight-app-supervisor", "-", "/usr/bin/true", NULL};
   CHECK(application_arguments_are_safe(3, valid));
   CHECK(!application_arguments_are_safe(3, relative));
   CHECK(!application_arguments_are_safe(3, wrong_separator));

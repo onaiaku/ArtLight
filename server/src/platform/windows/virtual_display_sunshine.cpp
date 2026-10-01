@@ -7541,7 +7541,7 @@ namespace VDISPLAY_SUNSHINE {
       // the watchdog then fed its lease forever so the driver never reaped
       // it, and every later create refused to replace the unreadable journal
       // while a driver display existed - permanent until an app restart
-      // (vibepollo#326). Remove what this process owns; only journal-sourced
+      // (artlight#326). Remove what this process owns; only journal-sourced
       // recovery is unavailable.
       BOOST_LOG(error) << "Virtual display cleanup could not read protected recovery state; removing in-process tracked displays anyway.";
     }

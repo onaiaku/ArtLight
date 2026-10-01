@@ -135,9 +135,9 @@ TEST(MangoHudPolicy, WritesRuntimeStateWithoutFollowingUserLinks) {
   const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count() ^
                      static_cast<long long>(std::random_device {}());
   const auto runtime = fs::temp_directory_path() /
-                       ("vibepollo-mangohud-state-" + std::to_string(nonce));
+                       ("artlight-mangohud-state-" + std::to_string(nonce));
   const auto outside = fs::temp_directory_path() /
-                       ("vibepollo-mangohud-outside-" + std::to_string(nonce));
+                       ("artlight-mangohud-outside-" + std::to_string(nonce));
   std::error_code ec;
   fs::create_directories(runtime, ec);
   fs::permissions(runtime, fs::perms::owner_all, fs::perm_options::replace, ec);
@@ -146,7 +146,7 @@ TEST(MangoHudPolicy, WritesRuntimeStateWithoutFollowingUserLinks) {
   const auto state = mangohud::write_runtime_state(
     "480", "proton", "116", "custom", false
   );
-  EXPECT_EQ(state, runtime / "vibepollo/mangohud/480.state");
+  EXPECT_EQ(state, runtime / "artlight/mangohud/480.state");
   struct stat attributes {};
   ASSERT_EQ(lstat(state.c_str(), &attributes), 0);
   EXPECT_TRUE(S_ISREG(attributes.st_mode));
@@ -158,7 +158,7 @@ TEST(MangoHudPolicy, WritesRuntimeStateWithoutFollowingUserLinks) {
   fs::permissions(runtime, fs::perms::owner_all, fs::perm_options::replace, ec);
   fs::create_directories(outside, ec);
   fs::permissions(outside, fs::perms::owner_all, fs::perm_options::replace, ec);
-  fs::create_directory_symlink(outside, runtime / "vibepollo", ec);
+  fs::create_directory_symlink(outside, runtime / "artlight", ec);
   EXPECT_TRUE(mangohud::write_runtime_state(
     "480", "proton", "116", "custom", false
   ).empty());

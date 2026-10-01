@@ -38,8 +38,8 @@ FAULT = re.compile(r'NVRM: Xid|' + HANG_MESSAGE.pattern + r'|INFO: task .*blocke
 # Long enough for the RC watchdog, GSP timeouts and hung-task reports that
 # follow a hang to reach the journal.
 FOLLOWUP_SECONDS = 150
-UNITS = ['vibeshine.service', 'vibepollo.service',
-         'vibeshine-session-controller.service', 'vibepollo-session-controller.service',
+UNITS = ['vibeshine.service', 'artlight.service',
+         'vibeshine-session-controller.service', 'artlight-session-controller.service',
          'vibeshine-vkms.service', 'plymouth-reboot.service']
 
 
@@ -160,7 +160,7 @@ def snapshot(reason, trigger=''):
             columns = row.split()
             if len(columns) >= 6 and columns[0].isdigit() and columns[1].isdigit():
                 pid, tid, _, state = columns[:4]
-                if 'D' in state or any(x in row for x in ['vibeshine', 'vibepollo', 'kwin', 'plymouth']):
+                if 'D' in state or any(x in row for x in ['vibeshine', 'artlight', 'kwin', 'plymouth']):
                     stacks.append(row + '\n' + read(f'/proc/{pid}/task/{tid}/stack'))
                     if len(stacks) >= 256:
                         break

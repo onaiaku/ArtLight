@@ -45,7 +45,7 @@ def fake_detached_client(directory: pathlib.Path) -> None:
         members = (directory / "cgroup.procs").read_text().split()
         retained = [member for member in members if member != str(os.getpid()) and
                     (directory / "proc" / member / "cgroup").read_text() ==
-                    "0::/system.slice/vibepollo.service\n"]
+                    "0::/system.slice/artlight.service\n"]
         (directory / "cgroup.procs").write_text("\n".join(retained) + "\n")
         record(directory, "detached-client-term")
         raise SystemExit(0)
@@ -54,7 +54,7 @@ def fake_detached_client(directory: pathlib.Path) -> None:
     pid = os.getpid()
     process_directory = directory / "proc" / str(pid)
     process_directory.mkdir()
-    (process_directory / "cgroup").write_text("0::/system.slice/vibepollo.service\n")
+    (process_directory / "cgroup").write_text("0::/system.slice/artlight.service\n")
     with (directory / "cgroup.procs").open("a") as members:
         members.write(f"{pid}\n")
     (directory / "detached-client-pid").write_text(str(pid))
@@ -85,7 +85,7 @@ def fake_host(directory: pathlib.Path) -> None:
         )
         wait_for(lambda: (directory / "detached-client-pid").exists(), "detached client startup")
         (directory / "host-pid").write_text(f"{os.getpid()} {os.getppid()}")
-        log = directory / "logs/vibepollo-20260918-120000-000.log"
+        log = directory / "logs/artlight-20260918-120000-000.log"
         log.write_text("Configuration UI available at localhost\nFound H.264 encoder: fixture\n")
         (directory / "host-started").touch()
         if (directory / "scenario").read_text() == "early-exit":
@@ -107,13 +107,13 @@ def fake_host(directory: pathlib.Path) -> None:
 
 
 def run_case(source: pathlib.Path, scenario: str) -> None:
-    with tempfile.TemporaryDirectory(prefix="vibepollo-host-shutdown-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="artlight-host-shutdown-") as temporary:
         directory = pathlib.Path(temporary)
         (directory / "scenario").write_text(scenario)
         (directory / "logs").mkdir()
         (directory / "runtime").mkdir()
         (directory / "proc/self").mkdir(parents=True)
-        (directory / "proc/self/cgroup").write_text("0::/system.slice/vibepollo.service\n")
+        (directory / "proc/self/cgroup").write_text("0::/system.slice/artlight.service\n")
         if scenario == "preflight-outside-group":
             (directory / "proc/self/cgroup").write_text("0::/system.slice/another.service\n")
         outsider = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], start_new_session=True)
@@ -123,7 +123,7 @@ def run_case(source: pathlib.Path, scenario: str) -> None:
         # A membership snapshot may contain a process that moved away. It
         # must be checked again after pidfd_open, not signalled from the list.
         (directory / "cgroup.procs").write_text(f"{outsider.pid}\n")
-        (directory / "vibepollo.conf").symlink_to(pathlib.Path(__file__).resolve())
+        (directory / "artlight.conf").symlink_to(pathlib.Path(__file__).resolve())
         text = source.read_text()
         start = text.index("\nrun_host() {\n") + 1
         end = text.index("\n}\n", start) + 3
@@ -132,7 +132,7 @@ def run_case(source: pathlib.Path, scenario: str) -> None:
         # readiness loops, waiting, or the real setpriv/exec launch helper.
         definition = definition.replace("$machine_profile", "$fixture_profile")
         definition = definition.replace("$machine_host_executable", "$fixture_executable")
-        definition = definition.replace("/run/vibepollo/host", str(directory / "runtime"))
+        definition = definition.replace("/run/artlight/host", str(directory / "runtime"))
         launch = "  capability_clean_exec /usr/bin/env -i"
         assert definition.count(launch) == 1
         definition = definition.replace(launch, "  test_before_launch\n" + launch)
@@ -148,7 +148,7 @@ def run_case(source: pathlib.Path, scenario: str) -> None:
         end = text.index("\n}\n", start) + 3
         cleanup = text[start:end]
         cleanup = cleanup.replace(
-            "/sys/fs/cgroup/system.slice/vibepollo.service/cgroup.procs", str(directory / "cgroup.procs")
+            "/sys/fs/cgroup/system.slice/artlight.service/cgroup.procs", str(directory / "cgroup.procs")
         )
         cleanup = cleanup.replace('f"/proc/{pid}/cgroup"', f'f"{directory}/proc/{{pid}}/cgroup"')
         supervisor_script = f"""
@@ -159,7 +159,7 @@ scenario={shlex.quote(scenario)}
 {cleanup}
 {definition}
 mkdir "$fixture_profile/proc/$BASHPID"
-printf '0::/system.slice/vibepollo.service\\n' >"$fixture_profile/proc/$BASHPID/cgroup"
+printf '0::/system.slice/artlight.service\\n' >"$fixture_profile/proc/$BASHPID/cgroup"
 printf '%s\\n' "$BASHPID" >>"$fixture_profile/cgroup.procs"
 load_session() {{ session_role=desktop; }}
 capability_free_exec() {{ :; }}
@@ -179,7 +179,7 @@ function /usr/bin/systemd-notify() {{
 find_host_readiness_log() {{
   touch "$fixture_profile/readiness-probed"
   [[ "$scenario" == ready || "$scenario" == notify-failure ]] || return 1
-  host_log="$fixture_profile/logs/vibepollo-20260918-120000-000.log"
+  host_log="$fixture_profile/logs/artlight-20260918-120000-000.log"
   [[ -f "$host_log" ]]
 }}
 test_before_launch() {{
@@ -282,7 +282,7 @@ run_host
 
 
 if __name__ == "__main__":
-    if pathlib.Path(sys.argv[0]).name == "vibepollo.conf":
+    if pathlib.Path(sys.argv[0]).name == "artlight.conf":
         fake_host(pathlib.Path(sys.argv[0]).parent)
     elif sys.argv[1] == "--broker":
         fake_broker(pathlib.Path(sys.argv[2]))

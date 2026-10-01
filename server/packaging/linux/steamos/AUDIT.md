@@ -171,7 +171,7 @@ Privileged activation, Moonlight HDR playback, actual native/Proton HDR games,
 mode switching and OS update/rollback behavior remain unvalidated.
 
 > The results in this section describe the source Vibeshine implementation.
-> They are historical evidence; this Vibepollo migration has not been
+> They are historical evidence; this ArtLight migration has not been
 > validated on a live SteamOS host.
 
 ## Local native deployment validation, 2026-09-05

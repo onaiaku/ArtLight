@@ -17,12 +17,12 @@ while (($#)); do
       cat <<'EOF'
 Usage: replace-sunshine.sh --payload DIR [--service-environment FILE]
 
-Stops Sunshine, copies its settings and pairings into a new Vibepollo profile,
+Stops Sunshine, copies its settings and pairings into a new ArtLight profile,
 and starts the supplied SteamOS bundle. An active stream will disconnect.
-Existing Vibepollo profiles are refused. Sunshine's original profile is kept.
+Existing ArtLight profiles are refused. Sunshine's original profile is kept.
 On failure, the prior installation and Sunshine service state are restored.
 The optional environment file accepts LIBVA_DRIVERS_PATH and LIBVA_DRIVER_NAME,
-with VIBEPOLLO_PRIVATE_VAAPI=1 required for a private driver path.
+with ARTLIGHT_PRIVATE_VAAPI=1 required for a private driver path.
 EOF
       exit 0 ;;
     *) die "unknown option: $1" ;;
@@ -34,28 +34,28 @@ config_home=${XDG_CONFIG_HOME:-"$HOME/.config"}
 data_home=${XDG_DATA_HOME:-"$HOME/.local/share"}
 [[ "$HOME" == /* && "$config_home" == /* && "$data_home" == /* ]] || die 'XDG paths must be absolute'
 source_config="$config_home/sunshine"
-target_config="$config_home/vibepollo"
-install_root="$data_home/vibepollo-steamos"
+target_config="$config_home/artlight"
+install_root="$data_home/artlight-steamos"
 unit_dir="$config_home/systemd/user"
-launcher="$HOME/.local/bin/vibepollo-steamos-session"
-dropin="$unit_dir/vibepollo-steamos.service.d/90-local-runtime.conf"
+launcher="$HOME/.local/bin/artlight-steamos-session"
+dropin="$unit_dir/artlight-steamos.service.d/90-local-runtime.conf"
 sunshine_unit=app-dev.lizardbyte.app.Sunshine.service
-vibepollo_unit=vibepollo-steamos.service
+artlight_unit=artlight-steamos.service
 [[ -d "$source_config" && ! -L "$source_config" ]] || die 'Sunshine profile must be a real directory'
-[[ ! -e "$target_config" && ! -L "$target_config" ]] || die 'Vibepollo profile already exists; refusing to overwrite it'
+[[ ! -e "$target_config" && ! -L "$target_config" ]] || die 'ArtLight profile already exists; refusing to overwrite it'
 [[ -n "$payload" && -d "$payload" && ! -L "$payload" ]] || die '--payload must name a real directory'
 payload=$(CDPATH= cd -- "$payload" && pwd -P)
-[[ -f "$payload/bin/vibepollo" && -x "$payload/bin/vibepollo" && ! -L "$payload/bin/vibepollo" ]] || die 'payload executable is missing'
+[[ -f "$payload/bin/artlight" && -x "$payload/bin/artlight" && ! -L "$payload/bin/artlight" ]] || die 'payload executable is missing'
 for asset in apps.json web/index.html web/v2/index.html; do
-  [[ -f "$payload/share/vibepollo/$asset" ]] || die "payload is missing $asset"
+  [[ -f "$payload/share/artlight/$asset" ]] || die "payload is missing $asset"
 done
 for command in python3 systemctl curl timeout flock ss; do command -v "$command" >/dev/null || die "missing $command"; done
-systemctl --user is-active --quiet "$vibepollo_unit" && die 'Vibepollo is already running'
+systemctl --user is-active --quiet "$artlight_unit" && die 'ArtLight is already running'
 [[ ! -e "$install_root/current" || -L "$install_root/current" ]] || die 'bundle current must be a symlink'
 install -d -- "$data_home"
-exec 8> "$data_home/.vibepollo-sunshine-cutover.lock"
+exec 8> "$data_home/.artlight-sunshine-cutover.lock"
 flock -n 8 || die 'another Sunshine replacement is running'
-backup=$(mktemp -d -- "$data_home/sunshine-before-vibepollo-$(date -u +%Y%m%dT%H%M%SZ).XXXXXXXX")
+backup=$(mktemp -d -- "$data_home/sunshine-before-artlight-$(date -u +%Y%m%dT%H%M%SZ).XXXXXXXX")
 chmod 0700 -- "$backup"
 printf 'Private rollback backup: %s\n' "$backup"
 
@@ -73,9 +73,9 @@ if source:
         if not line.strip() or line.lstrip().startswith('#'):
             continue
         key, sep, value = line.partition('=')
-        if not sep or key not in {'LIBVA_DRIVERS_PATH', 'LIBVA_DRIVER_NAME', 'VIBEPOLLO_PRIVATE_VAAPI'} or key in values:
+        if not sep or key not in {'LIBVA_DRIVERS_PATH', 'LIBVA_DRIVER_NAME', 'ARTLIGHT_PRIVATE_VAAPI'} or key in values:
             raise SystemExit('unsupported or repeated runtime environment setting')
-        if key == 'VIBEPOLLO_PRIVATE_VAAPI':
+        if key == 'ARTLIGHT_PRIVATE_VAAPI':
             valid = value == '1'
         elif key == 'LIBVA_DRIVER_NAME':
             valid = re.fullmatch(r'[A-Za-z0-9_-]+', value)
@@ -84,13 +84,13 @@ if source:
         if not valid:
             raise SystemExit('runtime environment contains an invalid value or missing directory')
         values[key] = value
-if 'LIBVA_DRIVERS_PATH' in values and values.get('VIBEPOLLO_PRIVATE_VAAPI') != '1':
-    raise SystemExit('private driver path requires VIBEPOLLO_PRIVATE_VAAPI=1')
+if 'LIBVA_DRIVERS_PATH' in values and values.get('ARTLIGHT_PRIVATE_VAAPI') != '1':
+    raise SystemExit('private driver path requires ARTLIGHT_PRIVATE_VAAPI=1')
 pathlib.Path(destination).write_text(''.join(f'{k}={v}\n' for k, v in values.items()))
 PY
 runtime_env=()
 while IFS= read -r line; do runtime_env+=("$line"); done < "$backup/runtime.env"
-if ! timeout 20 env "${runtime_env[@]}" "$payload/bin/vibepollo" --help > "$backup/preflight.log" 2>&1; then
+if ! timeout 20 env "${runtime_env[@]}" "$payload/bin/artlight" --help > "$backup/preflight.log" 2>&1; then
   die "payload cannot run natively; see $backup/preflight.log"
 fi
 https_port=$(python3 - "$source_config/sunshine.conf" <<'PY'
@@ -110,15 +110,15 @@ PY
 )
 
 sunshine_enabled=$(systemctl --user is-enabled "$sunshine_unit" 2>/dev/null || true)
-vibepollo_enabled=$(systemctl --user is-enabled "$vibepollo_unit" 2>/dev/null || true)
+artlight_enabled=$(systemctl --user is-enabled "$artlight_unit" 2>/dev/null || true)
 case "$sunshine_enabled" in enabled|enabled-runtime|disabled|static|indirect) ;; *) die 'Sunshine service is missing, masked, or has an unsupported enable state' ;; esac
 sunshine_active=no
 systemctl --user is-active --quiet "$sunshine_unit" && sunshine_active=yes
-printf 'sunshine_enabled=%s\nsunshine_active=%s\nvibepollo_enabled=%s\n' \
-  "$sunshine_enabled" "$sunshine_active" "$vibepollo_enabled" > "$backup/service-state"
+printf 'sunshine_enabled=%s\nsunshine_active=%s\nartlight_enabled=%s\n' \
+  "$sunshine_enabled" "$sunshine_active" "$artlight_enabled" > "$backup/service-state"
 previous=$(readlink -- "$install_root/current" || true)
 printf '%s\n' "$previous" > "$backup/previous-release"
-for pair in "launcher:$launcher" "unit:$unit_dir/$vibepollo_unit" "dropin:$dropin" "runtime:$install_root/local-runtime.env"; do
+for pair in "launcher:$launcher" "unit:$unit_dir/$artlight_unit" "dropin:$dropin" "runtime:$install_root/local-runtime.env"; do
   name=${pair%%:*}; path=${pair#*:}
   [[ ! -e "$path" && ! -L "$path" ]] || cp -a -- "$path" "$backup/$name"
 done
@@ -138,10 +138,10 @@ rollback() {
   local status=$?
   trap - EXIT INT TERM HUP
   if [[ "$success" != yes && "$installation_started" == yes ]]; then
-    printf 'Cutover failed; restoring Sunshine and the prior Vibepollo installation.\n' >&2
+    printf 'Cutover failed; restoring Sunshine and the prior ArtLight installation.\n' >&2
     set +e
-    systemctl --user stop "$vibepollo_unit"
-    systemctl --user disable "$vibepollo_unit"
+    systemctl --user stop "$artlight_unit"
+    systemctl --user disable "$artlight_unit"
     if [[ "$migration_started" == yes ]]; then rm -rf -- "$target_config"; fi
     if [[ -n "$previous" ]]; then
       ln -s -- "$previous" "$install_root/.cutover-rollback.$$"
@@ -149,7 +149,7 @@ rollback() {
     else
       rm -f -- "$install_root/current"
     fi
-    for pair in "launcher:$launcher" "unit:$unit_dir/$vibepollo_unit" "dropin:$dropin" "runtime:$install_root/local-runtime.env"; do
+    for pair in "launcher:$launcher" "unit:$unit_dir/$artlight_unit" "dropin:$dropin" "runtime:$install_root/local-runtime.env"; do
       name=${pair%%:*}; path=${pair#*:}
       rm -f -- "$path"
       if [[ -e "$backup/$name" || -L "$backup/$name" ]]; then
@@ -158,7 +158,7 @@ rollback() {
       fi
     done
     systemctl --user daemon-reload
-    restore_enabled "$vibepollo_unit" "$vibepollo_enabled"
+    restore_enabled "$artlight_unit" "$artlight_enabled"
     if [[ "$cutover_started" == yes ]]; then
       restore_enabled "$sunshine_unit" "$sunshine_enabled"
       if [[ "$sunshine_active" == yes ]]; then
@@ -184,7 +184,7 @@ if [[ -n "$service_environment" ]]; then
 fi
 systemctl --user daemon-reload
 if [[ -n "$service_environment" ]]; then
-  loaded_environment=$(systemctl --user show "$vibepollo_unit" --property=EnvironmentFiles --value)
+  loaded_environment=$(systemctl --user show "$artlight_unit" --property=EnvironmentFiles --value)
   [[ "$loaded_environment" == "$install_root/local-runtime.env (ignore_errors=no)" ]] ||
     die 'systemd did not load the private encoder environment file'
 fi
@@ -249,7 +249,7 @@ for line in old.read_text().splitlines(keepends=True):
                         external_files[resolved] = copied
                     line = f'{key} = {external_files[resolved]}\n'
                 elif key == 'log_path':
-                    line = f'log_path = {target / "vibepollo.log"}\n'
+                    line = f'log_path = {target / "artlight.log"}\n'
                 else:
                     raise SystemExit(f'configured {key} file is missing')
         if key == 'file_apps' and value:
@@ -262,7 +262,7 @@ for line in old.read_text().splitlines(keepends=True):
             if not pairing_state.is_absolute():
                 pairing_state = target / pairing_state
     lines.append(line)
-(target / 'vibepollo.conf').write_text(''.join(lines))
+(target / 'artlight.conf').write_text(''.join(lines))
 old.unlink()
 if pairing_state.is_file():
     consolidated = normalize_pairing_state(pairing_state)
@@ -282,16 +282,16 @@ if apps.is_file():
     if migrated != original:
         apps.write_text(json.dumps(migrated, indent=2) + '\n')
 PY
-systemctl --user enable "$vibepollo_unit"
+systemctl --user enable "$artlight_unit"
 service_started_at=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
-systemctl --user restart "$vibepollo_unit"
-expected_executable=$(readlink -f -- "$install_root/current/bin/vibepollo")
+systemctl --user restart "$artlight_unit"
+expected_executable=$(readlink -f -- "$install_root/current/bin/artlight")
 gamestream_port=$((https_port - 1))
 ready_pid=
 ready_once() {
   local main_pid executable listeners found port
-  systemctl --user is-active --quiet "$vibepollo_unit" || return 1
-  main_pid=$(systemctl --user show "$vibepollo_unit" --property=MainPID --value) || return 1
+  systemctl --user is-active --quiet "$artlight_unit" || return 1
+  main_pid=$(systemctl --user show "$artlight_unit" --property=MainPID --value) || return 1
   [[ "$main_pid" =~ ^[1-9][0-9]*$ ]] || return 1
   executable=$(readlink -f -- "/proc/$main_pid/exe") || return 1
   [[ "$executable" == "$expected_executable" ]] || return 1
@@ -328,16 +328,16 @@ while ((SECONDS < deadline)); do
   else
     stable_since=-1
   fi
-  systemctl --user is-failed --quiet "$vibepollo_unit" && break
+  systemctl --user is-failed --quiet "$artlight_unit" && break
   sleep 1
 done
 if [[ "$ready" != yes ]]; then
-  systemctl --user status "$vibepollo_unit" --no-pager --full > "$backup/service-status.log" 2>&1 || true
+  systemctl --user status "$artlight_unit" --no-pager --full > "$backup/service-status.log" 2>&1 || true
   if command -v journalctl >/dev/null; then
-    journalctl --user -u "$vibepollo_unit" --since "$service_started_at" --no-pager > "$backup/service-journal.log" 2>&1 || true
+    journalctl --user -u "$artlight_unit" --since "$service_started_at" --no-pager > "$backup/service-journal.log" 2>&1 || true
   fi
-  die "Vibepollo service and HTTPS readiness check failed; diagnostics: $backup"
+  die "ArtLight service and HTTPS readiness check failed; diagnostics: $backup"
 fi
 success=yes
-printf 'Vibepollo is active at https://localhost:%s/. Sunshine settings and pairings were copied.\n' "$https_port"
+printf 'ArtLight is active at https://localhost:%s/. Sunshine settings and pairings were copied.\n' "$https_port"
 printf 'Sunshine is disabled; its original profile and private backup remain at %s.\n' "$backup"

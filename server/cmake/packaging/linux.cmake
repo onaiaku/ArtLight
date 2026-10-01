@@ -34,7 +34,7 @@ file(COPY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/"
 file(CREATE_LINK "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/shaders"
         "${CMAKE_BINARY_DIR}/assets/shaders" COPY_ON_ERROR SYMBOLIC)
 
-install(PROGRAMS "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/vibepollo-mangohud"
+install(PROGRAMS "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/artlight-mangohud"
         DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 if(SUNSHINE_BUILD_STEAMOS)
@@ -64,23 +64,23 @@ if(SUNSHINE_BUILD_STEAMOS)
             "${CMAKE_SOURCE_DIR}/packaging/linux/steamos/install-user.sh"
             "${CMAKE_SOURCE_DIR}/packaging/linux/steamos/uninstall-user.sh"
             "${CMAKE_SOURCE_DIR}/packaging/linux/steamos/check-host.sh"
-            "${CMAKE_SOURCE_DIR}/packaging/linux/steamos/vibepollo-steamos-session"
-            DESTINATION "share/vibepollo/steamos")
+            "${CMAKE_SOURCE_DIR}/packaging/linux/steamos/artlight-steamos-session"
+            DESTINATION "share/artlight/steamos")
     install(FILES
-            "${CMAKE_SOURCE_DIR}/packaging/linux/steamos/vibepollo-steamos.service"
+            "${CMAKE_SOURCE_DIR}/packaging/linux/steamos/artlight-steamos.service"
             "${CMAKE_SOURCE_DIR}/packaging/linux/steamos/README.md"
             "${CMAKE_SOURCE_DIR}/packaging/linux/steamos/AUDIT.md"
-            DESTINATION "share/vibepollo/steamos")
+            DESTINATION "share/artlight/steamos")
     install(FILES "${CMAKE_SOURCE_DIR}/LICENSE" "${CMAKE_SOURCE_DIR}/NOTICE"
-            DESTINATION "share/licenses/vibepollo")
+            DESTINATION "share/licenses/artlight")
     install(DIRECTORY
             "${CMAKE_SOURCE_DIR}/packaging/linux/steamos/gamescope"
             "${CMAKE_SOURCE_DIR}/packaging/linux/steamos/local"
             "${CMAKE_SOURCE_DIR}/packaging/linux/steamos/sysext"
-            DESTINATION "share/vibepollo/steamos"
+            DESTINATION "share/artlight/steamos"
             PATTERN "__pycache__" EXCLUDE)
     set(CPACK_GENERATOR "TGZ")
-    set(CPACK_PACKAGE_FILE_NAME "Vibepollo-SteamOS-${PROJECT_VERSION_FULL}-${CMAKE_SYSTEM_PROCESSOR}")
+    set(CPACK_PACKAGE_FILE_NAME "ArtLight-SteamOS-${PROJECT_VERSION_FULL}-${CMAKE_SYSTEM_PROCESSOR}")
     # No machine services, udev rules, kernel modules or native package hooks.
     return()
 endif()
@@ -97,61 +97,61 @@ else()
     find_package(Udev)
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        add_executable(vibepollo_session_exec
-                "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo-session-exec.c")
-        set_target_properties(vibepollo_session_exec PROPERTIES OUTPUT_NAME "vibepollo-session-exec")
-        target_include_directories(vibepollo_session_exec PRIVATE "${LIBCAP_INCLUDE_DIRS}")
-        target_link_libraries(vibepollo_session_exec PRIVATE "${LIBCAP_LIBRARIES}")
-        add_executable(vibepollo_session_broker
-                "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo-session-broker.c")
-        set_target_properties(vibepollo_session_broker PROPERTIES OUTPUT_NAME "vibepollo-session-broker")
-        target_include_directories(vibepollo_session_broker PRIVATE "${LIBCAP_INCLUDE_DIRS}")
-        target_link_libraries(vibepollo_session_broker PRIVATE "${LIBCAP_LIBRARIES}")
-        add_executable(vibepollo_display_power
-                "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo-display-power.c")
-        set_target_properties(vibepollo_display_power PROPERTIES OUTPUT_NAME "vibepollo-display-power")
-        target_include_directories(vibepollo_display_power PRIVATE ${GIO_INCLUDE_DIRS})
-        target_link_libraries(vibepollo_display_power PRIVATE ${GIO_LIBRARIES})
-        add_executable(vibepollo_app_supervisor
-                "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo-app-supervisor.c")
-        set_target_properties(vibepollo_app_supervisor PROPERTIES OUTPUT_NAME "vibepollo-app-supervisor")
-        target_include_directories(vibepollo_app_supervisor PRIVATE "${LIBCAP_INCLUDE_DIRS}")
-        target_link_libraries(vibepollo_app_supervisor PRIVATE "${LIBCAP_LIBRARIES}")
-        add_executable(vibepollo_profile_import
-                "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo-profile-import.c")
-        set_target_properties(vibepollo_profile_import PROPERTIES OUTPUT_NAME "vibepollo-profile-import")
-        target_include_directories(vibepollo_profile_import PRIVATE "${LIBCAP_INCLUDE_DIRS}")
-        target_link_libraries(vibepollo_profile_import PRIVATE "${LIBCAP_LIBRARIES}")
-        add_executable(vibepollo_kwin_session_environment
-                "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo-kwin-session-environment.c")
-        set_target_properties(vibepollo_kwin_session_environment PROPERTIES
-                OUTPUT_NAME "vibepollo-kwin-session-environment")
-        add_executable(vibepollo_provider_scan
-                "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo-provider-scan.cpp"
+        add_executable(artlight_session_exec
+                "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-session-exec.c")
+        set_target_properties(artlight_session_exec PROPERTIES OUTPUT_NAME "artlight-session-exec")
+        target_include_directories(artlight_session_exec PRIVATE "${LIBCAP_INCLUDE_DIRS}")
+        target_link_libraries(artlight_session_exec PRIVATE "${LIBCAP_LIBRARIES}")
+        add_executable(artlight_session_broker
+                "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-session-broker.c")
+        set_target_properties(artlight_session_broker PROPERTIES OUTPUT_NAME "artlight-session-broker")
+        target_include_directories(artlight_session_broker PRIVATE "${LIBCAP_INCLUDE_DIRS}")
+        target_link_libraries(artlight_session_broker PRIVATE "${LIBCAP_LIBRARIES}")
+        add_executable(artlight_display_power
+                "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-display-power.c")
+        set_target_properties(artlight_display_power PROPERTIES OUTPUT_NAME "artlight-display-power")
+        target_include_directories(artlight_display_power PRIVATE ${GIO_INCLUDE_DIRS})
+        target_link_libraries(artlight_display_power PRIVATE ${GIO_LIBRARIES})
+        add_executable(artlight_app_supervisor
+                "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-app-supervisor.c")
+        set_target_properties(artlight_app_supervisor PROPERTIES OUTPUT_NAME "artlight-app-supervisor")
+        target_include_directories(artlight_app_supervisor PRIVATE "${LIBCAP_INCLUDE_DIRS}")
+        target_link_libraries(artlight_app_supervisor PRIVATE "${LIBCAP_LIBRARIES}")
+        add_executable(artlight_profile_import
+                "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-profile-import.c")
+        set_target_properties(artlight_profile_import PROPERTIES OUTPUT_NAME "artlight-profile-import")
+        target_include_directories(artlight_profile_import PRIVATE "${LIBCAP_INCLUDE_DIRS}")
+        target_link_libraries(artlight_profile_import PRIVATE "${LIBCAP_LIBRARIES}")
+        add_executable(artlight_kwin_session_environment
+                "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-kwin-session-environment.c")
+        set_target_properties(artlight_kwin_session_environment PROPERTIES
+                OUTPUT_NAME "artlight-kwin-session-environment")
+        add_executable(artlight_provider_scan
+                "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-provider-scan.cpp"
                 "${CMAKE_SOURCE_DIR}/src/provider_scan_protocol.cpp"
                 "${CMAKE_SOURCE_DIR}/src/steam_integration.cpp"
                 "${CMAKE_SOURCE_DIR}/src/lutris_integration.cpp"
                 "${CMAKE_SOURCE_DIR}/src/steam_artwork.cpp")
-        target_include_directories(vibepollo_provider_scan PRIVATE ${FFMPEG_INCLUDE_DIRS})
-        target_compile_definitions(vibepollo_provider_scan PRIVATE ${STEAM_ARTWORK_TEST_DEFINITIONS})
-        target_link_libraries(vibepollo_provider_scan PRIVATE ${FFMPEG_LIBRARIES} ${STEAM_ARTWORK_TEST_LIBRARIES})
-        set_target_properties(vibepollo_provider_scan PROPERTIES OUTPUT_NAME "vibepollo-provider-scan")
-        target_include_directories(vibepollo_provider_scan PRIVATE
+        target_include_directories(artlight_provider_scan PRIVATE ${FFMPEG_INCLUDE_DIRS})
+        target_compile_definitions(artlight_provider_scan PRIVATE ${STEAM_ARTWORK_TEST_DEFINITIONS})
+        target_link_libraries(artlight_provider_scan PRIVATE ${FFMPEG_LIBRARIES} ${STEAM_ARTWORK_TEST_LIBRARIES})
+        set_target_properties(artlight_provider_scan PROPERTIES OUTPUT_NAME "artlight-provider-scan")
+        target_include_directories(artlight_provider_scan PRIVATE
                 "${CMAKE_SOURCE_DIR}"
                 "${SQLITE3_INCLUDE_DIRS}")
-        target_link_libraries(vibepollo_provider_scan PRIVATE
+        target_link_libraries(artlight_provider_scan PRIVATE
                 nlohmann_json::nlohmann_json
                 "${SQLITE3_LIBRARIES}")
-        add_executable(vibepollo_steam_launch
-                "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo-steam-launch.cpp"
+        add_executable(artlight_steam_launch
+                "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-steam-launch.cpp"
                 "${CMAKE_SOURCE_DIR}/src/steam_process_tracker.cpp"
                 "${CMAKE_SOURCE_DIR}/src/provider_scan_protocol.cpp"
                 "${CMAKE_SOURCE_DIR}/src/steam_integration.cpp")
-        set_target_properties(vibepollo_steam_launch PROPERTIES
-                OUTPUT_NAME "vibepollo-steam-launch")
-        target_include_directories(vibepollo_steam_launch PRIVATE
+        set_target_properties(artlight_steam_launch PROPERTIES
+                OUTPUT_NAME "artlight-steam-launch")
+        target_include_directories(artlight_steam_launch PRIVATE
                 "${CMAKE_SOURCE_DIR}")
-        target_link_libraries(vibepollo_steam_launch PRIVATE
+        target_link_libraries(artlight_steam_launch PRIVATE
                 nlohmann_json::nlohmann_json)
         file(GENERATE
                 OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vibeshine_drm_version.h"
@@ -160,43 +160,43 @@ else()
         install(PROGRAMS
                 "${LIBVIRTUALDISPLAY_LINUX_ROOT}/packaging/vibeshine-vkms"
                 "${LIBVIRTUALDISPLAY_LINUX_ROOT}/packaging/vibeshine-vkms-quiesce"
-                "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo-machine-host"
-                "${CMAKE_SOURCE_DIR}/packaging/linux/Arch/vibepollo-package-preflight"
-                "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo-session-controller"
-                "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo-global-limiter.py"
+                "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-machine-host"
+                "${CMAKE_SOURCE_DIR}/packaging/linux/Arch/artlight-package-preflight"
+                "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-session-controller"
+                "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-global-limiter.py"
                 "${CMAKE_CURRENT_BINARY_DIR}/vibeshine-drm-install"
                 "${CMAKE_CURRENT_BINARY_DIR}/vibeshine-ds5-install"
                 DESTINATION "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}")
         # Pacman loads hooks before extraction. Future upgrades use the
         # previously installed function library to abort an unsafe transaction.
-        install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/Arch/vibepollo.install"
-                DESTINATION "${CMAKE_INSTALL_DATADIR}/vibepollo"
+        install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/Arch/artlight.install"
+                DESTINATION "${CMAKE_INSTALL_DATADIR}/artlight"
                 RENAME "arch-package-hooks")
-        install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/Arch/00-vibepollo-quiesce.hook"
+        install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/Arch/00-artlight-quiesce.hook"
                 DESTINATION "${CMAKE_INSTALL_DATADIR}/libalpm/hooks")
-        install(TARGETS vibepollo_session_exec vibepollo_app_supervisor
-                vibepollo_profile_import vibepollo_kwin_session_environment
-                vibepollo_provider_scan vibepollo_steam_launch vibepollo_display_power
+        install(TARGETS artlight_session_exec artlight_app_supervisor
+                artlight_profile_import artlight_kwin_session_environment
+                artlight_provider_scan artlight_steam_launch artlight_display_power
                 RUNTIME DESTINATION "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}")
-        install(TARGETS vibepollo_session_broker
+        install(TARGETS artlight_session_broker
                 RUNTIME DESTINATION "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}"
                 PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE)
         # This must be a distinct inode from the public capability-free binary.
-        # Native package hooks make it root:vibepollo 0750 and attach only
+        # Native package hooks make it root:artlight 0750 and attach only
         # cap_sys_admin,cap_sys_nice+p.  With no effective file bit, its loader
         # and the first statement in main() run with E/I/A empty.
         install(PROGRAMS "$<TARGET_FILE:sunshine>"
                 DESTINATION "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}"
-                RENAME "vibepollo-host"
+                RENAME "artlight-host"
                 PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE)
         install(TARGETS vibeshine_vkms_peercred
                 RUNTIME DESTINATION "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}")
         install(FILES "${LIBVIRTUALDISPLAY_LINUX_ROOT}/packaging/vibeshine-vkms.sysusers"
                 DESTINATION "${VIBESHINE_SYSUSERS_INSTALL_DIR}"
                 RENAME vibeshine-vkms.conf)
-        install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo.sysusers"
+        install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/artlight.sysusers"
                 DESTINATION "${VIBESHINE_SYSUSERS_INSTALL_DIR}"
-                RENAME vibepollo.conf)
+                RENAME artlight.conf)
         install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/prelogin/apps.json"
                 DESTINATION "${SUNSHINE_ASSETS_DIR}/prelogin")
         install(DIRECTORY "${LIBVIRTUALDISPLAY_LINUX_ROOT}/vibeshine-drm/"
@@ -232,17 +232,17 @@ else()
         install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.rules"
                 DESTINATION "${UDEV_RULES_INSTALL_DIR}")
         if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-            install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/70-vibepollo-uinput.rules"
+            install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/70-artlight-uinput.rules"
                     DESTINATION "${UDEV_RULES_INSTALL_DIR}")
         endif()
     endif()
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         # Firewall service definitions and the PipeWire quantum the stream expects.
-        install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/firewalld/vibepollo.xml"
+        install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/firewalld/artlight.xml"
                 DESTINATION "lib/firewalld/services")
-        install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/ufw/vibepollo"
+        install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/ufw/artlight"
                 DESTINATION "${CMAKE_INSTALL_FULL_SYSCONFDIR}/ufw/applications.d")
-        install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/pipewire/50-vibepollo-audio.conf"
+        install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/pipewire/50-artlight-audio.conf"
                 DESTINATION "${CMAKE_INSTALL_DATADIR}/pipewire/pipewire.conf.d")
     endif()
     if(SYSTEMD_FOUND)
@@ -258,10 +258,10 @@ else()
                     "${CMAKE_CURRENT_BINARY_DIR}/vibeshine-drm-setup.service"
                     "${CMAKE_CURRENT_BINARY_DIR}/vibeshine-vkms-control.socket"
                     "${CMAKE_CURRENT_BINARY_DIR}/vibeshine-vkms-control@.service"
-                    "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo-session-exec.socket"
-                    "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo-session-exec@.service"
-                    "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo-session-controller.service"
-                    "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo.service"
+                    "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-session-exec.socket"
+                    "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-session-exec@.service"
+                    "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-session-controller.service"
+                    "${CMAKE_SOURCE_DIR}/packaging/linux/artlight.service"
                     DESTINATION "${VIBESHINE_SYSTEM_UNIT_INSTALL_DIR}")
             # Both the Plasma desktop and Plasma Login greeter start their own
             # KWin instance.  Publish each compositor's generated Wayland/X11
@@ -271,7 +271,7 @@ else()
                     plasma-kwin_wayland
                     plasma-login-kwin_wayland)
                 install(FILES
-                        "${CMAKE_SOURCE_DIR}/packaging/linux/vibepollo-kwin-session-environment.conf"
+                        "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-kwin-session-environment.conf"
                         DESTINATION
                         "${SYSTEMD_USER_UNIT_INSTALL_DIR}/${vibeshine_kwin_unit}.service.d")
             endforeach()
@@ -307,14 +307,14 @@ endif()
 # cannot silently reattach the obsolete public/client capabilities.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(CPACK_RPM_USER_FILELIST
-            "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-display-power"
-            "%attr(0755,root,root) ${CMAKE_INSTALL_FULL_BINDIR}/vibepollo"
-            "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-session-exec"
-            "%attr(0700,root,root) %caps(cap_kill,cap_setgid,cap_setuid+p) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-session-broker"
-            "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-app-supervisor"
-            "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-steam-launch"
-            "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-kwin-session-environment"
-            "%attr(0750,root,vibepollo) %caps(cap_sys_admin,cap_sys_nice+p) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/vibepollo-host"
+            "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-display-power"
+            "%attr(0755,root,root) ${CMAKE_INSTALL_FULL_BINDIR}/artlight"
+            "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-session-exec"
+            "%attr(0700,root,root) %caps(cap_kill,cap_setgid,cap_setuid+p) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-session-broker"
+            "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-app-supervisor"
+            "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-steam-launch"
+            "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-kwin-session-environment"
+            "%attr(0750,root,artlight) %caps(cap_sys_admin,cap_sys_nice+p) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-host"
     )
 endif()
 

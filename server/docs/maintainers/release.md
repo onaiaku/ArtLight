@@ -1,6 +1,6 @@
-# Release Vibepollo
+# Release ArtLight
 
-Vibepollo releases are built from an existing, v-less semantic-version tag such as `1.19.0-beta.4`
+ArtLight releases are built from an existing, v-less semantic-version tag such as `1.19.0-beta.4`
 or `1.19.0`. The tagged commit must contain the matching version-scoped release notes file, for
 example `release_notes/1.19.0-beta.4.md`.
 
@@ -55,10 +55,10 @@ the GitHub Release against the existing tag and includes the Arch package genera
 ## Publish the Arch Linux repository
 
 For a non-draft release, run **Publish signed Arch repository** with the exact v-less
-`release_tag`. The workflow downloads the release's single validated `vibepollo` package, checks
-its embedded package name, version, and architecture, signs it, updates the signed `vibepollo`
+`release_tag`. The workflow downloads the release's single validated `artlight` package, checks
+its embedded package name, version, and architecture, signs it, updates the signed `artlight`
 database on the `arch-repo` branch, and pushes that branch. The Pages workflow then deploys it at
-`https://nonary.github.io/Vibepollo/arch/x86_64`.
+`https://nonary.github.io/ArtLight/arch/x86_64`.
 
 The `arch-repository` GitHub environment must contain:
 
@@ -71,5 +71,5 @@ of the private key and its revocation certificate. Do not use a personal day-to-
 the Secure Boot/MOK module-signing key for this repository.
 
 After publication, verify that the Pages deployment succeeds, import the published public key on a
-clean Arch or CachyOS machine, add the `[vibepollo]` repository shown on the project site, and run
-`pacman -Syu vibepollo`. A normal system upgrade must subsequently discover Vibepollo updates.
+clean Arch or CachyOS machine, add the `[artlight]` repository shown on the project site, and run
+`pacman -Syu artlight`. A normal system upgrade must subsequently discover ArtLight updates.

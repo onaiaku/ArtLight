@@ -197,7 +197,7 @@ namespace {
         // can be blocked by the shutdown path that this watchdog protects.
         std::_Exit(lifetime::desired_exit_code);
       }
-      BOOST_LOG(fatal) << deadline.count() << " seconds passed, yet Vibepollo's still running: Forcing shutdown"sv;
+      BOOST_LOG(fatal) << deadline.count() << " seconds passed, yet ArtLight's still running: Forcing shutdown"sv;
       lifetime::debug_trap();
     }
 
@@ -378,7 +378,7 @@ static int real_main(int argc, char *argv[]) {
     std::fprintf(stderr, "ArtLight Server: failed to block termination signals: %s\n", std::strerror(error_number));
     return 1;
   }
-  const char *machine_host_environment = std::getenv("VIBEPOLLO_MACHINE_HOST");
+  const char *machine_host_environment = std::getenv("ARTLIGHT_MACHINE_HOST");
   const bool supervised_machine_host =
     machine_host_environment && machine_host_environment[0] == '1' &&
     machine_host_environment[1] == '\0';
@@ -404,7 +404,7 @@ static int real_main(int argc, char *argv[]) {
     std::filesystem::current_path(bundle_executable.parent_path().parent_path(), bundle_error);
   }
   if (bundle_error) {
-    std::fprintf(stderr, "Vibepollo: cannot resolve SteamOS bundle: %s\n", bundle_error.message().c_str());
+    std::fprintf(stderr, "ArtLight: cannot resolve SteamOS bundle: %s\n", bundle_error.message().c_str());
     return 1;
   }
 #endif

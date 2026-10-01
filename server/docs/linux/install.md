@@ -1,6 +1,6 @@
-# Installing Vibepollo on Linux (beta)
+# Installing ArtLight on Linux (beta)
 
-Vibepollo's Linux host is in beta. It ships as a native package for **Arch Linux and CachyOS**,
+ArtLight's Linux host is in beta. It ships as a native package for **Arch Linux and CachyOS**,
 and it is developed and tested on **CachyOS with KDE Plasma 6 on Wayland**. Other Arch-based
 distributions should work but get less testing. There is no AppImage, Flatpak, Debian, Fedora, or
 Docker build in this beta.
@@ -9,7 +9,7 @@ Docker build in this beta.
 
 | Requirement | Detail |
 | --- | --- |
-| Distribution | Arch Linux or CachyOS, x86_64. Vibepollo is tuned for CachyOS. |
+| Distribution | Arch Linux or CachyOS, x86_64. ArtLight is tuned for CachyOS. |
 | Desktop | KDE Plasma 6 on **Wayland**, started by **SDDM** or **Plasma Login Manager**. GNOME, other compositors, X11 sessions, and remote logins are not streamed. |
 | Kernel | Linux **6.16 or newer**, plus the headers for the kernel you boot (for example `linux-cachyos-headers`). The virtual-display driver is built with DKMS during installation. |
 | GPU | A GPU with a hardware **H.264** encoder. Testing has focused on NVIDIA and modern AMD GPUs; older cards may not work properly. NVIDIA uses NVENC through `nvidia-utils`; AMD needs `libva-mesa-driver`; Intel needs `intel-media-driver`. HEVC and AV1 are used when available. |
@@ -17,8 +17,8 @@ Docker build in this beta.
 | Accounts | One interactive desktop account. Machines with several accounts choose the streaming owner once (see [Choosing the streaming user](#choosing-the-streaming-user)). |
 | Secure Boot | Supported. The package signs its kernel module; on kernels that enforce module signatures you approve a one-time MOK enrollment at the next reboot. Do not disable Secure Boot. |
 
-Vibepollo runs as **machine-wide system services**, not as a per-user service. Do not run it with
-`systemctl --user`, and do not add file capabilities to `/usr/bin/vibepollo`.
+ArtLight runs as **machine-wide system services**, not as a per-user service. Do not run it with
+`systemctl --user`, and do not add file capabilities to `/usr/bin/artlight`.
 
 ## Install with the script (recommended)
 
@@ -26,25 +26,25 @@ The installer checks the requirements above, installs the kernel headers for you
 installs the package, opens the firewall if one is active, and tells you whether a reboot is needed.
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/Nonary/Vibepollo/vibe-test/scripts/linux_install.sh
+curl -fsSLO https://raw.githubusercontent.com/onaiaku/ArtLight/vibe-test/scripts/linux_install.sh
 less linux_install.sh            # optional: read what it does
 sudo bash linux_install.sh
 ```
 
-The script prefers the signed Nonary pacman repository. When the repository is not reachable it
+The script prefers the signed onaiaku pacman repository. When the repository is not reachable it
 downloads the newest release package from GitHub and installs it with `pacman -U`. Useful options:
 
 | Option | Effect |
 | --- | --- |
 | `--version 2.0.0` | Install that exact release. |
 | `--stable` | Ignore pre-releases. |
-| `--package ./vibepollo-*.pkg.tar.zst` | Install a package you already downloaded. |
+| `--package ./artlight-*.pkg.tar.zst` | Install a package you already downloaded. |
 | `--no-repo` | Skip the pacman repository and use GitHub releases. |
 | `--yes` | Answer pacman prompts automatically. |
 
 Re-running the script is safe. It only installs what is missing and repeats the checks.
 The script does not run a full system upgrade. Local packages use `pacman -U`;
-repository installs use existing metadata to install Vibepollo and its dependencies.
+repository installs use existing metadata to install ArtLight and its dependencies.
 If the host repository has not been cached yet, the script uses a release package
 instead of refreshing system databases automatically.
 Maintain the rest of your Arch system separately. Matching headers for the
@@ -63,42 +63,42 @@ available if pacman fails. Other packages' files and symlinks are not overwritte
 
 ### From the signed repository
 
-Import and locally trust the Nonary repository key:
+Import and locally trust the onaiaku repository key:
 
 ```bash
-curl -fsSLo /tmp/nonary-vibepollo.gpg \
-  https://nonary.github.io/Vibepollo/arch/x86_64/nonary-vibepollo.gpg
-curl -fsSLo /tmp/nonary-vibepollo-fingerprint.txt \
-  https://nonary.github.io/Vibepollo/arch/x86_64/nonary-vibepollo-fingerprint.txt
-sudo pacman-key --add /tmp/nonary-vibepollo.gpg
-sudo pacman-key --lsign-key "$(tr -d '[:space:]' </tmp/nonary-vibepollo-fingerprint.txt)"
+curl -fsSLo /tmp/nonary-artlight.gpg \
+  https://nonary.github.io/ArtLight/arch/x86_64/nonary-artlight.gpg
+curl -fsSLo /tmp/nonary-artlight-fingerprint.txt \
+  https://nonary.github.io/ArtLight/arch/x86_64/nonary-artlight-fingerprint.txt
+sudo pacman-key --add /tmp/nonary-artlight.gpg
+sudo pacman-key --lsign-key "$(tr -d '[:space:]' </tmp/nonary-artlight-fingerprint.txt)"
 ```
 
 Add the repository and install:
 
 ```bash
-sudo install -Dm644 /dev/stdin /etc/pacman.d/vibepollo.conf <<'EOF'
-[vibepollo]
+sudo install -Dm644 /dev/stdin /etc/pacman.d/artlight.conf <<'EOF'
+[artlight]
 SigLevel = Required
-Server = https://nonary.github.io/Vibepollo/arch/x86_64
+Server = https://nonary.github.io/ArtLight/arch/x86_64
 EOF
-grep -qxF 'Include = /etc/pacman.d/vibepollo.conf' /etc/pacman.conf || \
-  printf '\nInclude = /etc/pacman.d/vibepollo.conf\n' | sudo tee -a /etc/pacman.conf
-sudo pacman -Syu vibepollo
+grep -qxF 'Include = /etc/pacman.d/artlight.conf' /etc/pacman.conf || \
+  printf '\nInclude = /etc/pacman.d/artlight.conf\n' | sudo tee -a /etc/pacman.conf
+sudo pacman -Syu artlight
 ```
 
 Later releases then arrive through the normal `pacman -Syu`.
 
 ### From a release package
 
-Every release on the [releases page](https://github.com/Nonary/Vibepollo/releases) carries a
-`vibepollo-<version>-1-x86_64.pkg.tar.zst` asset. Install the kernel headers first so the driver
+Every release on the [releases page](https://github.com/onaiaku/ArtLight/releases) carries a
+`artlight-<version>-1-x86_64.pkg.tar.zst` asset. Install the kernel headers first so the driver
 builds during the transaction, then install the package:
 
 ```bash
 sudo pacman -S --needed "$(pacman -Qqo /usr/lib/modules/$(uname -r)/vmlinuz)-headers"
 sudo pacman -Syu
-sudo pacman -U ./vibepollo-*.pkg.tar.zst
+sudo pacman -U ./artlight-*.pkg.tar.zst
 ```
 
 Packages installed this way are upgraded by downloading the next release and repeating the
@@ -110,10 +110,10 @@ The `PKGBUILD` in the repository is a template; a CMake configure step fills in 
 version before `makepkg` can use it. Install `cuda` first if you want NVENC (the build detects it):
 
 ```bash
-git clone --branch 2.0.0 https://github.com/Nonary/Vibepollo.git
-cd Vibepollo
+git clone --branch 2.0.0 https://github.com/onaiaku/ArtLight.git
+cd ArtLight
 cmake -S . -B build -DSUNSHINE_CONFIGURE_ONLY=ON -DSUNSHINE_CONFIGURE_PKGBUILD=ON
-mkdir pkg && cp build/PKGBUILD build/vibepollo.install pkg/
+mkdir pkg && cp build/PKGBUILD build/artlight.install pkg/
 cd pkg && makepkg -si
 ```
 
@@ -138,16 +138,16 @@ there are four.
 
    ```bash
    # firewalld
-   sudo firewall-cmd --permanent --add-service=vibepollo && sudo firewall-cmd --reload
+   sudo firewall-cmd --permanent --add-service=artlight && sudo firewall-cmd --reload
    # ufw
-   sudo ufw allow Vibepollo
+   sudo ufw allow ArtLight
    ```
 
-   Vibepollo listens on TCP 47984, 47989, 47990, and 48010, and on UDP 47998 to 48000 and 48010.
+   ArtLight listens on TCP 47984, 47989, 47990, and 48010, and on UDP 47998 to 48000 and 48010.
    The UDP ports carry the video, audio, and control streams and are required even when the Web UI
    already works.
 4. **Log out and back in once.** The package installs a PipeWire drop-in
-   (`/usr/share/pipewire/pipewire.conf.d/50-vibepollo-audio.conf`, 240 samples at 48 kHz) that the
+   (`/usr/share/pipewire/pipewire.conf.d/50-artlight-audio.conf`, 240 samples at 48 kHz) that the
    audio stream expects. A new login, or `systemctl --user restart pipewire`, applies it.
 
 ### Choosing the streaming user
@@ -157,16 +157,16 @@ accounts the package prints an **ACTION REQUIRED** line instead. Choose the owne
 the controller:
 
 ```bash
-sudo vibepollo configure USER
-sudo systemctl enable --now vibepollo-session-controller.service
+sudo artlight configure USER
+sudo systemctl enable --now artlight-session-controller.service
 ```
 
 ## Verify
 
 ```bash
-sudo systemctl status vibepollo-session-controller.service vibepollo.service
-sudo journalctl -u vibepollo-session-controller.service -u vibepollo.service -b
-sudo vibepollo driver status
+sudo systemctl status artlight-session-controller.service artlight.service
+sudo journalctl -u artlight-session-controller.service -u artlight.service -b
+sudo artlight driver status
 ```
 
 A healthy host logs `Screencasting with KMS`, `Using event-driven KMS capture for vibeshine_drm
@@ -174,52 +174,52 @@ CRTC`, and at least `Found H.264 encoder`. HEVC and AV1 lines appear only when t
 them. Open ports alone do not prove streaming works; check for those lines.
 
 The controller starts the host only while the configured user's Plasma Wayland session (or the
-NVIDIA pre-login greeter) is active. Do not start `vibepollo.service` by hand. Restarting either
+NVIDIA pre-login greeter) is active. Do not start `artlight.service` by hand. Restarting either
 unit disconnects any client that is streaming.
 
 ## Troubleshooting
 
 | Symptom | What to do |
 | --- | --- |
-| `kernel headers ... are missing` during install | Run the printed `sudo pacman -S --needed <kernel>-headers`, then `sudo vibepollo driver install`. |
+| `kernel headers ... are missing` during install | Run the printed `sudo pacman -S --needed <kernel>-headers`, then `sudo artlight driver install`. |
 | Install says the running kernel still holds the old module | Reboot. `modinfo -F version vibeshine_drm` and `/sys/module/vibeshine_drm/version` must match. |
 | MOK enrollment queued | Reboot and approve it in MOK Manager. `mokutil --list-new` shows what is pending. |
 | Controller logs `unsupported-session` | You are not in a Plasma **Wayland** session started by SDDM or Plasma Login Manager. Pick "Plasma (Wayland)" at the login screen. |
 | No HEVC or AV1 encoder found | Normal on older GPUs. H.264 is enough for the host to report ready. |
 | No pre-login stream | Expected on AMD and Intel GPUs. Log in first. |
-| Audio crackles or drifts | Log out and in again so the PipeWire drop-in applies. Keep Vibepollo's virtual sink; do not pin a static `audio_sink`. |
+| Audio crackles or drifts | Log out and in again so the PipeWire drop-in applies. Keep ArtLight's virtual sink; do not pin a static `audio_sink`. |
 | Moonlight sees the host but the stream fails | Open the UDP ports (see above). |
-| `could not start the Vibepollo session controller safely` at install | Reboot, then check `systemctl status vibepollo-session-controller.service`. Report the journal output if it still fails. |
+| `could not start the ArtLight session controller safely` at install | Reboot, then check `systemctl status artlight-session-controller.service`. Report the journal output if it still fails. |
 
-Keep `capture = kms` in `/var/lib/vibepollo/vibepollo.conf`. The `wlr` and portal capture paths are
+Keep `capture = kms` in `/var/lib/artlight/artlight.conf`. The `wlr` and portal capture paths are
 not used by the machine host and a portal probe can block unattended startup.
 
 Two things on the host machine will silently stop streaming:
 
-- **Automatic suspend.** KDE's power settings suspend an idle machine even while Vibepollo is
+- **Automatic suspend.** KDE's power settings suspend an idle machine even while ArtLight is
   waiting for clients. On a streaming host, set "When inactive" to "Do nothing" under System
   Settings, Power Management, or at least disable it for the AC-powered profile.
 - **A second desktop session for the same user.** A VNC or RDP server that starts its own Plasma
   X11 session (`vncserver@:1.service`, `plasma-x11-session`) imports that session's environment
   into your systemd user manager and stops the Wayland workspace target. The controller then
   reports `waiting for desktop session N to become usable` and never starts the host. Stop and
-  disable that service; Vibepollo's own pre-login stream is the supported remote path.
+  disable that service; ArtLight's own pre-login stream is the supported remote path.
 
 ## Where things live
 
-**Settings live in `/var/lib/vibepollo`**, including `vibepollo.conf`, credentials,
+**Settings live in `/var/lib/artlight`**, including `artlight.conf`, credentials,
 pairings, applications, and imported covers. Use the Web UI for routine changes.
-Run `vibepollo paths` to list locations, `vibepollo status` for service status, or
-`sudo vibepollo logs` for recent logs. `vibepollo maintenance-help` lists all
+Run `artlight paths` to list locations, `artlight status` for service status, or
+`sudo artlight logs` for recent logs. `artlight maintenance-help` lists all
 maintenance commands. Program files, administrator policy, and temporary session
 data retain their separate ownership and lifetimes:
 
 | Path | Purpose |
 | --- | --- |
-| `/usr/bin/vibepollo` | Public command-line client, unprivileged. |
+| `/usr/bin/artlight` | Public command-line client, unprivileged. |
 | `/usr/libexec/vibeshine/` | Privileged helpers (host, session broker, controller, driver installer). |
-| `/etc/vibepollo/` | Administrator policy, including the chosen desktop user in `machine.conf`. |
-| `/var/lib/vibepollo/` | Host state: `vibepollo.conf`, credentials, pairings, application list. |
+| `/etc/artlight/` | Administrator policy, including the chosen desktop user in `machine.conf`. |
+| `/var/lib/artlight/` | Host state: `artlight.conf`, credentials, pairings, application list. |
 | `/usr/src/vibeshine-drm-*` | DKMS source for the virtual-display driver. |
 
 ## Upgrade
@@ -228,8 +228,8 @@ Repository installs upgrade with `sudo pacman -Syu`. Release-package installs up
 `sudo pacman -U` on the next package. The upgrade hook stops the running host, so finish any stream
 first. Upgrade hooks prepare the same profile for DEB, RPM, and Arch packages:
 
-- The selected user's `~/.config/vibepollo` is imported once into
-  `/var/lib/vibepollo`; the source copy is retained as a backup.
+- The selected user's `~/.config/artlight` is imported once into
+  `/var/lib/artlight`; the source copy is retained as a backup.
 - An existing marked machine profile takes precedence, so later upgrades never
   replace newer credentials, pairings, settings, or applications with the old copy.
 - Old ownership and permissions are repaired before validation. Imported cover
@@ -238,8 +238,8 @@ first. Upgrade hooks prepare the same profile for DEB, RPM, and Arch packages:
   A nonempty, unmarked destination is not overwritten.
 
 For manual recovery after resolving a reported migration error, stop streaming and
-stop the controller and host before running `sudo vibepollo migrate`, then enable
-and start `vibepollo-session-controller.service` again. These service operations
+stop the controller and host before running `sudo artlight migrate`, then enable
+and start `artlight-session-controller.service` again. These service operations
 end active streams. The old helper paths remain available for existing scripts.
 
 If the hook says the kernel still holds the old driver, reboot before streaming again.
@@ -247,9 +247,9 @@ If the hook says the kernel still holds the old driver, reboot before streaming 
 ## Uninstall
 
 ```bash
-sudo pacman -R vibepollo
+sudo pacman -R artlight
 ```
 
-Removal stops the services and removes the DKMS module but keeps `/var/lib/vibepollo` and
-`/etc/vibepollo`. To wipe them as well, run
-`sudo vibepollo reset` before removing the package.
+Removal stops the services and removes the DKMS module but keeps `/var/lib/artlight` and
+`/etc/artlight`. To wipe them as well, run
+`sudo artlight reset` before removing the package.

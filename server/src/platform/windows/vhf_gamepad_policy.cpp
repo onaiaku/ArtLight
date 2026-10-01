@@ -42,11 +42,11 @@ namespace platf::vhf_gamepad {
     request.header.version = lvg::k_protocol_version;
     request.controller_id = controller_id;
 
-    // The protocol's button bits are defined to match Vibepollo's normalized flags, so the
+    // The protocol's button bits are defined to match ArtLight's normalized flags, so the
     // supported bits are a straight copy and the driver owns the HID button/hat encoding.
     request.buttons = state.button_flags & supported_button_mask;
 
-    // Axes go over the wire as Vibepollo's normalized state, positive-up. Each
+    // Axes go over the wire as ArtLight's normalized state, positive-up. Each
     // driver profile converts to its own device's convention, and they disagree:
     // HID sticks are positive-down while a DualShock 4's are unsigned. Flipping
     // here as well double-inverted both sticks on every profile that does its own

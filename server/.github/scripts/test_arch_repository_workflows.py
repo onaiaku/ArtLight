@@ -48,20 +48,20 @@ class ArchRepositoryWorkflowTest(unittest.TestCase):
         self.assertIn("ARCH_REPO_GPG_FINGERPRINT", text)
         self.assertIn("Imported signing key fingerprint does not match", text)
         self.assertIn("Release ${source_tag} is still a draft", text)
-        self.assertIn("Expected exactly one non-debug Vibepollo Arch package", text)
+        self.assertIn("Expected exactly one non-debug ArtLight Arch package", text)
         self.assertIn("arch_package_version=${release_version//-/}", text)
         self.assertIn("pkgver = ${arch_package_version}-1", text)
         self.assertIn("--detach-sign \"incoming/${PACKAGE_NAME}\"", text)
-        self.assertIn("--detach-sign vibepollo.db.tar.gz", text)
+        self.assertIn("--detach-sign artlight.db.tar.gz", text)
         self.assertIn("gpg --batch --verify", text)
         self.assertIn("git -C \"${publication_dir}\" push origin HEAD:arch-repo", text)
         self.assertIn("gh workflow run update-pages.yml --ref master", text)
 
-    def test_public_site_uses_nonary_vibepollo_identity(self) -> None:
+    def test_public_site_uses_nonary_artlight_identity(self) -> None:
         site = (ROOT / "gh-pages-template" / "index.html").read_text(encoding="utf-8")
-        self.assertIn("Vibepollo by Nonary", site)
-        self.assertIn("https://github.com/Nonary/Vibepollo", site)
-        self.assertIn("https://nonary.github.io/Vibepollo/arch/x86_64", site)
+        self.assertIn("ArtLight by onaiaku", site)
+        self.assertIn("https://github.com/onaiaku/ArtLight", site)
+        self.assertIn("https://nonary.github.io/ArtLight/arch/x86_64", site)
         self.assertNotIn("LizardByte", site)
 
 
@@ -102,7 +102,7 @@ class ArchRepositoryPublicationTest(unittest.TestCase):
         self.root = Path(temporary_dir.name)
         self.repository = self.root / "arch-repo" / "x86_64"
         self.repository.mkdir(parents=True)
-        self.package_name = "vibepollo-2.0.0-1-x86_64.pkg.tar.zst"
+        self.package_name = "artlight-2.0.0-1-x86_64.pkg.tar.zst"
         self.env = self.signing_env | {
             "FINGERPRINT": self.fingerprint,
             "PACKAGE_NAME": self.package_name,
@@ -128,7 +128,7 @@ class ArchRepositoryPublicationTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout)
         return result
 
-    def make_package(self, version: str, *, name: str = "vibepollo") -> Path:
+    def make_package(self, version: str, *, name: str = "artlight") -> Path:
         self.package_count += 1
         contents = self.root / f"package-{self.package_count}"
         (contents / "usr" / "bin").mkdir(parents=True)
@@ -153,23 +153,23 @@ class ArchRepositoryPublicationTest(unittest.TestCase):
         package = self.repository / self.package_name
         digest = hashlib.sha256(package.read_bytes()).hexdigest()
         for kind in ("db", "files"):
-            archive = self.repository / f"vibepollo.{kind}.tar.gz"
+            archive = self.repository / f"artlight.{kind}.tar.gz"
             entries = self.run_command(["bsdtar", "-tf", str(archive)]).stdout.splitlines()
-            self.assertEqual({entry.split("/")[0] for entry in entries}, {"vibepollo-2.0.0-1"})
+            self.assertEqual({entry.split("/")[0] for entry in entries}, {"artlight-2.0.0-1"})
             description = self.run_command([
-                "bsdtar", "-xOf", str(archive), "vibepollo-2.0.0-1/desc",
+                "bsdtar", "-xOf", str(archive), "artlight-2.0.0-1/desc",
             ]).stdout
             self.assertIn(f"%FILENAME%\n{self.package_name}\n", description)
             self.assertIn("%VERSION%\n2.0.0-1\n", description)
             self.assertIn(f"%SHA256SUM%\n{digest}\n", description)
             self.run_command(["gpg", "--batch", "--verify", f"{archive}.sig", str(archive)])
             for suffix in ("", ".sig"):
-                alias = self.repository / f"vibepollo.{kind}{suffix}"
+                alias = self.repository / f"artlight.{kind}{suffix}"
                 self.assertFalse(alias.is_symlink())
                 self.assertEqual(alias.read_bytes(), Path(f"{archive}{suffix}").read_bytes())
         self.run_command(["gpg", "--batch", "--verify", f"{package}.sig", str(package)])
         self.assertEqual(
-            {path.name for path in self.repository.glob("vibepollo-*.pkg.tar.zst*")},
+            {path.name for path in self.repository.glob("artlight-*.pkg.tar.zst*")},
             {self.package_name, f"{self.package_name}.sig"},
         )
         self.assertFalse(list(self.repository.glob("*.old*")))
@@ -184,22 +184,22 @@ class ArchRepositoryPublicationTest(unittest.TestCase):
     def test_old_payloads_and_ghost_entries_are_replaced(self) -> None:
         old = self.make_package("2.0.0beta.1-1")
         ghost = self.make_package("1.0.0-1", name="removed-addon")
-        self.run_command(["repo-add", str(self.repository / "vibepollo.db.tar.gz"), str(old), str(ghost)])
+        self.run_command(["repo-add", str(self.repository / "artlight.db.tar.gz"), str(old), str(ghost)])
         ghost.unlink()
         Path(f"{ghost}.sig").unlink()
         # A stray broken package must never enter the new database's input list.
-        (self.repository / "vibepollo-9.9.9-1-x86_64.pkg.tar.zst").write_bytes(b"broken")
-        (self.repository / "vibepollo-orphan.pkg.tar.zst.sig").write_bytes(b"orphan")
+        (self.repository / "artlight-9.9.9-1-x86_64.pkg.tar.zst").write_bytes(b"broken")
+        (self.repository / "artlight-orphan.pkg.tar.zst.sig").write_bytes(b"orphan")
         for kind in ("db", "files"):
-            (self.repository / f"vibepollo.{kind}.tar.gz.old").write_bytes(b"old archive")
-            (self.repository / f"vibepollo.{kind}.tar.gz.old.sig").write_bytes(b"old signature")
+            (self.repository / f"artlight.{kind}.tar.gz.old").write_bytes(b"old archive")
+            (self.repository / f"artlight.{kind}.tar.gz.old.sig").write_bytes(b"old signature")
         self.make_package("2.0.0-1")
         self.publish()
         self.assert_current_repository()
 
     def test_missing_previous_payload_does_not_block_publication(self) -> None:
         old = self.make_package("2.0.0beta.1-1")
-        self.run_command(["repo-add", str(self.repository / "vibepollo.db.tar.gz"), str(old)])
+        self.run_command(["repo-add", str(self.repository / "artlight.db.tar.gz"), str(old)])
         old.unlink()
         Path(f"{old}.sig").unlink()
         self.make_package("2.0.0-1")

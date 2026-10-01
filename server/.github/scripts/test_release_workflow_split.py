@@ -135,7 +135,7 @@ class ReleaseWorkflowSplitTest(unittest.TestCase):
                 "EVENT_NAME": "push",
                 "GITHUB_REF_TYPE": "branch",
                 "GITHUB_REF": "refs/heads/vibe-test",
-                "GITHUB_REPOSITORY": "Nonary/test",
+                "GITHUB_REPOSITORY": "onaiaku/test",
                 "GITHUB_OUTPUT": str(output),
             }
             with patch.dict(os.environ, environment, clear=True), patch(
@@ -270,8 +270,8 @@ class ReleaseWorkflowSplitTest(unittest.TestCase):
         getting_started = (ROOT / "docs" / "getting_started.md").read_text(
             encoding="utf-8"
         )
-        self.assertNotIn("vibepollo.pkg.tar.gz", getting_started)
-        self.assertIn("vibepollo-*.pkg.tar.zst", getting_started)
+        self.assertNotIn("artlight.pkg.tar.gz", getting_started)
+        self.assertIn("artlight-*.pkg.tar.zst", getting_started)
         self.assertIn("installs the kernel headers for your running kernel", (ROOT / "docs" / "linux" / "install.md").read_text(encoding="utf-8"))
 
     def test_prerelease_notes_do_not_claim_to_cover_stable_releases(self) -> None:

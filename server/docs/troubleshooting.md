@@ -7,15 +7,15 @@ If you forgot your credentials to the web UI, try this.
 
 @tabs{
   @tab{General | ```bash
-    vibepollo --creds {new-username} {new-password}
+    artlight --creds {new-username} {new-password}
     ```
   }
   @tab{AppImage | ```bash
-    ./vibepollo.AppImage --creds {new-username} {new-password}
+    ./artlight.AppImage --creds {new-username} {new-password}
     ```
   }
   @tab{Flatpak | ```bash
-    flatpak run --command=vibepollo io.github.Nonary.vibepollo --creds {new-username} {new-password}
+    flatpak run --command=artlight io.github.onaiaku.ArtLight --creds {new-username} {new-password}
     ```
   }
 }

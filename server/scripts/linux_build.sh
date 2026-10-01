@@ -659,8 +659,8 @@ function run_step_cmake() {
     "-DBUILD_WERROR=ON"
     "-DCMAKE_BUILD_TYPE=Release"
     "-DCMAKE_INSTALL_PREFIX=/usr"
-    "-DSUNSHINE_ASSETS_DIR=share/vibepollo"
-    "-DSUNSHINE_EXECUTABLE_PATH=/usr/bin/vibepollo"
+    "-DSUNSHINE_ASSETS_DIR=share/artlight"
+    "-DSUNSHINE_EXECUTABLE_PATH=/usr/bin/artlight"
     "-DSUNSHINE_ENABLE_DRM=ON"
     "-DSUNSHINE_ENABLE_KWIN=ON"
     "-DSUNSHINE_ENABLE_PORTAL=ON"
@@ -711,11 +711,11 @@ function run_step_validation() {
   echo "Running step: Validation"
 
   # Run appstream validation, etc.
-  appstreamcli validate "build/io.github.Nonary.vibepollo.metainfo.xml"
-  appstream-util validate "build/io.github.Nonary.vibepollo.metainfo.xml"
-  desktop-file-validate "build/io.github.Nonary.vibepollo.desktop"
+  appstreamcli validate "build/io.github.onaiaku.ArtLight.metainfo.xml"
+  appstream-util validate "build/io.github.onaiaku.ArtLight.metainfo.xml"
+  desktop-file-validate "build/io.github.onaiaku.ArtLight.desktop"
   if [[ "$appimage_build" == 0 ]]; then
-    desktop-file-validate "build/io.github.Nonary.vibepollo.terminal.desktop"
+    desktop-file-validate "build/io.github.onaiaku.ArtLight.terminal.desktop"
   fi
   return 0
 }

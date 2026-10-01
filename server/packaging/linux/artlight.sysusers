@@ -1,0 +1,2 @@
+u artlight - "ArtLight machine host" /var/lib/artlight /usr/bin/nologin
+g artlight-uinput - -

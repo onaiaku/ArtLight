@@ -41,7 +41,7 @@ file(GLOB NVPREFS_FILES CONFIGURE_DEPENDS
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/include")
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party")
 
-# libvirtualgamepad: the control-protocol client for Vibepollo's own UMDF/VHF gamepad driver.
+# libvirtualgamepad: the control-protocol client for ArtLight's own UMDF/VHF gamepad driver.
 # Only the header-only protocol and the small SetupAPI client are compiled here; the driver
 # itself is consumed as an independently released signed package.
 set(SUNSHINE_LIBVIRTUALGAMEPAD_SOURCE_DIR "" CACHE PATH "Path to libvirtualgamepad source")

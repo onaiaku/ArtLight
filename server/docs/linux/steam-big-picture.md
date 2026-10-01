@@ -12,7 +12,7 @@ new processes they create later. Exit the game normally first when you need to
 save progress.
 
 To leave games running even when quitting the Big Picture session, create
-`~/.config/vibepollo/steam-big-picture.json` for the desktop user with:
+`~/.config/artlight/steam-big-picture.json` for the desktop user with:
 
 ```json
 {"close-games": false}

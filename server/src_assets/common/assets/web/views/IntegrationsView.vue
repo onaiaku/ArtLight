@@ -128,7 +128,7 @@ interface VigemStatus {
   version_compatible?: boolean;
   packaged_version?: string;
   error?: string;
-  // False when Vibepollo's own virtual gamepad driver is available, so a missing
+  // False when ArtLight's own virtual gamepad driver is available, so a missing
   // ViGEmBus is an unused option rather than a problem.
   required?: boolean;
 }

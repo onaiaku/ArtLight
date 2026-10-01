@@ -1,6 +1,6 @@
 # Patched Gamescope HDR10 capture
 
-The patch and Vibepollo consumer implement HDR10 capture of Gamescope's existing
+The patch and ArtLight consumer implement HDR10 capture of Gamescope's existing
 scene. The patch is pinned to Valve Gamescope **3.16.23.5**, commit
 `1290cbc1a7ca625688bde8728d8e3b1e703d6a40`. `source-lock.json` records the patch
 checksum. It does not create an independent virtual output or change panel modes.
@@ -21,7 +21,7 @@ python3 packaging/linux/steamos/tests/test-gamescope-repaint.py /path/to/patched
 
 The separate `vibeshine_capture_v1` Wayland global advertises profile 1 for the
 existing `gamescope_pipewire` node. Valve's interface and SDR formats remain
-unchanged. Vibepollo requires both this capability and actual negotiated
+unchanged. ArtLight requires both this capability and actual negotiated
 `xBGR_210LE`, full-range RGB, BT.2020 primaries and ST 2084 transfer. An unknown
 profile, mismatched node, missing extension, memory-only buffer, or incompatible
 format cannot silently enable HDR. A format change during HDR capture restarts
@@ -39,7 +39,7 @@ of the Deck panel. MaxCLL and MaxFALL remain unknown (zero). Existing producer
 GPU completion precedes frame delivery; this patch adds neither explicit
 fences nor authoritative presentation timestamps.
 
-HDR uses Vibepollo's VAAPI or Vulkan DMA-BUF path. Software RGB conversion and
+HDR uses ArtLight's VAAPI or Vulkan DMA-BUF path. Software RGB conversion and
 CUDA are not enabled for this profile. The producer still has one negotiated
 format: simultaneous SDR and HDR consumers require separate compositor
 instances. Capture resolution remains bounded by the compositor's output.
@@ -58,7 +58,7 @@ python3 packaging/linux/steamos/gamescope/build-gamescope.py \
 
 Both directories must be new. The script checks the upstream commit and patch
 checksum, initializes pinned submodules, applies the patch, builds and stages
-under `opt/vibepollo-gamescope/`. Additional SDK link flags can be passed using
+under `opt/artlight-gamescope/`. Additional SDK link flags can be passed using
 `--meson-option=-Dcpp_link_args=...`. OpenVR is disabled for this Deck build;
 the DRM and nested backends are retained. Wlroots warnings are not fatal because
 newer libinput headers add an enum absent from Valve's pinned wlroots revision.
@@ -71,12 +71,12 @@ still apply before privileged Gaming Mode deployment.
 
 ## Hardware validation
 
-Build Vibepollo first, then compile the integration probe from its actual
+Build ArtLight first, then compile the integration probe from its actual
 objects, in the same SDK:
 
 ```bash
 python3 packaging/linux/steamos/tests/build-hdr-probe.py \
-  /path/to/vibepollo-build /tmp/hdr-probe
+  /path/to/artlight-build /tmp/hdr-probe
 cc -O2 -I/tmp/gamescope-hdr-work/build/protocol \
   packaging/linux/steamos/tests/hdr-pattern.c \
   /tmp/gamescope-hdr-work/build/protocol/gamescope-swapchain-protocol.c \
@@ -90,7 +90,7 @@ python3 packaging/linux/steamos/tests/run-hdr-smoke.py \
   --gamescope /tmp/gamescope-hdr-work/build/src/gamescope \
   --scripts /tmp/gamescope-hdr-work/source/scripts \
   --pattern /tmp/hdr-pattern --probe /tmp/hdr-probe/hdr-capture-probe \
-  --payload /path/to/vibepollo-payload --output /tmp/hdr-results
+  --payload /path/to/artlight-payload --output /tmp/hdr-results
 ```
 
 The test owns a separate headless compositor and cleans it up on success or
@@ -108,7 +108,7 @@ full-range RGB capture buffers.
 ### SteamOS Mesa prerequisite
 
 The tested host's Mesa 26.1.2 produces malformed HEVC slice headers on this Deck.
-The failure also reproduces with system FFmpeg, independently of Vibepollo.
+The failure also reproduces with system FFmpeg, independently of ArtLight.
 Upstream fixed this exact firmware interaction in commit
 [`5af4976e`](https://gitlab.freedesktop.org/mesa/mesa/-/commit/5af4976e23a6dd361f5a1e0d26595b47d228c191),
 included in Mesa 26.1.7 and 26.2.1. Require a SteamOS driver build carrying that

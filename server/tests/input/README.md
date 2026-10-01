@@ -19,7 +19,7 @@ connection-loss/recovery callbacks.
 
 The scripts do not replace a full platform build or driver-level testing.
 The WebRTC change includes the `third-party/libwebrtc` submodule's C bridge;
-rebuild that dependency before linking Vibepollo (the cached library needs the
+rebuild that dependency before linking ArtLight (the cached library needs the
 new `lwrtc_peer_register_state_callback` export).
 
 ## Windows integration check

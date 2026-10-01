@@ -18,7 +18,7 @@ import unittest
 
 
 host_path = pathlib.Path(sys.argv[1]).resolve()
-importer_path = host_path.with_name("vibepollo-profile-import.c")
+importer_path = host_path.with_name("artlight-profile-import.c")
 host_source = host_path.read_text()
 
 
@@ -31,7 +31,7 @@ def host_function(name):
 class ProfileImport(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.build = tempfile.TemporaryDirectory(prefix="vibepollo-profile-test-")
+        cls.build = tempfile.TemporaryDirectory(prefix="artlight-profile-test-")
         directory = pathlib.Path(cls.build.name)
         harness = directory / "import.c"
         harness.write_text("#define main production_import_main\n#include " +
@@ -74,7 +74,7 @@ int main(int argc, char **argv) {
         cls.build.cleanup()
 
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="vibepollo-profile-fixture-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="artlight-profile-fixture-")
         self.addCleanup(self.temporary.cleanup)
         self.fixture = pathlib.Path(self.temporary.name)
         self.home = self.fixture / "home"
@@ -106,14 +106,14 @@ int main(int argc, char **argv) {
             target.write_text(value)
         self.import_profile()
         for name, value in contents.items():
-            imported_name = "vibepollo.conf" if name == "sunshine.conf" else name
+            imported_name = "artlight.conf" if name == "sunshine.conf" else name
             self.assertEqual((self.incoming / imported_name).read_text(), value)
             self.assertEqual((legacy / name).read_text(), value)
             self.assertEqual((self.incoming / imported_name).stat().st_mode & 0o777, 0o600)
         self.assertFalse((self.incoming / "sunshine.conf").exists())
 
     def test_canonical_source_wins_without_merging_legacy(self):
-        primary = self.profile("vibepollo")
+        primary = self.profile("artlight")
         legacy = self.profile("sunshine")
         (primary / "apps.json").write_text("primary applications")
         (legacy / "apps.json").write_text("legacy applications")
@@ -124,19 +124,19 @@ int main(int argc, char **argv) {
         self.assertEqual((self.incoming / "apps.json").read_text(), "primary applications")
 
     def test_empty_canonical_source_wins(self):
-        self.profile("vibepollo")
+        self.profile("artlight")
         (self.profile("sunshine") / "sunshine.conf").write_text("legacy settings")
         self.import_profile()
         self.assertEqual(list(self.incoming.iterdir()), [])
 
     def test_canonical_config_is_authoritative_in_either_source(self):
-        for product in ("vibepollo", "sunshine"):
+        for product in ("artlight", "sunshine"):
             with self.subTest(product=product):
                 selected = self.profile(product)
-                (selected / "vibepollo.conf").write_text("canonical settings")
+                (selected / "artlight.conf").write_text("canonical settings")
                 (selected / "sunshine.conf").write_text("legacy settings")
                 self.import_profile()
-                self.assertEqual((self.incoming / "vibepollo.conf").read_text(), "canonical settings")
+                self.assertEqual((self.incoming / "artlight.conf").read_text(), "canonical settings")
                 self.assertEqual((self.incoming / "sunshine.conf").read_text(), "legacy settings")
                 shutil.rmtree(self.home / ".config")
                 for path in self.incoming.iterdir():
@@ -145,7 +145,7 @@ int main(int argc, char **argv) {
     def test_unsafe_canonical_paths_never_fall_back(self):
         legacy = self.profile("sunshine")
         (legacy / "sunshine.conf").write_text("legacy settings")
-        primary = self.home / ".config/vibepollo"
+        primary = self.home / ".config/artlight"
         for target in (legacy, self.fixture / "missing"):
             with self.subTest(symlink=target):
                 primary.symlink_to(target)
@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
 
     @unittest.skipIf(os.geteuid() == 0, "root bypasses directory read permission")
     def test_inaccessible_canonical_source_never_falls_back(self):
-        primary = self.profile("vibepollo")
+        primary = self.profile("artlight")
         (self.profile("sunshine") / "sunshine.conf").write_text("legacy settings")
         primary.chmod(0)
         try:
@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
         outside.write_text("unrelated secret")
         (legacy / "sunshine.conf").symlink_to(outside)
         self.import_profile(succeeds=False)
-        self.assertFalse((self.incoming / "vibepollo.conf").exists())
+        self.assertFalse((self.incoming / "artlight.conf").exists())
 
     def test_absent_sources_start_fresh(self):
         self.import_profile()
@@ -191,7 +191,7 @@ int main(int argc, char **argv) {
             self.assertIn(invariant, source)
 
     def test_legacy_and_canonical_cover_paths_use_safe_suffixes(self):
-        canonical = self.home / ".config/vibepollo/covers"
+        canonical = self.home / ".config/artlight/covers"
         legacy = self.home / ".config/sunshine/covers"
         paths = [str(canonical / "game.png"), str(legacy / "folder/game.png"),
                  str(legacy) + "/../secret.png", str(legacy) + "//game.png",
@@ -249,7 +249,7 @@ configure_automatically
             self.assertEqual(result.stdout, selected)
 
         discover(True, "alice")
-        canonical = homes["alice"] / ".config/vibepollo"
+        canonical = homes["alice"] / ".config/artlight"
         canonical.mkdir()
         discover(False)
         (canonical / "sunshine_state.json").write_text("canonical identity")

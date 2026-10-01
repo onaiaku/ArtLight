@@ -1823,7 +1823,7 @@ TEST(DisplayHelperV2StateMachine, MissingOrInactivePhysicalMemberRemainsPassive)
     harness.cancellation.current_generation()});
 
   // Physical B returns enumerable but inactive (no display name / mode info),
-  // as in vibepollo#370, alongside another generic notification.
+  // as in artlight#370, alongside another generic notification.
   harness.add_inactive_device("physical_b");
   harness.state_machine.handle_message(display_helper::v2::DisplayEventMessage {
     display_helper::v2::DisplayEvent::DisplayChange,

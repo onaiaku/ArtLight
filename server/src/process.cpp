@@ -1869,7 +1869,7 @@ namespace proc {
         });
         if (game != games.end()) {
           steam_proton_launch = game->launch_os == "windows";
-          if (std::getenv("VIBEPOLLO_MACHINE_HOST")) {
+          if (std::getenv("ARTLIGHT_MACHINE_HOST")) {
             const bool proton_overlay_enabled =
               effective_frame_limiter && proton_limiter &&
               proton_overlay_requested && mangohud_available;
@@ -1949,7 +1949,7 @@ namespace proc {
             << "Stream-owned launch features cannot activate for Steam app " << steam_app_id
             << " because the installed game could not be resolved from Steam metadata: " << reason << '.';
 #ifdef __linux__
-          if (const char *machine_host = std::getenv("VIBEPOLLO_MACHINE_HOST"); machine_host && *machine_host) {
+          if (const char *machine_host = std::getenv("ARTLIGHT_MACHINE_HOST"); machine_host && *machine_host) {
             // The raw apps.json command cannot run inside the machine host: it
             // has no desktop, and the broker refuses unauthorized commands.
             // Ask the Steam client in the desktop session to launch it instead.
@@ -2094,7 +2094,7 @@ namespace proc {
       }
     } else {
       // proc_t reuses its environment between launches, so remove overrides
-      // owned by a previous Vibepollo-managed MangoHUD launch.
+      // owned by a previous ArtLight-managed MangoHUD launch.
       _env["MANGOHUD"] = "";
       _env["MANGOHUD_CONFIG"] = "";
       _env["MANGOHUD_FPS_LIMIT"] = "";
@@ -2861,7 +2861,7 @@ namespace proc {
         // Teardown is already in flight on another thread. Blocking here
         // parks the caller - including the single serverinfo worker, which
         // made the host undiscoverable for the whole teardown tail
-        // (vibepollo#326). The gate owner performs the cleanup; report
+        // (artlight#326). The gate owner performs the cleanup; report
         // not-running without waiting on it.
         BOOST_LOG(debug) << "[running] App exited but stream teardown is already in flight; deferring cleanup to the gate owner.";
         return 0;
@@ -3549,7 +3549,7 @@ namespace proc {
     constexpr std::size_t maximum_machine_cover_bytes = 16U * 1024U * 1024U;
 
     [[maybe_unused]] bool machine_host_runtime() {
-      const char *value = std::getenv("VIBEPOLLO_MACHINE_HOST");
+      const char *value = std::getenv("ARTLIGHT_MACHINE_HOST");
       return value && std::string_view {value} == "1";
     }
 
@@ -4220,9 +4220,9 @@ namespace proc {
       // Keep the daemon's own HOME pointed at the machine-owned profile while
       // giving desktop applications the environment of the session account
       // that the capability helper will actually enter.
-      if (std::getenv("VIBEPOLLO_MACHINE_HOST")) {
-        const auto *session_home = std::getenv("VIBEPOLLO_SESSION_HOME");
-        const auto *session_user = std::getenv("VIBEPOLLO_SESSION_USER");
+      if (std::getenv("ARTLIGHT_MACHINE_HOST")) {
+        const auto *session_home = std::getenv("ARTLIGHT_SESSION_HOME");
+        const auto *session_user = std::getenv("ARTLIGHT_SESSION_USER");
         if (session_home && *session_home && session_user && *session_user) {
           this_env["HOME"] = session_home;
           this_env["USER"] = session_user;

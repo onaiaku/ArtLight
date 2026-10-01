@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# custom AppRun for Vibepollo AppImage
+# custom AppRun for ArtLight AppImage
 
 # path of the extracted AppRun
 HERE="$(dirname "$(readlink -f "${0}")")"
-SUNSHINE_PATH=/usr/bin/vibepollo
-SUNSHINE_BIN_HERE=$HERE/usr/bin/vibepollo
-SUNSHINE_SHARE_HERE=$HERE/usr/share/vibepollo
+SUNSHINE_PATH=/usr/bin/artlight
+SUNSHINE_BIN_HERE=$HERE/usr/bin/artlight
+SUNSHINE_SHARE_HERE=$HERE/usr/share/artlight
 
 # Set APPDIR when running directly from the AppDir:
 if [ -z "$APPDIR" ]; then
@@ -18,28 +18,28 @@ cd "$HERE" || exit 1
 function help() {
 echo "
  ------------------------------
-   Vibepollo AppImage package.
+   ArtLight AppImage package.
  ------------------------------
 
- vibepollo.AppImage options
+ artlight.AppImage options
  ------------------------
 
  Usage:  $ARGV0  --help, -h
  ------            # This message
 
          $ARGV0  --install, -i
-                   # Install input rules and vibepollo.service files. Restart required.
+                   # Install input rules and artlight.service files. Restart required.
 
          $ARGV0  --remove, -r
-                   # Remove input rules and vibepollo.service files.
+                   # Remove input rules and artlight.service files.
 
          $ARGV0  --appimage-help
                    # Show available AppImage options
 
- vibepollo options
+ artlight options
  ----------------
 "
-# print Vibepollo binary help, replacing the command in the usage statement
+# print ArtLight binary help, replacing the command in the usage statement
 "$SUNSHINE_BIN_HERE" --help | sed -e "s#$SUNSHINE_BIN_HERE#$ARGV0#g"
 }
 
@@ -53,11 +53,11 @@ function install() {
   sudo udevadm trigger --property-match=DEVNAME=/dev/uinput
   sudo udevadm trigger --property-match=DEVNAME=/dev/uhid
 
-  # Vibepollo service
+  # ArtLight service
   mkdir -p ~/.config/systemd/user
   cp -r "$SUNSHINE_SHARE_HERE/systemd/user/" ~/.config/systemd/
   # patch service executable path
-  sed -i -e "s#$SUNSHINE_PATH#$(readlink -f $ARGV0)#g" ~/.config/systemd/user/app-io.github.Nonary.vibepollo.service
+  sed -i -e "s#$SUNSHINE_PATH#$(readlink -f $ARGV0)#g" ~/.config/systemd/user/app-io.github.onaiaku.ArtLight.service
 
   # setcap
   sudo setcap cap_sys_admin,cap_sys_nice+p "$(readlink -f "$SUNSHINE_BIN_HERE")"
@@ -71,7 +71,7 @@ function remove() {
   sudo rm -f /etc/modules-load.d/60-sunshine.conf
 
   # remove service
-  sudo rm -f ~/.config/systemd/user/app-io.github.Nonary.vibepollo.service
+  sudo rm -f ~/.config/systemd/user/app-io.github.onaiaku.ArtLight.service
 }
 
 # process arguments
@@ -92,7 +92,7 @@ fi
 
 # create config directory if it doesn't exist
 # https://github.com/LizardByte/Sunshine/issues/324
-mkdir -p ~/.config/vibepollo
+mkdir -p ~/.config/artlight
 
-# run Vibepollo
+# run ArtLight
 "$SUNSHINE_BIN_HERE" $@

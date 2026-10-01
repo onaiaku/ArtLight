@@ -51,7 +51,7 @@ namespace platf::gamepad {
     }
 
     return ds4_joypad_t::create({
-      .name = inputtino_name_for_seat("Vibepollo PS4 (virtual) pad"sv),
+      .name = inputtino_name_for_seat("ArtLight PS4 (virtual) pad"sv),
       .vendor_id = 0x054C,
       .product_id = 0x05C4,
       .version = 0x0100,

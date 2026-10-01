@@ -28,7 +28,7 @@ else
   eval "${definition/--init-groups/--keep-groups}"
 fi
 
-temporary=$(/usr/bin/mktemp -d /tmp/vibepollo-session-timeout-test.XXXXXX) || exit 1
+temporary=$(/usr/bin/mktemp -d /tmp/artlight-session-timeout-test.XXXXXX) || exit 1
 declare -a clients=()
 cleanup_client() {
   local pid=$1

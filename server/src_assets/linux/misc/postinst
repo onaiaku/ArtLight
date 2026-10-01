@@ -8,37 +8,37 @@ modprobe uhid
 # machine-service packages set VIBESHINE_EXECUTABLE_CAPABILITY_MODE=unit and
 # receive the same bounded capabilities only from their systemd unit instead.
 path_to_setcap=$(command -v setcap 2>/dev/null || true)
-path_to_vibepollo=${VIBESHINE_EXECUTABLE_PATH:-}
-if [ -z "$path_to_vibepollo" ]; then
-  path_to_vibepollo=$(command -v vibepollo 2>/dev/null || true)
+path_to_artlight=${VIBESHINE_EXECUTABLE_PATH:-}
+if [ -z "$path_to_artlight" ]; then
+  path_to_artlight=$(command -v artlight 2>/dev/null || true)
 fi
 if [ -z "$path_to_setcap" ] || [ ! -x "$path_to_setcap" ]; then
   echo "error: setcap not found or not executable." >&2
   exit 1
 fi
-if [ -z "$path_to_vibepollo" ] || [ ! -x "$path_to_vibepollo" ]; then
-  echo "error: installed Vibepollo executable was not found at the configured path." >&2
+if [ -z "$path_to_artlight" ] || [ ! -x "$path_to_artlight" ]; then
+  echo "error: installed ArtLight executable was not found at the configured path." >&2
   exit 1
 fi
-path_to_vibepollo=$(readlink -f -- "$path_to_vibepollo") || exit 1
-if [ -z "$path_to_vibepollo" ] || [ ! -f "$path_to_vibepollo" ] || [ ! -x "$path_to_vibepollo" ]; then
-  echo "error: configured Vibepollo executable does not resolve to an executable regular file." >&2
+path_to_artlight=$(readlink -f -- "$path_to_artlight") || exit 1
+if [ -z "$path_to_artlight" ] || [ ! -f "$path_to_artlight" ] || [ ! -x "$path_to_artlight" ]; then
+  echo "error: configured ArtLight executable does not resolve to an executable regular file." >&2
   exit 1
 fi
 if [ "${VIBESHINE_EXECUTABLE_CAPABILITY_MODE:-file}" = unit ]; then
-  "$path_to_setcap" -r "$path_to_vibepollo" 2>/dev/null || true
-  if [ -n "$(getcap "$path_to_vibepollo" 2>/dev/null)" ]; then
+  "$path_to_setcap" -r "$path_to_artlight" 2>/dev/null || true
+  if [ -n "$(getcap "$path_to_artlight" 2>/dev/null)" ]; then
     echo "error: native machine-service executable retains unsafe file capabilities." >&2
     exit 1
   fi
-  echo "Vibepollo executable file capabilities removed; the system unit supplies its bounded runtime capabilities."
+  echo "ArtLight executable file capabilities removed; the system unit supplies its bounded runtime capabilities."
 else
-  echo "Setting CAP_SYS_ADMIN, CAP_SYS_NICE capabilities on Vibepollo binary."
-  if ! "$path_to_setcap" cap_sys_admin,cap_sys_nice+p "$path_to_vibepollo"; then
-    echo "error: could not apply mandatory KMS capabilities to $path_to_vibepollo." >&2
+  echo "Setting CAP_SYS_ADMIN, CAP_SYS_NICE capabilities on ArtLight binary."
+  if ! "$path_to_setcap" cap_sys_admin,cap_sys_nice+p "$path_to_artlight"; then
+    echo "error: could not apply mandatory KMS capabilities to $path_to_artlight." >&2
     exit 1
   fi
-  echo "CAP_SYS_ADMIN, CAP_SYS_NICE capabilities set on Vibepollo binary."
+  echo "CAP_SYS_ADMIN, CAP_SYS_NICE capabilities set on ArtLight binary."
 fi
 
 # Trigger udev rule reload for /dev/uinput and /dev/uhid

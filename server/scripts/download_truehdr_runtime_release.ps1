@@ -1,5 +1,5 @@
 param(
-  [string]$Repository = "Nonary/vibeshine_truehdr_runtime",
+  [string]$Repository = "onaiaku/vibeshine_truehdr_runtime",
   [string]$Tag = "v1.0.0",
   [string]$AssetName = "",
   [string]$OutDir = "",

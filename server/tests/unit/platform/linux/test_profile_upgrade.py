@@ -11,7 +11,7 @@ import sys
 import tempfile
 
 root = pathlib.Path(sys.argv[1]).resolve()
-source = (root / "packaging/linux/vibepollo-machine-host").read_text()
+source = (root / "packaging/linux/artlight-machine-host").read_text()
 
 
 def function(name):
@@ -40,8 +40,8 @@ fixture_stat() {
   elif [[ "$fail_at" == policy ]]; then printf 'alice:alice:644:regular file\n'
   else printf 'root:root:600:regular file\n'; fi
 }
-service_user=vibepollo
-machine_host=/usr/libexec/vibeshine/vibepollo-machine-host
+service_user=artlight
+machine_host=/usr/libexec/vibeshine/artlight-machine-host
 machine_profile=$PWD/machine
 profile_marker=$machine_profile/.machine-profile
 settings_file=$PWD/machine.conf
@@ -51,7 +51,7 @@ write_settings() { [[ "$1" == alice && "$fail_at" != settings ]]; }
 profile_tree_is_sanitized() { [[ "$fail_at" != validate ]]; }
 repair_profile_tree() { printf 'repair\n' >>trace; [[ "$fail_at" != repair ]]; }
 user_exec() {
-  [[ "$1" == vibepollo && "$2" == "$machine_host" && "$3" == prepare-profile ]] || exit 80
+  [[ "$1" == artlight && "$2" == "$machine_host" && "$3" == prepare-profile ]] || exit 80
   printf 'prepare\n' >>trace
   [[ "$fail_at" != prepare ]]
 }
@@ -66,14 +66,14 @@ publish_migrated_profile() {
 assert_trace() { [[ "$(cat trace)" == "$1" ]] || { cat trace; exit 81; }; }
 mkdir legacy
 printf 'paired-identity-and-credentials\n' >legacy/sunshine_state.json
-printf 'user-settings\n' >legacy/vibepollo.conf
+printf 'user-settings\n' >legacy/artlight.conf
 printf 'applications\n' >legacy/apps.json
 fail_at=''
 : >trace
 configure_automatically || exit 82
 assert_trace $'repair\nimport\nprepare\nmanifest'
 diff legacy/sunshine_state.json "$machine_profile/sunshine_state.json" || exit 83
-diff legacy/vibepollo.conf "$machine_profile/vibepollo.conf" || exit 84
+diff legacy/artlight.conf "$machine_profile/artlight.conf" || exit 84
 diff legacy/apps.json "$machine_profile/apps.json" || exit 85
 # The old source remains a backup. Newer machine data must win on every rerun.
 printf 'new-pairing\n' >"$machine_profile/sunshine_state.json"

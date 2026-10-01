@@ -64,8 +64,8 @@ namespace ArtLightControl.ViewModels
             ["ArtLight Server"] = "https://github.com/onaiaku/ArtLight",
             ["Sunshine"]  = "https://github.com/LizardByte/Sunshine",
             ["Apollo"]    = "https://github.com/ClassicOldSong/Apollo",
-            ["Vibeshine"] = "https://github.com/Nonary/vibeshine",
-            ["Vibepollo"] = "https://github.com/Nonary/Vibepollo",
+            ["Vibeshine"] = "https://github.com/onaiaku/vibeshine",
+            ["ArtLight"] = "https://github.com/onaiaku/ArtLight",
         };
 
         private string _serverName = "Not detected";

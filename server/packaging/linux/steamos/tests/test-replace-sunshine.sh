@@ -8,13 +8,13 @@ if [[ $(id -u) -eq 0 ]]; then
   printf 'SKIP: local replacement intentionally refuses root\n'
   exit 0
 fi
-test_root=$(mktemp -d /tmp/vibepollo-replace-test.XXXXXXXX)
+test_root=$(mktemp -d /tmp/artlight-replace-test.XXXXXXXX)
 trap 'rm -rf -- "$test_root"' EXIT
-mkdir -p "$test_root/fakebin" "$test_root/payload/bin" "$test_root/payload/share/vibepollo/web/v2"
+mkdir -p "$test_root/fakebin" "$test_root/payload/bin" "$test_root/payload/share/artlight/web/v2"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 1 \
   -subj /CN=MigrationFixture -keyout "$test_root/client.key" -out "$test_root/client.pem" 2>/dev/null
-cp /usr/bin/env "$test_root/payload/bin/vibepollo"
-touch "$test_root/payload/share/vibepollo/"{apps.json,web/index.html,web/v2/index.html}
+cp /usr/bin/env "$test_root/payload/bin/artlight"
+touch "$test_root/payload/share/artlight/"{apps.json,web/index.html,web/v2/index.html}
 cat > "$test_root/fakebin/systemctl" <<'EOF'
 #!/usr/bin/env bash
 set -eu
@@ -22,15 +22,15 @@ printf '%s\n' "$*" >> "$TEST_CASE/calls"
 shift
 action=$1
 shift
-if [[ "$*" == *app-dev.lizardbyte.app.Sunshine.service* ]]; then name=sunshine; else name=vibepollo; fi
+if [[ "$*" == *app-dev.lizardbyte.app.Sunshine.service* ]]; then name=sunshine; else name=artlight; fi
 case "$action" in
   is-enabled) cat "$TEST_CASE/$name.enabled"; [[ $(cat "$TEST_CASE/$name.enabled") == enabled ]] ;;
   is-active) [[ $(cat "$TEST_CASE/$name.active") == yes ]] ;;
-  is-failed) [[ -e "$TEST_CASE/failed" && "$name" == vibepollo ]] ;;
+  is-failed) [[ -e "$TEST_CASE/failed" && "$name" == artlight ]] ;;
   show)
     if [[ "$*" == *--property=EnvironmentFiles* ]]; then
       [[ ! -e "$TEST_CASE/ignore-environment" ]] || exit 0
-      python3 - "$TEST_CASE/home/config/systemd/user/vibepollo-steamos.service.d/90-local-runtime.conf" <<'PY'
+      python3 - "$TEST_CASE/home/config/systemd/user/artlight-steamos.service.d/90-local-runtime.conf" <<'PY'
 import pathlib, sys
 dropin = pathlib.Path(sys.argv[1])
 if dropin.exists():
@@ -48,7 +48,7 @@ PY
   stop) echo no > "$TEST_CASE/$name.active" ;;
   start|restart)
     echo yes > "$TEST_CASE/$name.active"
-    if [[ "$name" == vibepollo && -e "$TEST_CASE/fail-restart" ]]; then exit 1; fi ;;
+    if [[ "$name" == artlight && -e "$TEST_CASE/fail-restart" ]]; then exit 1; fi ;;
   daemon-reload) ;;
   *) echo "unexpected systemctl command $action" >&2; exit 1 ;;
 esac
@@ -69,7 +69,7 @@ EOF
 cat > "$test_root/fakebin/readlink" <<'EOF'
 #!/usr/bin/env bash
 if [[ "$*" == '-f -- /proc/4242/exe' ]]; then
-  /usr/bin/readlink -f "$XDG_DATA_HOME/vibepollo-steamos/current/bin/vibepollo"
+  /usr/bin/readlink -f "$XDG_DATA_HOME/artlight-steamos/current/bin/artlight"
 else
   /usr/bin/readlink "$@"
 fi
@@ -90,11 +90,11 @@ new_case() {
   mkdir -p "$case_dir/home/config/sunshine/credentials" "$case_dir/home/data" "$case_dir/driver/lib/dri"
   printf enabled > "$case_dir/sunshine.enabled"
   printf yes > "$case_dir/sunshine.active"
-  printf disabled > "$case_dir/vibepollo.enabled"
-  printf no > "$case_dir/vibepollo.active"
+  printf disabled > "$case_dir/artlight.enabled"
+  printf no > "$case_dir/artlight.active"
   printf 47989 > "$case_dir/http.port"
   source_config="$case_dir/home/config/sunshine"
-  target_config="$case_dir/home/config/vibepollo"
+  target_config="$case_dir/home/config/artlight"
   printf 'certificate\n' > "$source_config/credentials/cacert.pem"
   printf 'private key\n' > "$source_config/credentials/cakey.pem"
   python3 - "$test_root/client.pem" "$source_config/sunshine_state.json" <<'PY'
@@ -117,7 +117,7 @@ file_apps = $source_config/apps.json
 EOF
   printf '{"apps":[{"name":"Desktop","image-path":"%s/cover.png","cmd":"echo keep"}]}\n' "$source_config" > "$source_config/apps.json"
   cp -a "$source_config" "$case_dir/original"
-  printf 'LIBVA_DRIVERS_PATH=%s\nLIBVA_DRIVER_NAME=radeonsi\nVIBEPOLLO_PRIVATE_VAAPI=1\n' \
+  printf 'LIBVA_DRIVERS_PATH=%s\nLIBVA_DRIVER_NAME=radeonsi\nARTLIGHT_PRIVATE_VAAPI=1\n' \
     "$case_dir/driver/lib/dri" > "$case_dir/runtime.env"
   test_env=("HOME=$case_dir/home" "XDG_CONFIG_HOME=$case_dir/home/config" "XDG_DATA_HOME=$case_dir/home/data" \
     "PATH=$test_root/fakebin:/usr/bin:/bin" "TEST_CASE=$case_dir")
@@ -127,12 +127,12 @@ assert_source_preserved() { diff -r "$case_dir/original" "$source_config"; }
 assert_rolled_back() {
   [[ ! -e "$target_config" ]]
   [[ $(cat "$case_dir/sunshine.enabled") == enabled && $(cat "$case_dir/sunshine.active") == yes ]]
-  [[ $(cat "$case_dir/vibepollo.enabled") == disabled && $(cat "$case_dir/vibepollo.active") == no ]]
+  [[ $(cat "$case_dir/artlight.enabled") == disabled && $(cat "$case_dir/artlight.active") == no ]]
   assert_source_preserved
 }
 assert_native_environment() {
-  if [[ ${VIBEPOLLO_TEST_SYSTEMD_INTEGRATION:-0} != 1 ]]; then
-    printf 'SKIP: set VIBEPOLLO_TEST_SYSTEMD_INTEGRATION=1 for the live user-manager parser test\n'
+  if [[ ${ARTLIGHT_TEST_SYSTEMD_INTEGRATION:-0} != 1 ]]; then
+    printf 'SKIP: set ARTLIGHT_TEST_SYSTEMD_INTEGRATION=1 for the live user-manager parser test\n'
     return
   fi
   # Exercise systemd's actual unit-file parser. Quoted EnvironmentFile paths
@@ -141,17 +141,17 @@ assert_native_environment() {
     printf 'SKIP: native EnvironmentFile parser test needs a running user manager\n'
     return
   fi
-  python3 - "$case_dir/home/config/systemd/user/vibepollo-steamos.service.d/90-local-runtime.conf" \
+  python3 - "$case_dir/home/config/systemd/user/artlight-steamos.service.d/90-local-runtime.conf" \
     "$1/local-runtime.env" "$test_root" <<'PY'
 import json, os, pathlib, subprocess, sys, uuid
 dropin, environment, root = map(pathlib.Path, sys.argv[1:])
 runtime = pathlib.Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')) / 'systemd/user'
 runtime.mkdir(parents=True, exist_ok=True)
-name = f'vibepollo-environment-regression-{uuid.uuid4().hex}.service'
+name = f'artlight-environment-regression-{uuid.uuid4().hex}.service'
 unit = runtime / name
 probe = root / 'environment-probe.py'
 output = root / 'environment-result.json'
-keys = ['LIBVA_DRIVERS_PATH', 'LIBVA_DRIVER_NAME', 'VIBEPOLLO_PRIVATE_VAAPI']
+keys = ['LIBVA_DRIVERS_PATH', 'LIBVA_DRIVER_NAME', 'ARTLIGHT_PRIVATE_VAAPI']
 probe.write_text('import json, os, pathlib, sys\n'
                  f'pathlib.Path(sys.argv[1]).write_text(json.dumps({{k: os.environ.get(k) for k in {keys!r}}}))\n')
 def systemctl(*args):
@@ -177,22 +177,22 @@ cp "$source_config/sunshine.conf" "$case_dir/original/sunshine.conf"
 run_replace --service-environment "$case_dir/runtime.env"
 assert_source_preserved
 [[ $(cat "$case_dir/sunshine.active") == no && $(cat "$case_dir/sunshine.enabled") == disabled ]]
-[[ $(cat "$case_dir/vibepollo.active") == yes && $(cat "$case_dir/vibepollo.enabled") == enabled ]]
+[[ $(cat "$case_dir/artlight.active") == yes && $(cat "$case_dir/artlight.enabled") == enabled ]]
 cmp "$source_config/sunshine_state.json" "$target_config/sunshine_state.json"
 cmp "$source_config/credentials/cakey.pem" "$target_config/credentials/cakey.pem"
 cmp "$source_config/credentials/cacert.pem" "$target_config/credentials/cacert.pem"
-! grep -Eq '^(capture|output_name)[[:space:]]*=' "$target_config/vibepollo.conf"
-grep -Eq '^encoder = vaapi$' "$target_config/vibepollo.conf"
-grep -Fq "file_state = $target_config/sunshine_state.json" "$target_config/vibepollo.conf"
-grep -Fq "pkey = $target_config/credentials/cakey.pem" "$target_config/vibepollo.conf"
+! grep -Eq '^(capture|output_name)[[:space:]]*=' "$target_config/artlight.conf"
+grep -Eq '^encoder = vaapi$' "$target_config/artlight.conf"
+grep -Fq "file_state = $target_config/sunshine_state.json" "$target_config/artlight.conf"
+grep -Fq "pkey = $target_config/credentials/cakey.pem" "$target_config/artlight.conf"
 grep -Fq "$target_config/cover.png" "$target_config/apps.json"
 [[ $(stat -c %a "$target_config") == 700 ]]
-backup_dirs=("$case_dir/home/data/"sunshine-before-vibepollo-*)
+backup_dirs=("$case_dir/home/data/"sunshine-before-artlight-*)
 [[ ${#backup_dirs[@]} == 1 && $(stat -c %a "${backup_dirs[0]}") == 700 ]]
-cmp "$case_dir/runtime.env" "$case_dir/home/data/vibepollo-steamos/local-runtime.env"
-grep -Fxq "EnvironmentFile=$case_dir/home/data/vibepollo-steamos/local-runtime.env" \
-  "$case_dir/home/config/systemd/user/vibepollo-steamos.service.d/90-local-runtime.conf"
-assert_native_environment "$case_dir/home/data/vibepollo-steamos"
+cmp "$case_dir/runtime.env" "$case_dir/home/data/artlight-steamos/local-runtime.env"
+grep -Fxq "EnvironmentFile=$case_dir/home/data/artlight-steamos/local-runtime.env" \
+  "$case_dir/home/config/systemd/user/artlight-steamos.service.d/90-local-runtime.conf"
+assert_native_environment "$case_dir/home/data/artlight-steamos"
 grep -Eq 'sport = :48001' "$case_dir/calls"
 grep -Eq 'sport = :48000' "$case_dir/calls"
 grep -Fq 'http://127.0.0.1:48000/serverinfo' "$case_dir/calls"
@@ -203,9 +203,9 @@ spaced_data="$case_dir/home/data with spaces % specifier"
 mkdir -p "$spaced_data"
 test_env+=("XDG_DATA_HOME=$spaced_data")
 run_replace --service-environment "$case_dir/runtime.env"
-grep -Fxq "EnvironmentFile=${spaced_data//%/%%}/vibepollo-steamos/local-runtime.env" \
-  "$case_dir/home/config/systemd/user/vibepollo-steamos.service.d/90-local-runtime.conf"
-assert_native_environment "$spaced_data/vibepollo-steamos"
+grep -Fxq "EnvironmentFile=${spaced_data//%/%%}/artlight-steamos/local-runtime.env" \
+  "$case_dir/home/config/systemd/user/artlight-steamos.service.d/90-local-runtime.conf"
+assert_native_environment "$spaced_data/artlight-steamos"
 assert_source_preserved
 
 # A manager that ignores the environment must fail before stopping Sunshine.
@@ -234,7 +234,7 @@ cp "$source_config/sunshine.conf" "$case_dir/original/sunshine.conf"
 run_replace
 assert_source_preserved
 cmp "$case_dir/external-state.json" "$target_config/imported-file_state.json"
-grep -Fq "credentials_file = $target_config/imported-file_state.json" "$target_config/vibepollo.conf"
+grep -Fq "credentials_file = $target_config/imported-file_state.json" "$target_config/artlight.conf"
 
 # Legacy aliases retain the original client identity in the copied state.
 new_case duplicate-aliases
@@ -256,7 +256,7 @@ source, target = [json.loads(pathlib.Path(path).read_text()) for path in sys.arg
 source['root']['named_devices'] = source['root']['named_devices'][:1]
 assert source == target
 PY
-backup_dirs=("$case_dir/home/data/"sunshine-before-vibepollo-*)
+backup_dirs=("$case_dir/home/data/"sunshine-before-artlight-*)
 cmp "$source_config/sunshine_state.json" "${backup_dirs[0]}/sunshine/sunshine_state.json"
 
 # A disabled duplicate must not be silently merged into an enabled client.
@@ -279,31 +279,31 @@ assert_rolled_back
 # Failed restart restores the pre-staged bundle and private driver environment.
 new_case rollback
 env "${test_env[@]}" "$steamos_dir/install-user.sh" --payload "$test_root/payload" --no-start
-printf disabled > "$case_dir/vibepollo.enabled"
-old_release=$(readlink "$case_dir/home/data/vibepollo-steamos/current")
-cp "$case_dir/home/.local/bin/vibepollo-steamos-session" "$case_dir/old-launcher"
-mkdir -p "$case_dir/home/config/systemd/user/vibepollo-steamos.service.d"
-printf '[Service]\nEnvironment=PREVIOUS=yes\n' > "$case_dir/home/config/systemd/user/vibepollo-steamos.service.d/90-local-runtime.conf"
-printf previous > "$case_dir/home/data/vibepollo-steamos/local-runtime.env"
+printf disabled > "$case_dir/artlight.enabled"
+old_release=$(readlink "$case_dir/home/data/artlight-steamos/current")
+cp "$case_dir/home/.local/bin/artlight-steamos-session" "$case_dir/old-launcher"
+mkdir -p "$case_dir/home/config/systemd/user/artlight-steamos.service.d"
+printf '[Service]\nEnvironment=PREVIOUS=yes\n' > "$case_dir/home/config/systemd/user/artlight-steamos.service.d/90-local-runtime.conf"
+printf previous > "$case_dir/home/data/artlight-steamos/local-runtime.env"
 touch "$case_dir/fail-restart"
 if run_replace --service-environment "$case_dir/runtime.env"; then echo 'ERROR: failed restart passed' >&2; exit 1; fi
 assert_rolled_back
-[[ $(readlink "$case_dir/home/data/vibepollo-steamos/current") == "$old_release" ]]
-cmp "$case_dir/old-launcher" "$case_dir/home/.local/bin/vibepollo-steamos-session"
-grep -Eq 'PREVIOUS=yes' "$case_dir/home/config/systemd/user/vibepollo-steamos.service.d/90-local-runtime.conf"
-[[ $(cat "$case_dir/home/data/vibepollo-steamos/local-runtime.env") == previous ]]
+[[ $(readlink "$case_dir/home/data/artlight-steamos/current") == "$old_release" ]]
+cmp "$case_dir/old-launcher" "$case_dir/home/.local/bin/artlight-steamos-session"
+grep -Eq 'PREVIOUS=yes' "$case_dir/home/config/systemd/user/artlight-steamos.service.d/90-local-runtime.conf"
+[[ $(cat "$case_dir/home/data/artlight-steamos/local-runtime.env") == previous ]]
 
 # Being active alone is insufficient: a failed HTTPS endpoint rolls back too.
 new_case readiness
 touch "$case_dir/fail-https" "$case_dir/failed"
 if run_replace; then echo 'ERROR: failed readiness passed' >&2; exit 1; fi
 assert_rolled_back
-[[ ! -e "$case_dir/home/data/vibepollo-steamos/current" ]]
+[[ ! -e "$case_dir/home/data/artlight-steamos/current" ]]
 
 # A stale Sunshine listener cannot satisfy readiness for the new service.
 new_case stale
 touch "$case_dir/stale-listener" "$case_dir/failed"
-if run_replace; then echo 'ERROR: old listener accepted as Vibepollo' >&2; exit 1; fi
+if run_replace; then echo 'ERROR: old listener accepted as ArtLight' >&2; exit 1; fi
 assert_rolled_back
 ! grep -Eq 'HTTPS readiness' "$case_dir/calls"
 
@@ -342,7 +342,7 @@ assert_source_preserved
 new_case preflight
 mkdir -p "$case_dir/bad-payload"
 cp -a "$test_root/payload/." "$case_dir/bad-payload/"
-printf '#!/usr/bin/env bash\nexit 1\n' > "$case_dir/bad-payload/bin/vibepollo"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$case_dir/bad-payload/bin/artlight"
 if env "${test_env[@]}" bash "$script" --payload "$case_dir/bad-payload"; then exit 1; fi
 ! grep -Eq '(disable|stop|restart|start) ' "$case_dir/calls"
 assert_rolled_back

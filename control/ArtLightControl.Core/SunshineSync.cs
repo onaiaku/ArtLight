@@ -30,7 +30,7 @@ namespace ArtLightControl
 
         // ── Path discovery ────────────────────────────────────────────────────
 
-        private static readonly string[] _knownAppNames = { "ArtLight Server", "Sunshine", "Apollo", "Vibeshine", "Vibepollo" };
+        private static readonly string[] _knownAppNames = { "ArtLight Server", "Sunshine", "Apollo", "Vibeshine", "ArtLight" };
 
         public static string? FindAppsJsonPath()
         {

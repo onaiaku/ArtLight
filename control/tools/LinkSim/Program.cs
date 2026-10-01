@@ -420,7 +420,7 @@ Scenario("S15  end-of-session log lines are recognised (real lines, all four ser
          "[2026-09-03 20:17:18.400]: Info: CLIENT DISCONNECTED [1 remaining]",
          LogParser.StreamingEvent.StreamStopped);
 
-    // ── The pair Vibeshine and Vibepollo declare for themselves ──────────────
+    // ── The pair Vibeshine and ArtLight declare for themselves ──────────────
     // Verbatim from a real log. begin_session lands about a second before CLIENT CONNECTED and
     // end_session in the same millisecond as "Session ended"; both are absent on Sunshine and
     // Apollo, where the markers above carry the session on their own.

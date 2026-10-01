@@ -25,30 +25,30 @@ static void check(std::initializer_list<const char *> input,
 }
 
 int main() {
-  constexpr auto helper = "/usr/libexec/vibeshine/vibepollo-machine-host";
-  check({"vibepollo", "configure", "alice"}, {helper, "configure", "alice"});
+  constexpr auto helper = "/usr/libexec/vibeshine/artlight-machine-host";
+  check({"artlight", "configure", "alice"}, {helper, "configure", "alice"});
   // Arguments remain literal and cannot become shell commands or helper options.
-  check({"vibepollo", "configure", "alice; touch /tmp/unwanted"}, {helper, "configure", "alice; touch /tmp/unwanted"});
-  check({"vibepollo", "configure", "--help"}, {});
-  check({"vibepollo", "configure"}, {});
-  check({"vibepollo", "configure", "alice", "bob"}, {});
-  check({"vibepollo", "migrate"}, {helper, "configure-auto"});
-  check({"vibepollo", "reset"}, {helper, "reset"});
-  check({"vibepollo", "reset", "anything"}, {});
-  check({"vibepollo", "authorize-commands"}, {helper, "authorize-commands"});
-  check({"vibepollo", "driver", "status"}, {"/usr/libexec/vibeshine/vibeshine-drm-install", "status"});
-  check({"vibepollo", "driver", "install"}, {"/usr/libexec/vibeshine/vibeshine-drm-install", "install"});
-  check({"vibepollo", "driver", "arbitrary-operation"}, {});
-  check({"vibepollo", "status"}, {"/usr/bin/systemctl", "--no-pager", "--full", "status",
-                                  "vibepollo-session-controller.service", "vibepollo-session-exec.socket", "vibepollo.service"});
-  check({"vibepollo", "logs"}, {"/usr/bin/journalctl", "--no-pager", "-n", "200",
-                                "-u", "vibepollo-session-controller.service", "-u", "vibepollo-session-exec@.service", "-u", "vibepollo.service"});
-  check({"vibepollo"}, {}, false);
-  check({"vibepollo", "/var/lib/vibepollo/vibepollo.conf"}, {}, false);
-  check({"vibepollo", "--version"}, {}, false);
-  check({"vibepollo", "encoder=nvenc"}, {}, false);
+  check({"artlight", "configure", "alice; touch /tmp/unwanted"}, {helper, "configure", "alice; touch /tmp/unwanted"});
+  check({"artlight", "configure", "--help"}, {});
+  check({"artlight", "configure"}, {});
+  check({"artlight", "configure", "alice", "bob"}, {});
+  check({"artlight", "migrate"}, {helper, "configure-auto"});
+  check({"artlight", "reset"}, {helper, "reset"});
+  check({"artlight", "reset", "anything"}, {});
+  check({"artlight", "authorize-commands"}, {helper, "authorize-commands"});
+  check({"artlight", "driver", "status"}, {"/usr/libexec/vibeshine/vibeshine-drm-install", "status"});
+  check({"artlight", "driver", "install"}, {"/usr/libexec/vibeshine/vibeshine-drm-install", "install"});
+  check({"artlight", "driver", "arbitrary-operation"}, {});
+  check({"artlight", "status"}, {"/usr/bin/systemctl", "--no-pager", "--full", "status",
+                                  "artlight-session-controller.service", "artlight-session-exec.socket", "artlight.service"});
+  check({"artlight", "logs"}, {"/usr/bin/journalctl", "--no-pager", "-n", "200",
+                                "-u", "artlight-session-controller.service", "-u", "artlight-session-exec@.service", "-u", "artlight.service"});
+  check({"artlight"}, {}, false);
+  check({"artlight", "/var/lib/artlight/artlight.conf"}, {}, false);
+  check({"artlight", "--version"}, {}, false);
+  check({"artlight", "encoder=nvenc"}, {}, false);
 
-  char name[] = "vibepollo";
+  char name[] = "artlight";
   char paths[] = "paths";
   char extra[] = "unexpected";
   char *argv[] = {name, paths, extra};

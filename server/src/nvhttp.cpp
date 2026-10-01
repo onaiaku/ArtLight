@@ -2060,7 +2060,7 @@ namespace nvhttp {
       const auto primary = statefile::load_primary_state(root);
       if (primary != statefile::json_load_result_e::loaded &&
           !(allow_missing_state && primary == statefile::json_load_result_e::missing)) {
-        BOOST_LOG(error) << "Refusing to replace unavailable Vibepollo pairing state.";
+        BOOST_LOG(error) << "Refusing to replace unavailable ArtLight pairing state.";
         return false;
       }
 
@@ -2145,7 +2145,7 @@ namespace nvhttp {
         if (!state_policy::normalize_snapshot(root)) return false;
         statefile::write_sunshine_state_atomic(root);
       } catch (const std::exception &e) {
-        BOOST_LOG(error) << "Couldn't write Vibepollo pairing state: " << e.what();
+        BOOST_LOG(error) << "Couldn't write ArtLight pairing state: " << e.what();
         return false;
       }
 
@@ -2290,7 +2290,7 @@ namespace nvhttp {
           if (!build_paired_client_records(client, identities, records)) return std::nullopt;
           return parsed_state_t {std::move(client), std::move(remote_display_layout)};
         } catch (...) {
-          BOOST_LOG(error) << "Vibepollo pairing state is malformed.";
+          BOOST_LOG(error) << "ArtLight pairing state is malformed.";
           return std::nullopt;
         }
       };
@@ -2310,14 +2310,14 @@ namespace nvhttp {
           update::state.last_notified_version.clear();
           return true;
         }
-        BOOST_LOG(error) << "No valid Vibepollo pairing snapshot; refusing to create a replacement identity.";
+        BOOST_LOG(error) << "No valid ArtLight pairing snapshot; refusing to create a replacement identity.";
         return false;
       }
       // Selection has already restored and validated any recovered snapshot.
       try {
         statefile::write_json_atomic(statefile::sunshine_state_backup_path(), tree);
       } catch (const std::exception &e) {
-        BOOST_LOG(warning) << "Could not persist Vibepollo recovery snapshot: " << e.what();
+        BOOST_LOG(warning) << "Could not persist ArtLight recovery snapshot: " << e.what();
       }
       const auto &root = tree["root"];
       http::unique_id = root["uniqueid"].get<std::string>();
@@ -4125,7 +4125,7 @@ namespace nvhttp {
         configured_apps.reserve(visible_apps.size());
         for (const auto *app : visible_apps) {
           const auto appid = util::from_view(app->id);
-          // The source remote-session controls replace Vibepollo's legacy
+          // The source remote-session controls replace ArtLight's legacy
           // synthetic input/terminate entries; do not advertise both sets.
           if (appid == proc::input_only_app_id || appid == proc::terminate_app_id) {
             continue;
@@ -4141,7 +4141,7 @@ namespace nvhttp {
           .paired = !identity.uuid.empty(),
           .may_view = has_client_perm(verified_client, PERM::view),
           .may_launch = has_client_perm(verified_client, PERM::launch),
-          // Vibepollo has no separate termination permission; normal app
+          // ArtLight has no separate termination permission; normal app
           // termination is authorized by the launch permission too.
           .may_terminate = has_client_perm(verified_client, PERM::launch),
         };
@@ -6496,7 +6496,7 @@ namespace nvhttp {
     shutdown_event->view();
 
 #ifdef __linux__
-    if (const char *machine_host = std::getenv("VIBEPOLLO_MACHINE_HOST"); machine_host && machine_host[0] == '1' && machine_host[1] == '\0') {
+    if (const char *machine_host = std::getenv("ARTLIGHT_MACHINE_HOST"); machine_host && machine_host[0] == '1' && machine_host[1] == '\0') {
       // Publish the handoff fence before any session destructor can recompose,
       // restore, or disconnect a compositor-owned output.
       platf::linux_private_display::request_process_shutdown_preserve();

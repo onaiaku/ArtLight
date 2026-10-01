@@ -2812,7 +2812,7 @@ this option to replace the running app immediately. The default is `true`.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Allows PyroWave-capable clients (such as the Nonary Moonlight fork) to request PyroWave, an
+            Allows PyroWave-capable clients (such as the onaiaku Moonlight fork) to request PyroWave, an
             intra-only GPU wavelet codec. Every frame is coded on its own in well under a millisecond, so a lost
             frame never needs a keyframe, but a clean picture needs hundreds of Mbps; use it on wired LANs only.
             It is advertised only when the GPU can run the PyroWave Vulkan encoder. Windows uses Direct3D 11

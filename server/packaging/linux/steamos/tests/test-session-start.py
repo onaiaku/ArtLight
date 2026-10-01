@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Exercise mode startup with isolated units in an available user manager.
 
-No real desktop, compositor, or Vibepollo service is started or stopped.
+No real desktop, compositor, or ArtLight service is started or stopped.
 """
 import os
 import pathlib
@@ -18,20 +18,20 @@ def systemctl(*args, check=True):
 
 
 def exercise(source, direct_start):
-    prefix = 'vibepollo-session-test-' + uuid.uuid4().hex
+    prefix = 'artlight-session-test-' + uuid.uuid4().hex
     names = {name: prefix + '-' + name for name in (
         'graphical-session.target', 'gamescope-session.target',
-        'gamescope-session.service', 'vibepollo-steamos.service',
+        'gamescope-session.service', 'artlight-steamos.service',
         'desktop.target',
     )}
-    host = names['vibepollo-steamos.service']
+    host = names['artlight-steamos.service']
     with tempfile.TemporaryDirectory(prefix=prefix) as directory:
         root = pathlib.Path(directory)
         ready = root / 'compositor-ready'
         unit = source.replace('Wants=pipewire.service wireplumber.service', '')
         unit = unit.replace(' pipewire.service wireplumber.service', '')
         unit = unit.replace(
-            'ExecStart=%h/.local/bin/vibepollo-steamos-session',
+            'ExecStart=%h/.local/bin/artlight-steamos-session',
             'ExecStart=/usr/bin/sleep infinity\nExecStop=/usr/bin/sleep 1',
         )
         if not direct_start:
@@ -84,11 +84,11 @@ def exercise(source, direct_start):
 
 
 if __name__ == '__main__':
-    if os.environ.get('VIBEPOLLO_TEST_SYSTEMD_INTEGRATION') != '1':
-        print('SKIP: set VIBEPOLLO_TEST_SYSTEMD_INTEGRATION=1 to use the live user manager.')
+    if os.environ.get('ARTLIGHT_TEST_SYSTEMD_INTEGRATION') != '1':
+        print('SKIP: set ARTLIGHT_TEST_SYSTEMD_INTEGRATION=1 to use the live user manager.')
         raise SystemExit(0)
     source = (pathlib.Path(__file__).resolve().parent.parent /
-              'vibepollo-steamos.service').read_text()
+              'artlight-steamos.service').read_text()
     if systemctl('show-environment', check=False).returncode:
         raise SystemExit('A reachable systemd user manager is required for this test.')
     exercise(source, direct_start=False)

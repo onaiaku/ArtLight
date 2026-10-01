@@ -102,7 +102,7 @@ namespace platf::lutris {
 
 #if defined(__linux__)
     bool machine_host_mode() {
-      const auto *value = std::getenv("VIBEPOLLO_MACHINE_HOST");
+      const auto *value = std::getenv("ARTLIGHT_MACHINE_HOST");
       return value && *value;
     }
 
@@ -304,7 +304,7 @@ namespace platf::lutris {
       setsid();
       if (machine_host) {
         const auto id_string = std::to_string(id);
-        execl("/usr/libexec/vibeshine/vibepollo-session-exec", "vibepollo-session-exec", "lutris", id_string.c_str(), static_cast<char *>(nullptr));
+        execl("/usr/libexec/vibeshine/artlight-session-exec", "artlight-session-exec", "lutris", id_string.c_str(), static_cast<char *>(nullptr));
       } else {
         execl(executable.c_str(), executable.c_str(), uri.c_str(), static_cast<char *>(nullptr));
       }

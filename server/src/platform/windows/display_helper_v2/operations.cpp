@@ -787,7 +787,7 @@ namespace display_helper::v2 {
 
     // The OS can report a fully matching layout while the display driver's
     // pointer transform is still stale after a virtual-display session
-    // (Vibepollo #406). When the matching fast path confirms a baseline that
+    // (ArtLight #406). When the matching fast path confirms a baseline that
     // holds a non-default rotation, force a same-value rotation refresh so the
     // driver rebuilds that transform. Best-effort by design: a confirmed
     // restore must never fail on this.

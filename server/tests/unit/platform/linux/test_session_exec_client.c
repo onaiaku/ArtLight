@@ -4,9 +4,9 @@
 #include <stdio.h>
 #include <sys/wait.h>
 
-int vibepollo_session_exec_entrypoint(int argc, char **argv);
-#define main vibepollo_session_exec_entrypoint
-#include "../../../../packaging/linux/vibepollo-session-exec.c"
+int artlight_session_exec_entrypoint(int argc, char **argv);
+#define main artlight_session_exec_entrypoint
+#include "../../../../packaging/linux/artlight-session-exec.c"
 #undef main
 
 #define CHECK(expression) do { \
@@ -40,8 +40,8 @@ static int check_client_termination(int signal_number, bool pending) {
         sigprocmask(SIG_BLOCK, &signals, NULL)) _exit(1);
     if (pending && kill(getpid(), signal_number)) _exit(1);
 
-    char *arguments[] = {"vibepollo-session-exec", NULL};
-    if (vibepollo_session_exec_entrypoint(1, arguments) != 2) _exit(1);
+    char *arguments[] = {"artlight-session-exec", NULL};
+    if (artlight_session_exec_entrypoint(1, arguments) != 2) _exit(1);
     if (pending) _exit(1); // A pending stop must take effect at client entry.
     if (send(peers[1], "R", 1, MSG_NOSIGNAL) != 1) _exit(1);
     _exit(relay_responses(peers[1], 42));
@@ -83,27 +83,27 @@ int main(void) {
   CHECK(!socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, peers));
   CHECK(peer_is_root_broker(peers[0]) == (getuid() == 0 && getgid() == 0));
   char *arguments[] = {
-    "vibepollo-session-exec", "audio-set-default", "safe_sink", NULL
+    "artlight-session-exec", "audio-set-default", "safe_sink", NULL
   };
   CHECK(send_request(peers[0], 3, arguments, 42));
   unsigned char packet[512] = {0};
   const ssize_t received = recv(peers[1], packet, sizeof(packet), 0);
-  CHECK(received > (ssize_t) sizeof(struct vibepollo_session_message));
-  struct vibepollo_session_message header = {0};
+  CHECK(received > (ssize_t) sizeof(struct artlight_session_message));
+  struct artlight_session_message header = {0};
   memcpy(&header, packet, sizeof(header));
-  CHECK(header.magic == VIBEPOLLO_SESSION_PROTOCOL_MAGIC);
-  CHECK(header.version == VIBEPOLLO_SESSION_PROTOCOL_VERSION);
-  CHECK(header.type == VIBEPOLLO_SESSION_REQUEST);
+  CHECK(header.magic == ARTLIGHT_SESSION_PROTOCOL_MAGIC);
+  CHECK(header.version == ARTLIGHT_SESSION_PROTOCOL_VERSION);
+  CHECK(header.type == ARTLIGHT_SESSION_REQUEST);
   CHECK(header.argument_count == 2 && header.generation == 42);
   CHECK(header.payload_length == strlen("audio-set-default") + 1 + strlen("safe_sink") + 1);
   const char *first = (const char *) packet + sizeof(header);
   const char *second = first + strlen(first) + 1;
   CHECK(!strcmp(first, "audio-set-default") && !strcmp(second, "safe_sink"));
 
-  const struct vibepollo_session_message exit_header = {
-    .magic = VIBEPOLLO_SESSION_PROTOCOL_MAGIC,
-    .version = VIBEPOLLO_SESSION_PROTOCOL_VERSION,
-    .type = VIBEPOLLO_SESSION_EXIT,
+  const struct artlight_session_message exit_header = {
+    .magic = ARTLIGHT_SESSION_PROTOCOL_MAGIC,
+    .version = ARTLIGHT_SESSION_PROTOCOL_VERSION,
+    .type = ARTLIGHT_SESSION_EXIT,
     .generation = 42,
     .status = 7,
   };

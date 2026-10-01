@@ -89,7 +89,7 @@ class LocalGamescopeGuards(unittest.TestCase):
 
     def test_session_guard_failure_uses_stock_session(self):
         with mock.patch.object(wrapper, 'verify', side_effect=RuntimeError('missing capability')):
-            with mock.patch.object(wrapper.sys, 'argv', ['gamescope', '--vibepollo-session']):
+            with mock.patch.object(wrapper.sys, 'argv', ['gamescope', '--artlight-session']):
                 with mock.patch.object(wrapper.os, 'execv', side_effect=SystemExit) as execute:
                     with self.assertRaises(SystemExit):
                         wrapper.main()
@@ -148,7 +148,7 @@ class LocalGamescopeGuards(unittest.TestCase):
             opt = fake_root / 'opt'
             opt.mkdir(mode=0o755)
             opt.chmod(0o755)
-            parent = opt / 'vibepollo-gamescope/local'
+            parent = opt / 'artlight-gamescope/local'
             destination = parent / 'test-release'
             self.manifest['install_root'] = str(destination)
             self.write_manifest()

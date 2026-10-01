@@ -1,0 +1,447 @@
+#!/bin/sh
+
+if command -v systemd-sysusers >/dev/null 2>&1; then
+  systemd-sysusers "@VIBESHINE_SYSUSERS_INSTALL_DIR@/vibeshine-vkms.conf" || \
+    echo "warning: could not create the dedicated vibeshine-vkms control group."
+  systemd-sysusers "@VIBESHINE_SYSUSERS_INSTALL_DIR@/artlight.conf" || \
+    echo "warning: could not create the dedicated ArtLight service account."
+fi
+
+artlight_controller="@VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR@/artlight-session-controller"
+artlight_host_upgrade_dropin_dir=/run/systemd/system/artlight.service.d
+artlight_host_upgrade_dropin=$artlight_host_upgrade_dropin_dir/90-artlight-safe-upgrade.conf
+artlight_privileged_helper_is_safe() {
+  [ -f "$1" ] && [ ! -L "$1" ] && [ -x "$1" ] || return 1
+  [ "$(stat -c '%u:%g:%a:%h:%F' -- "$1")" = \
+    '0:0:755:1:regular file' ]
+}
+artlight_unmask_host_for_controller() {
+  artlight_unit_is_quiescent artlight-session-controller.service || return 1
+  artlight_unit_is_quiescent artlight-session-exec.socket || return 1
+  if [ -e "$artlight_host_upgrade_dropin" ] || [ -L "$artlight_host_upgrade_dropin" ]; then
+    [ -f "$artlight_host_upgrade_dropin" ] && [ ! -L "$artlight_host_upgrade_dropin" ] || return 1
+    [ "$(stat -c '%u:%g:%a:%h:%F' -- "$artlight_host_upgrade_dropin")" = \
+      '0:0:644:1:regular file' ] || return 1
+    artlight_upgrade_contents=$(sed -n '1,6p' -- "$artlight_host_upgrade_dropin") || return 1
+    case "$artlight_upgrade_contents" in
+      '[Unit]
+RefuseManualStart=yes
+
+[Service]
+KillMode=process
+SendSIGKILL=no' | \
+      '[Unit]
+RefuseManualStart=yes
+
+[Service]
+KillMode=control-group
+SendSIGKILL=no' | \
+      '[Unit]
+RefuseManualStart=yes
+
+[Service]
+KillMode=mixed
+SendSIGKILL=no') ;;
+      *) return 1 ;;
+    esac
+    rm -f -- "$artlight_host_upgrade_dropin" || return 1
+    rmdir -- "$artlight_host_upgrade_dropin_dir" 2>/dev/null || true
+  fi
+  systemctl daemon-reload || return 1
+  timeout --signal=KILL 15 systemctl unmask --runtime artlight.service 2>/dev/null || return 1
+  systemctl daemon-reload || return 1
+  artlight_new_host_properties=$(timeout --signal=KILL 5 systemctl show artlight.service \
+    --property=RefuseManualStart --property=KillMode --property=SendSIGKILL 2>/dev/null) || return 1
+  printf '%s\n' "$artlight_new_host_properties" | grep -qx 'RefuseManualStart=no' || return 1
+  printf '%s\n' "$artlight_new_host_properties" | grep -qx 'KillMode=mixed' || return 1
+  printf '%s\n' "$artlight_new_host_properties" | grep -qx 'SendSIGKILL=no' || return 1
+  timeout --signal=KILL 15 systemctl unmask --runtime vibeshine-vkms-control.socket 2>/dev/null || return 1
+  systemctl start vibeshine-vkms-control.socket || return 1
+  systemctl is-active --quiet vibeshine-vkms-control.socket || return 1
+  timeout --signal=KILL 15 systemctl unmask --runtime artlight-session-exec.socket 2>/dev/null || return 1
+  artlight_host_state=$(timeout --signal=KILL 5 systemctl is-enabled \
+    artlight.service 2>/dev/null || true)
+  artlight_host_load=$(timeout --signal=KILL 5 systemctl show \
+    artlight.service --property=LoadState 2>/dev/null) || return 1
+  artlight_socket_state=$(timeout --signal=KILL 5 systemctl is-enabled \
+    artlight-session-exec.socket 2>/dev/null || true)
+  artlight_socket_load=$(timeout --signal=KILL 5 systemctl show \
+    artlight-session-exec.socket --property=LoadState 2>/dev/null) || return 1
+  case "$artlight_socket_state" in
+    disabled | static | indirect | generated | transient | linked | linked-runtime)
+      [ "$artlight_socket_load" = 'LoadState=loaded' ] || return 1 ;;
+    *) return 1 ;;
+  esac
+  case "$artlight_host_state" in
+    disabled | static | indirect | generated | transient | linked | linked-runtime)
+      [ "$artlight_host_load" = 'LoadState=loaded' ] ;;
+    *) return 1 ;;
+  esac
+}
+
+artlight_cgroup_is_quiescent() {
+  artlight_control_group=$1
+  [ -n "$artlight_control_group" ] || return 0
+  case "$artlight_control_group" in /*) ;; *) return 1 ;; esac
+  case "$artlight_control_group" in */../* | */..) return 1 ;; esac
+  artlight_cgroup_path=/sys/fs/cgroup$artlight_control_group
+  if [ ! -e "$artlight_cgroup_path" ] && [ ! -L "$artlight_cgroup_path" ]; then return 0; fi
+  [ -d "$artlight_cgroup_path" ] && [ ! -L "$artlight_cgroup_path" ] && \
+    [ -f "$artlight_cgroup_path/cgroup.events" ] && \
+    [ ! -L "$artlight_cgroup_path/cgroup.events" ] && \
+    grep -qx 'populated 0' "$artlight_cgroup_path/cgroup.events"
+}
+
+artlight_unit_is_quiescent() {
+  artlight_properties=$(timeout --signal=KILL 5 systemctl show "$1" \
+    --property=LoadState --property=ActiveState --property=SubState --property=MainPID \
+    --property=ControlGroup 2>/dev/null) || return 1
+  artlight_property_lines=$(printf '%s\n' "$artlight_properties" | wc -l | tr -d ' ')
+  case "$1:$artlight_property_lines" in
+    *.socket:4 | *.socket:5 | *:5) ;;
+    *) return 1 ;;
+  esac
+  for artlight_property in LoadState ActiveState SubState ControlGroup; do
+    artlight_property_count=$(printf '%s\n' "$artlight_properties" | \
+      grep -c "^$artlight_property=" || true)
+    [ "$artlight_property_count" = 1 ] || return 1
+  done
+  artlight_property_count=$(printf '%s\n' "$artlight_properties" | grep -c '^MainPID=' || true)
+  case "$1:$artlight_property_count" in
+    *.socket:0 | *.socket:1 | *:1) ;;
+    *) return 1 ;;
+  esac
+  artlight_load=$(printf '%s\n' "$artlight_properties" | sed -n 's/^LoadState=//p')
+  artlight_state=$(printf '%s\n' "$artlight_properties" | sed -n 's/^ActiveState=//p')
+  artlight_substate=$(printf '%s\n' "$artlight_properties" | sed -n 's/^SubState=//p')
+  artlight_pid=$(printf '%s\n' "$artlight_properties" | sed -n 's/^MainPID=//p')
+  case "$1" in *.socket) [ -n "$artlight_pid" ] || artlight_pid=0 ;; esac
+  artlight_control_group=$(printf '%s\n' "$artlight_properties" | sed -n 's/^ControlGroup=//p')
+  case "$artlight_load:$artlight_state:$artlight_substate" in
+    not-found:inactive:dead | \
+    loaded:inactive:dead | loaded:failed:failed | \
+    masked:inactive:dead | masked:failed:failed | \
+    masked-runtime:inactive:dead | masked-runtime:failed:failed) ;;
+    *) return 1 ;;
+  esac
+  [ "$artlight_pid" = 0 ] && artlight_cgroup_is_quiescent "$artlight_control_group"
+}
+
+artlight_unit_is_disabled() {
+  artlight_enabled=$(timeout --signal=KILL 5 systemctl is-enabled "$1" 2>/dev/null || true)
+  case "$artlight_enabled" in
+    disabled | masked | masked-runtime | static | indirect | generated | transient | linked | linked-runtime | not-found) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+artlight_unit_is_masked() {
+  artlight_enabled=$(timeout --signal=KILL 5 systemctl is-enabled "$1" 2>/dev/null || true)
+  artlight_load=$(timeout --signal=KILL 5 systemctl show "$1" \
+    --property=LoadState 2>/dev/null) || return 1
+  case "$artlight_enabled" in
+    masked | masked-runtime) [ "$artlight_load" = 'LoadState=masked' ] ;;
+    *) return 1 ;;
+  esac
+}
+
+artlight_broker_unit_is_safe() {
+  artlight_broker_unit=$1
+  case "$artlight_broker_unit" in artlight-session-exec@*.service) ;; *) return 1 ;; esac
+  artlight_broker_instance=${artlight_broker_unit#artlight-session-exec@}
+  artlight_broker_instance=${artlight_broker_instance%.service}
+  [ -n "$artlight_broker_instance" ] || return 1
+  case "$artlight_broker_instance" in *[!A-Za-z0-9_.:-]*) return 1 ;; esac
+}
+
+artlight_stop_exact_unit() {
+  # Never bypass a service's ordered resource teardown.  Killing systemctl
+  # only abandons the client while its manager job continues; killing the unit
+  # cgroup can strand live GPU imports and is therefore forbidden here.
+  timeout --signal=TERM --kill-after=2 30 systemctl stop "$1" 2>/dev/null
+}
+
+artlight_capture_broker_list() {
+  artlight_broker_list_path=$1
+  [ -f "$artlight_broker_list_path" ] && [ ! -L "$artlight_broker_list_path" ] || return 1
+  chmod 0600 "$artlight_broker_list_path" || return 1
+  (
+    ulimit -f 128 || exit 1
+    timeout --signal=KILL 5 systemctl list-units --all --plain \
+      --no-legend --no-pager --full 'artlight-session-exec@*.service' \
+      >"$artlight_broker_list_path" 2>/dev/null
+  ) || return 1
+  artlight_broker_list_size=$(stat -c '%s' -- "$artlight_broker_list_path") || return 1
+  case "$artlight_broker_list_size" in '' | *[!0-9]*) return 1 ;; esac
+  [ "$artlight_broker_list_size" -le 65536 ]
+}
+
+artlight_stop_brokers() (
+  artlight_broker_list=$(mktemp /run/artlight-broker-units.XXXXXX) || exit 1
+  trap 'rm -f -- "$artlight_broker_list"' 0
+  trap 'exit 1' HUP INT TERM
+  artlight_broker_attempt=0
+  artlight_broker_clean_passes=0
+  while [ "$artlight_broker_attempt" -lt 20 ]; do
+    artlight_broker_dirty=0
+    artlight_capture_broker_list "$artlight_broker_list" || return 1
+    artlight_seen_units='
+'
+    artlight_seen_count=0
+    while IFS= read -r artlight_line || [ -n "$artlight_line" ]; do
+      [ -n "$artlight_line" ] || continue
+      case "$artlight_line" in *"
+"*) return 1 ;; esac
+      set -f
+      set -- $artlight_line
+      [ "${1:-}" = '●' ] && shift
+      [ "$#" -ge 4 ] || return 1
+      artlight_unit=$1
+      artlight_load=$2
+      artlight_state=$3
+      artlight_substate=$4
+      artlight_broker_unit_is_safe "$artlight_unit" || return 1
+      [ "$artlight_load" = loaded ] || return 1
+      case "$artlight_state:$artlight_substate" in *[!a-z:-]*) return 1 ;; esac
+      case "$artlight_seen_units" in *"
+$artlight_unit
+"*) return 1 ;; esac
+      artlight_seen_units="$artlight_seen_units$artlight_unit
+"
+      artlight_seen_count=$((artlight_seen_count + 1))
+      [ "$artlight_seen_count" -le 256 ] || return 1
+      if ! artlight_unit_is_quiescent "$artlight_unit"; then
+        artlight_broker_dirty=1
+        artlight_stop_exact_unit "$artlight_unit"
+        artlight_unit_is_quiescent "$artlight_unit" || return 1
+      fi
+    done <"$artlight_broker_list"
+    if [ "$artlight_broker_dirty" -eq 0 ]; then
+      artlight_broker_clean_passes=$((artlight_broker_clean_passes + 1))
+      [ "$artlight_broker_clean_passes" -lt 5 ] || return 0
+    else
+      artlight_broker_clean_passes=0
+    fi
+    artlight_broker_attempt=$((artlight_broker_attempt + 1))
+    sleep 0.1
+  done
+  return 1
+)
+
+artlight_quiesce_machine_host() {
+  artlight_have_systemd=0
+  if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    artlight_have_systemd=1
+    timeout --signal=KILL 15 systemctl mask --runtime artlight.service \
+      artlight-session-exec.socket 2>/dev/null || return 1
+    artlight_unit_is_masked artlight.service || return 1
+    artlight_unit_is_masked artlight-session-exec.socket || return 1
+    artlight_stop_exact_unit artlight-session-exec.socket
+    artlight_unit_is_quiescent artlight-session-exec.socket || return 1
+    artlight_stop_exact_unit artlight.service
+    artlight_unit_is_quiescent artlight.service || return 1
+    artlight_stop_brokers || return 1
+    for artlight_unit in artlight-session-controller.service artlight.service \
+      artlight-prelogin.service artlight-machine-prepare.service; do
+      artlight_stop_exact_unit "$artlight_unit"
+    done
+    timeout --signal=KILL 15 systemctl disable artlight-session-controller.service --now 2>/dev/null || true
+    timeout --signal=KILL 15 systemctl disable artlight.service --now 2>/dev/null || true
+    timeout --signal=KILL 15 systemctl disable artlight-prelogin.service --now 2>/dev/null || true
+    timeout --signal=KILL 15 systemctl disable artlight-machine-prepare.service --now 2>/dev/null || true
+  fi
+
+  if [ -e "$artlight_controller" ] || [ -L "$artlight_controller" ]; then
+    artlight_privileged_helper_is_safe "$artlight_controller" || return 1
+    [ "$artlight_have_systemd" -eq 1 ] || return 1
+    timeout --signal=KILL 40 "$artlight_controller" cleanup || return 1
+  fi
+
+  if [ "$artlight_have_systemd" -eq 1 ]; then
+    artlight_unit_is_masked artlight.service || return 1
+    artlight_unit_is_masked artlight-session-exec.socket || return 1
+    artlight_stop_exact_unit artlight-session-exec.socket
+    artlight_stop_exact_unit artlight.service
+    artlight_unit_is_quiescent artlight.service || return 1
+    artlight_stop_brokers || return 1
+    for artlight_unit in artlight-session-exec.socket artlight-session-controller.service \
+      artlight.service artlight-prelogin.service artlight-machine-prepare.service; do
+      artlight_stop_exact_unit "$artlight_unit"
+      artlight_unit_is_quiescent "$artlight_unit" || return 1
+      artlight_unit_is_disabled "$artlight_unit" || return 1
+    done
+    artlight_stop_brokers || return 1
+  fi
+  if [ -S /run/artlight/session-broker.sock ] && [ ! -L /run/artlight/session-broker.sock ]; then
+    rm -f -- /run/artlight/session-broker.sock || return 1
+  fi
+  [ ! -e /run/artlight/session-broker.sock ] && [ ! -L /run/artlight/session-broker.sock ] && \
+    [ ! -e /run/artlight/session.env ] && [ ! -L /run/artlight/session.env ]
+}
+
+if ! artlight_quiesce_machine_host; then
+  echo "error: could not quiesce the existing machine host; leaving ArtLight disabled." >&2
+  exit 1
+fi
+
+# Upgrade away from the former capability-bearing main/client executables.
+# Native packages receive capture capabilities only from the machine unit;
+# only the socket-activated broker ever changes identity.
+artlight_main="@CMAKE_INSTALL_FULL_BINDIR@/artlight"
+artlight_session_client="@VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR@/artlight-session-exec"
+for artlight_executable in "$artlight_main" "$artlight_session_client"; do
+  if [ ! -f "$artlight_executable" ] || [ -L "$artlight_executable" ]; then
+    echo "error: native executable is missing or unsafe: $artlight_executable" >&2
+    exit 1
+  fi
+  chown root:root "$artlight_executable" || exit 1
+  chmod 0755 "$artlight_executable" || exit 1
+  setcap -r "$artlight_executable" 2>/dev/null || true
+  if [ -n "$(getcap "$artlight_executable" 2>/dev/null)" ]; then
+    echo "error: unsafe capabilities remain on $artlight_executable." >&2
+    exit 1
+  fi
+done
+
+artlight_session_broker="@VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR@/artlight-session-broker"
+if [ ! -f "$artlight_session_broker" ] || [ -L "$artlight_session_broker" ]; then
+  echo "error: root-only session broker is missing or unsafe: $artlight_session_broker" >&2
+  exit 1
+fi
+chown root:root "$artlight_session_broker" || exit 1
+chmod 0700 "$artlight_session_broker" || exit 1
+setcap cap_kill,cap_setgid,cap_setuid=p "$artlight_session_broker" || exit 1
+if [ "$(stat -c '%U:%G:%a:%F' -- "$artlight_session_broker")" != \
+     'root:root:700:regular file' ] ||
+   [ "$(getcap "$artlight_session_broker" 2>/dev/null)" != \
+     "$artlight_session_broker cap_kill,cap_setgid,cap_setuid=p" ]; then
+  echo "error: root-only session broker permissions or capabilities are unsafe." >&2
+  exit 1
+fi
+
+artlight_private_host="@VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR@/artlight-host"
+if [ ! -f "$artlight_private_host" ] || [ -L "$artlight_private_host" ]; then
+  echo "error: private ArtLight host is missing or unsafe: $artlight_private_host" >&2
+  exit 1
+fi
+artlight_public_identity=$(stat -Lc '%d:%i' -- "$artlight_main") || exit 1
+artlight_broker_identity=$(stat -Lc '%d:%i' -- "$artlight_session_broker") || exit 1
+artlight_private_identity=$(stat -Lc '%d:%i' -- "$artlight_private_host") || exit 1
+if [ "$artlight_public_identity" = "$artlight_private_identity" ] ||
+   [ "$artlight_broker_identity" = "$artlight_private_identity" ]; then
+  echo "error: privileged broker and private/public hosts must be distinct inodes." >&2
+  exit 1
+fi
+chown root:artlight "$artlight_private_host" || exit 1
+chmod 0750 "$artlight_private_host" || exit 1
+setcap cap_sys_admin,cap_sys_nice=p "$artlight_private_host" || exit 1
+if [ "$(stat -c '%U:%G:%a:%F' -- "$artlight_private_host")" != \
+     'root:artlight:750:regular file' ] ||
+   [ "$(getcap "$artlight_private_host" 2>/dev/null)" != \
+     "$artlight_private_host cap_sys_admin,cap_sys_nice=p" ]; then
+  echo "error: private ArtLight host permissions or capabilities are unsafe." >&2
+  exit 1
+fi
+if [ "$(getcap "$artlight_session_broker" 2>/dev/null)" != \
+     "$artlight_session_broker cap_kill,cap_setgid,cap_setuid=p" ]; then
+  echo "error: private-host setup altered the session broker capabilities." >&2
+  exit 1
+fi
+for artlight_executable in "$artlight_main" "$artlight_session_client"; do
+  if [ -n "$(getcap "$artlight_executable" 2>/dev/null)" ]; then
+    echo "error: a public ArtLight entrypoint gained file capabilities: $artlight_executable" >&2
+    exit 1
+  fi
+done
+
+artlight_machine_configured=0
+artlight_machine_host="@VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR@/artlight-machine-host"
+if [ -e "$artlight_machine_host" ] || [ -L "$artlight_machine_host" ]; then
+  artlight_privileged_helper_is_safe "$artlight_machine_host" || {
+    echo "error: installed ArtLight machine helper is unsafe." >&2
+    exit 1
+  }
+  "$artlight_machine_host" remove-pam || \
+    echo "warning: could not remove the obsolete Plasma Login Manager handoff hook."
+fi
+systemctl disable --now artlight-prelogin.service 2>/dev/null || true
+systemctl daemon-reload 2>/dev/null || true
+if artlight_privileged_helper_is_safe "$artlight_machine_host" && \
+   "$artlight_machine_host" configure-auto; then
+  artlight_machine_configured=1
+else
+  echo "==> ACTION REQUIRED: ArtLight could not prepare the machine profile; review the preceding setup or migration error." >&2
+  echo "    Run:  sudo artlight configure USER" >&2
+  echo "    then: sudo systemctl enable --now artlight-session-controller.service" >&2
+fi
+
+artlight_restore_kwin_capability() {
+  # Earlier ArtLight builds removed cap_sys_nice from the distro KWin binary
+  # so the GPU bridge could be preloaded. The bridge is now a trusted
+  # set-user-ID library, so give KWin its realtime capability back.
+  kwin=/usr/bin/kwin_wayland
+  marker=user.vibeshine.cap_sys_nice_removed
+  if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    timeout --signal=KILL 15 systemctl disable artlight-kwin-capability.path vibeshine-kwin-capability.path --now 2>/dev/null || true
+  fi
+  rm -f /etc/systemd/system/multi-user.target.wants/artlight-kwin-capability.path /etc/systemd/system/multi-user.target.wants/vibeshine-kwin-capability.path
+  [ -f "$kwin" ] && [ ! -L "$kwin" ] || return 0
+  if command -v getfattr >/dev/null 2>&1; then
+    getfattr -n "$marker" --only-values "$kwin" >/dev/null 2>&1 || return 0
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import os, sys; os.getxattr(sys.argv[1], sys.argv[2])' "$kwin" "$marker" 2>/dev/null || return 0
+  else
+    return 0
+  fi
+  if setcap cap_sys_nice=ep "$kwin"; then
+    setfattr -x "$marker" "$kwin" 2>/dev/null || \
+      python3 -c 'import os, sys; os.removexattr(sys.argv[1], sys.argv[2])' "$kwin" "$marker" 2>/dev/null || true
+    echo "restored cap_sys_nice on $kwin (removed by an earlier ArtLight build)"
+  else
+    echo "warning: could not restore cap_sys_nice on $kwin; reinstall the kwin package." >&2
+  fi
+}
+artlight_restore_kwin_capability || true
+
+VIBESHINE_EXECUTABLE_PATH="@CMAKE_INSTALL_FULL_BINDIR@/artlight"
+VIBESHINE_EXECUTABLE_CAPABILITY_MODE=unit
+export VIBESHINE_EXECUTABLE_PATH
+export VIBESHINE_EXECUTABLE_CAPABILITY_MODE
+@VIBESHINE_BASE_POSTINST@
+
+# Build/register the managed virtual-display module. Package installation may
+# continue on failure, but managed displays remain unavailable until it loads.
+if [ -x "@VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR@/vibeshine-drm-install" ]; then
+  echo "Installing the ArtLight HDR DRM module."
+  if "@VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR@/vibeshine-drm-install" install; then
+    :
+  else
+    vibeshine_drm_rc=$?
+    if [ "$vibeshine_drm_rc" -eq 4 ]; then
+      echo "warning: ArtLight DRM was updated, but the loaded module is stale; reboot before using managed virtual displays."
+    else
+      echo "warning: ArtLight DRM installation failed; managed virtual displays are unavailable."
+    fi
+  fi
+fi
+
+if ! "@VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR@/vibeshine-ds5-install" install; then
+  echo "warning: DualSense USB haptics are unavailable or require a reboot; see the module error above." >&2
+fi
+
+if [ "$artlight_machine_configured" -eq 1 ]; then
+  if ! systemctl enable artlight-session-controller.service; then
+    artlight_quiesce_machine_host || true
+    echo "error: could not enable the ArtLight controller safely; all machine-host units remain off." >&2
+    exit 1
+  fi
+  # Keep the host masked until the new controller is the next component that
+  # can activate it; never expose it to an obsolete PAM/helper start request.
+  if ! artlight_unmask_host_for_controller ||
+     ! systemctl start artlight-session-controller.service; then
+    timeout --signal=KILL 15 systemctl mask --runtime artlight.service 2>/dev/null || true
+    artlight_quiesce_machine_host || true
+    echo "error: could not start the ArtLight controller safely; all machine-host units remain off." >&2
+    exit 1
+  fi
+fi

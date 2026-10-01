@@ -431,7 +431,7 @@ namespace platf::gamepad {
       .vendor_id = definition.vendor_id,
       .product_id = definition.product_id,
       .version = definition.version,
-      .device_phys = definition.device_phys.empty() ? "VIBEPOLLO_UHID_DS4" : definition.device_phys,
+      .device_phys = definition.device_phys.empty() ? "ARTLIGHT_UHID_DS4" : definition.device_phys,
       .device_uniq = state->uniq,
     };
     const std::vector<unsigned char> report_descriptor {

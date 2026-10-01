@@ -79,11 +79,11 @@ def verify_capabilities(binary):
 
 def main():
     root = pathlib.Path(__file__).resolve().parent.parent
-    session = sys.argv[1:] == ['--vibepollo-session']
+    session = sys.argv[1:] == ['--artlight-session']
     try:
         verify(root)
     except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError) as error:
-        print(f'Vibepollo local HDR compositor unavailable: {error}; using Valve Gamescope.', file=sys.stderr)
+        print(f'ArtLight local HDR compositor unavailable: {error}; using Valve Gamescope.', file=sys.stderr)
         if session:
             os.execv('/usr/lib/steamos/gamescope-session', ['gamescope-session'])
         os.execv('/usr/bin/gamescope', ['gamescope', *sys.argv[1:]])

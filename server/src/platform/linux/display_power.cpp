@@ -45,7 +45,7 @@ namespace platf::display_power {
       lease->process = g_subprocess_new(
         G_SUBPROCESS_FLAGS_STDOUT_PIPE,
         &spawn_error,
-        "/usr/libexec/vibeshine/vibepollo-session-exec",
+        "/usr/libexec/vibeshine/artlight-session-exec",
         operation,
         nullptr
       );
@@ -81,7 +81,7 @@ namespace platf::display_power {
 
   std::shared_ptr<void> acquire() {
     // Standalone/SteamOS does not have a machine session broker.
-    if (!std::getenv("VIBEPOLLO_MACHINE_HOST")) {
+    if (!std::getenv("ARTLIGHT_MACHINE_HOST")) {
       static const auto noop = std::make_shared<int>(0);
       return noop;
     }

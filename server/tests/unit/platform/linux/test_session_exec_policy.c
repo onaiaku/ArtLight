@@ -5,10 +5,10 @@
 
 static int broker_fixture_execv(const char *path, char *const arguments[]);
 
-int vibepollo_session_broker_entrypoint(int argc, char **argv);
-#define main vibepollo_session_broker_entrypoint
+int artlight_session_broker_entrypoint(int argc, char **argv);
+#define main artlight_session_broker_entrypoint
 #define execv broker_fixture_execv
-#include "../../../../packaging/linux/vibepollo-session-broker.c"
+#include "../../../../packaging/linux/artlight-session-broker.c"
 #undef execv
 #undef main
 
@@ -75,24 +75,24 @@ int main(void) {
     "APOLLO_CLIENT_AUDIO_CONFIGURATION=7.1", "APOLLO_CLIENT_AUDIO_SURROUND_PARAMS=85301234567",
     "PROTON_KEEP_SONY_AUDIO_ENDPOINT_VISIBLE=1", "PROTON_SONY_WINDOWS_DEVICE_NAMES=0"
   };
-  CHECK(sizeof(stream_environment) / sizeof(stream_environment[0]) == VIBEPOLLO_STREAM_ENVIRONMENT_FIELD_COUNT);
-  CHECK(vibepollo_stream_environment_is_safe(VIBEPOLLO_STREAM_ENVIRONMENT_FIELD_COUNT, stream_environment));
-  CHECK(vibepollo_stream_environment_is_safe(0, NULL));
-  CHECK(!vibepollo_stream_environment_is_safe(1, NULL));
-  CHECK(!vibepollo_stream_environment_is_safe(VIBEPOLLO_STREAM_ENVIRONMENT_MAX_ENTRIES + 1, NULL));
-  CHECK(vibepollo_stream_environment_entry_is_safe("SUNSHINE_CLIENT_FPS=60.000000", NULL));
-  CHECK(vibepollo_stream_environment_entry_is_safe("SUNSHINE_CLIENT_FPS=1000.000", NULL));
-  CHECK(vibepollo_stream_environment_entry_is_safe("APOLLO_CLIENT_FPS=1000000", NULL));
-  CHECK(vibepollo_stream_environment_entry_is_safe("APOLLO_CLIENT_GCMAP=-2147483648", NULL));
-  CHECK(vibepollo_stream_environment_entry_is_safe("APOLLO_CLIENT_WIDTH=4294967295", NULL));
-  CHECK(vibepollo_stream_environment_entry_is_safe("APOLLO_CLIENT_UUID=legacy-client-id", NULL));
-  CHECK(vibepollo_stream_environment_entry_is_safe("APOLLO_CLIENT_AUDIO_SURROUND_PARAMS=", NULL));
-  CHECK(vibepollo_stream_environment_entry_is_safe("APOLLO_CLIENT_AUDIO_SURROUND_PARAMS=invalid layout retained as text", NULL));
+  CHECK(sizeof(stream_environment) / sizeof(stream_environment[0]) == ARTLIGHT_STREAM_ENVIRONMENT_FIELD_COUNT);
+  CHECK(artlight_stream_environment_is_safe(ARTLIGHT_STREAM_ENVIRONMENT_FIELD_COUNT, stream_environment));
+  CHECK(artlight_stream_environment_is_safe(0, NULL));
+  CHECK(!artlight_stream_environment_is_safe(1, NULL));
+  CHECK(!artlight_stream_environment_is_safe(ARTLIGHT_STREAM_ENVIRONMENT_MAX_ENTRIES + 1, NULL));
+  CHECK(artlight_stream_environment_entry_is_safe("SUNSHINE_CLIENT_FPS=60.000000", NULL));
+  CHECK(artlight_stream_environment_entry_is_safe("SUNSHINE_CLIENT_FPS=1000.000", NULL));
+  CHECK(artlight_stream_environment_entry_is_safe("APOLLO_CLIENT_FPS=1000000", NULL));
+  CHECK(artlight_stream_environment_entry_is_safe("APOLLO_CLIENT_GCMAP=-2147483648", NULL));
+  CHECK(artlight_stream_environment_entry_is_safe("APOLLO_CLIENT_WIDTH=4294967295", NULL));
+  CHECK(artlight_stream_environment_entry_is_safe("APOLLO_CLIENT_UUID=legacy-client-id", NULL));
+  CHECK(artlight_stream_environment_entry_is_safe("APOLLO_CLIENT_AUDIO_SURROUND_PARAMS=", NULL));
+  CHECK(artlight_stream_environment_entry_is_safe("APOLLO_CLIENT_AUDIO_SURROUND_PARAMS=invalid layout retained as text", NULL));
   const char *statuses[] = {"STARTING", "RUNNING", "RESUMING", "PAUSING", "TERMINATING"};
   for (size_t index = 0; index < sizeof(statuses) / sizeof(statuses[0]); ++index) {
     char status[64];
     CHECK(snprintf(status, sizeof(status), "APOLLO_APP_STATUS=%s", statuses[index]) > 0);
-    CHECK(vibepollo_stream_environment_entry_is_safe(status, NULL));
+    CHECK(artlight_stream_environment_entry_is_safe(status, NULL));
   }
   const char *invalid_environment[] = {
     "SUNSHINE_CLIENT_WIDTH", "=value", "PATH=/tmp/untrusted", "HOME=/tmp/untrusted",
@@ -107,19 +107,19 @@ int main(void) {
     "PROTON_SONY_WINDOWS_DEVICE_NAMES=2", "PROTON_SONY_WINDOWS_DEVICE_NAMES="
   };
   for (size_t index = 0; index < sizeof(invalid_environment) / sizeof(invalid_environment[0]); ++index) {
-    CHECK(!vibepollo_stream_environment_entry_is_safe(invalid_environment[index], NULL));
+    CHECK(!artlight_stream_environment_entry_is_safe(invalid_environment[index], NULL));
   }
   char *duplicate_environment[] = {"APOLLO_CLIENT_FPS=59940", "APOLLO_CLIENT_FPS=60000"};
-  CHECK(!vibepollo_stream_environment_is_safe(2, duplicate_environment));
+  CHECK(!artlight_stream_environment_is_safe(2, duplicate_environment));
   char long_client_name[sizeof("APOLLO_CLIENT_NAME=") + 1025];
   strcpy(long_client_name, "APOLLO_CLIENT_NAME=");
   const size_t client_name_prefix = strlen(long_client_name);
   memset(long_client_name + client_name_prefix, 'x', 1024);
   long_client_name[client_name_prefix + 1024] = 0;
-  CHECK(vibepollo_stream_environment_entry_is_safe(long_client_name, NULL));
+  CHECK(artlight_stream_environment_entry_is_safe(long_client_name, NULL));
   long_client_name[client_name_prefix + 1024] = 'x';
   long_client_name[client_name_prefix + 1025] = 0;
-  CHECK(!vibepollo_stream_environment_entry_is_safe(long_client_name, NULL));
+  CHECK(!artlight_stream_environment_entry_is_safe(long_client_name, NULL));
 
   struct session_identity metadata_identity = {0};
   strcpy(metadata_identity.role, "desktop");
@@ -138,9 +138,9 @@ int main(void) {
 
   // Match the broker's cleared session baseline, then exercise actual argv
   // construction, fork, --setenv delivery and shell execution for prep/undo.
-  strcpy(metadata_identity.home, "/tmp/vibepollo-metadata-fixture-home");
+  strcpy(metadata_identity.home, "/tmp/artlight-metadata-fixture-home");
   strcpy(metadata_identity.user, "metadata-fixture");
-  strcpy(metadata_identity.runtime, "/tmp/vibepollo-metadata-fixture-runtime");
+  strcpy(metadata_identity.runtime, "/tmp/artlight-metadata-fixture-runtime");
   strcpy(metadata_identity.wayland_display, "wayland-0");
   metadata_identity.generation = 7;
   CHECK(!setenv("LD_PRELOAD", "/tmp/untrusted.so", 1));
@@ -155,18 +155,18 @@ int main(void) {
     "test \"$APOLLO_CLIENT_AUDIO_CONFIGURATION/$APOLLO_CLIENT_AUDIO_SURROUND_PARAMS\" = 7.1/85301234567 && "
     "test \"$SUNSHINE_CLIENT_HDR/$APOLLO_CLIENT_HDR\" = true/true && "
     "test \"$PROTON_KEEP_SONY_AUDIO_ENDPOINT_VISIBLE/$PROTON_SONY_WINDOWS_DEVICE_NAMES\" = 1/0 && "
-    "test \"$HOME/$USER\" = /tmp/vibepollo-metadata-fixture-home/metadata-fixture && "
+    "test \"$HOME/$USER\" = /tmp/artlight-metadata-fixture-home/metadata-fixture && "
     "test -z \"${LD_PRELOAD+x}\" && test \"$APOLLO_APP_STATUS\" = \"$1\" && "
     "test \"${ENABLE_HDR_WSI-}\" = \"$2\"",
     "--", "STARTING", "", NULL};
   user_service_fixture = true;
   CHECK(exec_user_service(&metadata_identity, NULL, shell_fixture, false, false,
-                          VIBEPOLLO_STREAM_ENVIRONMENT_FIELD_COUNT, stream_environment) == 0);
+                          ARTLIGHT_STREAM_ENVIRONMENT_FIELD_COUNT, stream_environment) == 0);
   stream_environment[14] = "APOLLO_APP_STATUS=TERMINATING";
   shell_fixture[4] = "TERMINATING";
   shell_fixture[5] = "1";
   CHECK(exec_user_service(&metadata_identity, NULL, shell_fixture, false, true,
-                          VIBEPOLLO_STREAM_ENVIRONMENT_FIELD_COUNT, stream_environment) == 0);
+                          ARTLIGHT_STREAM_ENVIRONMENT_FIELD_COUNT, stream_environment) == 0);
   CHECK(!getenv("APOLLO_CLIENT_FPS") && !getenv("ENABLE_HDR_WSI"));
   user_service_fixture = false;
 
@@ -212,7 +212,7 @@ int main(void) {
   CHECK(parse_number("10", 1, 10, &number) && number == 10);
 
   char *valid_steam_direct[] = {
-    "vibepollo-session-broker", "steam-direct", "1182900",
+    "artlight-session-broker", "steam-direct", "1182900",
     "mangohud-proton", "116000", "3", "1", "late", "0", "0", "1", "1", "0", "0", NULL
   };
   CHECK(steam_direct_arguments_are_safe(14, valid_steam_direct));
@@ -264,7 +264,7 @@ int main(void) {
   CHECK(steam_direct_arguments_are_safe(14, valid_steam_direct));
 
   char *global_limiter[] = {
-    "vibepollo-session-broker", "global-limiter", "proton", "59940", "custom", "0", "late", "sdr", "0", "1", NULL
+    "artlight-session-broker", "global-limiter", "proton", "59940", "custom", "0", "late", "sdr", "0", "1", NULL
   };
   CHECK(global_limiter_arguments_are_safe(10, global_limiter));
   CHECK(!global_limiter_arguments_are_safe(9, global_limiter));
@@ -355,7 +355,7 @@ int main(void) {
         !strcmp(working_directory, "/usr/bin") || !strcmp(working_directory, "/bin"));
   CHECK(!executable_parent_directory("https://example.invalid/game", working_directory,
                                      sizeof(working_directory)) && !working_directory[0]);
-  CHECK(!executable_parent_directory("definitely-not-a-vibepollo-executable", working_directory,
+  CHECK(!executable_parent_directory("definitely-not-a-artlight-executable", working_directory,
                                      sizeof(working_directory)) && !working_directory[0]);
   CHECK(!executable_parent_directory("./relative-game", working_directory,
                                      sizeof(working_directory)) && !working_directory[0]);
@@ -368,7 +368,7 @@ int main(void) {
   char *const print_arguments[] = {"printf", "inactive\n", NULL};
   CHECK(run_command_bounded("/usr/bin/printf", print_arguments, 500,
                             command_output, sizeof(command_output)) == 0);
-  CHECK(application_unit_name_is_safe("vibepollo-app-7-1.service"));
+  CHECK(application_unit_name_is_safe("artlight-app-7-1.service"));
   CHECK(steam_launch_retry_is_safe(126, true, 0, 2));
   CHECK(!steam_launch_retry_is_safe(126, false, 0, 2));
   CHECK(!steam_launch_retry_is_safe(126, true, 1, 2));
@@ -377,13 +377,13 @@ int main(void) {
   termination_signal = SIGTERM;
   CHECK(!steam_launch_retry_is_safe(126, true, 0, 2));
   termination_signal = 0;
-  CHECK(application_unit_name_is_safe("vibepollo-app-7-1-2.service"));
-  CHECK(!application_unit_name_is_safe("vibepollo-app-7.service"));
-  CHECK(!application_unit_name_is_safe("vibepollo-app-7-1-x.service"));
-  CHECK(!application_unit_name_is_safe("vibepollo-app-7-1.service.extra"));
+  CHECK(application_unit_name_is_safe("artlight-app-7-1-2.service"));
+  CHECK(!application_unit_name_is_safe("artlight-app-7.service"));
+  CHECK(!application_unit_name_is_safe("artlight-app-7-1-x.service"));
+  CHECK(!application_unit_name_is_safe("artlight-app-7-1.service.extra"));
   CHECK(!application_unit_name_is_safe("--all"));
   CHECK(application_cgroup_path_is_safe(
-          "/user.slice/user-1000.slice/user@1000.service/app.slice/vibepollo-app-7-1.service"));
+          "/user.slice/user-1000.slice/user@1000.service/app.slice/artlight-app-7-1.service"));
   CHECK(!application_cgroup_path_is_safe("/user.slice/../system.slice"));
   CHECK(!application_cgroup_path_is_safe("/user.slice//app.slice"));
   CHECK(unit_state_is_quiescent(
@@ -394,7 +394,7 @@ int main(void) {
           "LoadState=loaded\nMainPID=0\nControlGroup=\n", "/sys/fs/cgroup"));
   CHECK(!stop_user_service_using("/usr/bin/true", "--all", 100));
 
-  char cgroup_root[] = "/tmp/vibepollo-broker-cgroup.XXXXXX";
+  char cgroup_root[] = "/tmp/artlight-broker-cgroup.XXXXXX";
   CHECK(mkdtemp(cgroup_root));
   char test_cgroup[PATH_MAX] = {0}, test_events[PATH_MAX] = {0};
   CHECK(snprintf(test_cgroup, sizeof(test_cgroup), "%s/test.service", cgroup_root) > 0);
@@ -538,10 +538,10 @@ int main(void) {
 
   unsigned char request_packet[256] = {0};
   const char request_payload[] = "display-query";
-  struct vibepollo_session_message request_header = {
-    .magic = VIBEPOLLO_SESSION_PROTOCOL_MAGIC,
-    .version = VIBEPOLLO_SESSION_PROTOCOL_VERSION,
-    .type = VIBEPOLLO_SESSION_REQUEST,
+  struct artlight_session_message request_header = {
+    .magic = ARTLIGHT_SESSION_PROTOCOL_MAGIC,
+    .version = ARTLIGHT_SESSION_PROTOCOL_VERSION,
+    .type = ARTLIGHT_SESSION_REQUEST,
     .payload_length = sizeof(request_payload),
     .argument_count = 1,
     .generation = 7,
@@ -554,8 +554,8 @@ int main(void) {
   CHECK(decoded.argc == 2 && !strcmp(decoded.argv[1], "display-query") && !decoded.argv[2]);
   CHECK(decoded.header.generation == 7);
 
-  struct vibepollo_session_message *mutable_header =
-    (struct vibepollo_session_message *) request_packet;
+  struct artlight_session_message *mutable_header =
+    (struct artlight_session_message *) request_packet;
 #define REJECT_HEADER(field, value) do { \
   const __typeof__(mutable_header->field) saved = mutable_header->field; \
   mutable_header->field = (value); \
@@ -563,13 +563,13 @@ int main(void) {
   mutable_header->field = saved; \
 } while (0)
   REJECT_HEADER(magic, 0);
-  REJECT_HEADER(version, VIBEPOLLO_SESSION_PROTOCOL_VERSION + 1);
-  REJECT_HEADER(type, VIBEPOLLO_SESSION_STDOUT);
+  REJECT_HEADER(version, ARTLIGHT_SESSION_PROTOCOL_VERSION + 1);
+  REJECT_HEADER(type, ARTLIGHT_SESSION_STDOUT);
   REJECT_HEADER(status, 1);
   REJECT_HEADER(reserved, 1);
   REJECT_HEADER(generation, 0);
   REJECT_HEADER(argument_count, 0);
-  REJECT_HEADER(argument_count, VIBEPOLLO_SESSION_PROTOCOL_MAX_ARGUMENTS + 1);
+  REJECT_HEADER(argument_count, ARTLIGHT_SESSION_PROTOCOL_MAX_ARGUMENTS + 1);
   REJECT_HEADER(payload_length, sizeof(request_payload) - 1);
 #undef REJECT_HEADER
   request_packet[request_length - 1] = 'x';
@@ -593,23 +593,23 @@ int main(void) {
   CHECK(decode_request(received_request, request_length, &decoded));
   CHECK(decoded.header.generation == 7 && !strcmp(decoded.argv[1], "display-query"));
   const char output_payload[] = "bounded output";
-  CHECK(send_frame(peers[0], VIBEPOLLO_SESSION_STDOUT, 7, 0,
+  CHECK(send_frame(peers[0], ARTLIGHT_SESSION_STDOUT, 7, 0,
                    output_payload, sizeof(output_payload) - 1));
   unsigned char response_packet[256] = {0};
   const ssize_t response_length = recv(peers[1], response_packet, sizeof(response_packet), 0);
-  CHECK(response_length == (ssize_t) (sizeof(struct vibepollo_session_message) +
+  CHECK(response_length == (ssize_t) (sizeof(struct artlight_session_message) +
                                       sizeof(output_payload) - 1));
-  struct vibepollo_session_message response_header = {0};
+  struct artlight_session_message response_header = {0};
   memcpy(&response_header, response_packet, sizeof(response_header));
-  CHECK(response_header.magic == VIBEPOLLO_SESSION_PROTOCOL_MAGIC);
-  CHECK(response_header.version == VIBEPOLLO_SESSION_PROTOCOL_VERSION);
-  CHECK(response_header.type == VIBEPOLLO_SESSION_STDOUT);
+  CHECK(response_header.magic == ARTLIGHT_SESSION_PROTOCOL_MAGIC);
+  CHECK(response_header.version == ARTLIGHT_SESSION_PROTOCOL_VERSION);
+  CHECK(response_header.type == ARTLIGHT_SESSION_STDOUT);
   CHECK(response_header.payload_length == sizeof(output_payload) - 1);
   CHECK(response_header.generation == 7 && response_header.status == 0);
   CHECK(!memcmp(response_packet + sizeof(response_header), output_payload,
                 sizeof(output_payload) - 1));
-  CHECK(!send_frame(peers[0], VIBEPOLLO_SESSION_STDOUT, 7, 0, output_payload,
-                    VIBEPOLLO_SESSION_PROTOCOL_OUTPUT_CHUNK + 1));
+  CHECK(!send_frame(peers[0], ARTLIGHT_SESSION_STDOUT, 7, 0, output_payload,
+                    ARTLIGHT_SESSION_PROTOCOL_OUTPUT_CHUNK + 1));
   close(peers[0]);
   close(peers[1]);
 

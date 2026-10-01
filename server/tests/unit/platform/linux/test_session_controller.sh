@@ -361,7 +361,7 @@ mock_stop_effective=1
 mock_app_default_output=''
 declare -a mock_app_list_outputs=()
 declare -a mock_stopped_units=()
-mock_app_state_directory=$(/usr/bin/mktemp -d /tmp/vibepollo-controller-test.XXXXXX) ||
+mock_app_state_directory=$(/usr/bin/mktemp -d /tmp/artlight-controller-test.XXXXXX) ||
   fail_test 'could not create controller test state directory'
 mock_app_list_counter=$mock_app_state_directory/list-counter
 /usr/bin/printf '0\n' >"$mock_app_list_counter"
@@ -376,7 +376,7 @@ mock_reset_app_state() {
   /usr/bin/printf '0\n' >"$mock_app_list_counter"
 }
 mock_set_app_state() {
-  [[ "$1" == vibepollo-app-*.service && "$2" =~ ^(active|inactive|failed|failed-running|absent)$ ]] ||
+  [[ "$1" == artlight-app-*.service && "$2" =~ ^(active|inactive|failed|failed-running|absent)$ ]] ||
     fail_test 'invalid mock application state'
   /usr/bin/printf '%s\n' "$2" >"$mock_app_state_directory/$1"
 }
@@ -388,7 +388,7 @@ user_systemctl() {
   shift 4
   case "$1" in
     show)
-      if [[ "$2" == vibepollo-app-* ]]; then
+      if [[ "$2" == artlight-app-* ]]; then
         case "$(mock_get_app_state "$2")" in
           active)
             /usr/bin/printf '%s\n' \
@@ -418,7 +418,7 @@ user_systemctl() {
       fi
       ;;
     list-units)
-      [[ "${*: -1}" == "vibepollo-app-42-*.service" ]] || return 1
+      [[ "${*: -1}" == "artlight-app-42-*.service" ]] || return 1
       local output=$mock_app_default_output line listed_unit list_index
       list_index=$(<"$mock_app_list_counter")
       if ((list_index < ${#mock_app_list_outputs[@]})); then
@@ -434,13 +434,13 @@ user_systemctl() {
       /usr/bin/printf '%s' "$output"
       ;;
     --no-block)
-      [[ "$2" == stop && $# == 3 && "$3" == vibepollo-app-* ]] || return 1
+      [[ "$2" == stop && $# == 3 && "$3" == artlight-app-* ]] || return 1
       mock_stopped_units+=("$3")
       ((mock_stop_effective)) && mock_set_app_state "$3" absent
       return "$mock_stop_result"
       ;;
     is-active)
-      [[ "${*: -1}" == vibepollo-app-* ]] || return 1
+      [[ "${*: -1}" == artlight-app-* ]] || return 1
       case "$(mock_get_app_state "${*: -1}")" in
         absent) return 4 ;;
         inactive) return 3 ;;
@@ -524,35 +524,35 @@ mock_stopped_units=()
 mock_stop_result=0
 mock_stop_effective=1
 mock_app_list_outputs=(
-  $'vibepollo-app-42-101.service loaded active running first\n'
+  $'artlight-app-42-101.service loaded active running first\n'
   ''
-  $'vibepollo-app-42-202.service loaded activating start second\n'
+  $'artlight-app-42-202.service loaded activating start second\n'
   '' '' '' '' '' '' '' '' '' '' '' ''
 )
 stop_session_generation_apps desktop 1000 1000 /run/user/1000 42 "$((SECONDS + 4))" ||
   fail_test 'generation-scoped delayed-registration cleanup failed'
-[[ "${mock_stopped_units[*]}" == 'vibepollo-app-42-101.service vibepollo-app-42-202.service' ]] ||
+[[ "${mock_stopped_units[*]}" == 'artlight-app-42-101.service artlight-app-42-202.service' ]] ||
   fail_test "unexpected application units stopped: ${mock_stopped_units[*]}"
 mock_list_count=$(<"$mock_app_list_counter")
 ((mock_list_count >= 13)) || fail_test 'cleanup returned without ten consecutive clean enumerations'
 
 # A failed unit counts as stopped only with MainPID zero and an empty/absent
 # cgroup; a contradictory failed state remains unsafe.
-mock_set_app_state vibepollo-app-42-303.service failed
+mock_set_app_state artlight-app-42-303.service failed
 session_app_unit_is_stopped "$((SECONDS + 1))" desktop 1000 1000 /run/user/1000 \
-  vibepollo-app-42-303.service || fail_test 'process-free failed unit was rejected'
-mock_set_app_state vibepollo-app-42-303.service failed-running
+  artlight-app-42-303.service || fail_test 'process-free failed unit was rejected'
+mock_set_app_state artlight-app-42-303.service failed-running
 if session_app_unit_is_stopped "$((SECONDS + 1))" desktop 1000 1000 /run/user/1000 \
-     vibepollo-app-42-303.service; then
+     artlight-app-42-303.service; then
   fail_test 'failed unit with a live MainPID was accepted'
 fi
 
 # Cross-generation, duplicate, and malformed enumeration output all fail
 # before any stop request is issued.
 for unsafe_output in \
-  $'vibepollo-app-41-303.service loaded active running stale\n' \
-  $'vibepollo-app-42-404.service loaded active running first\nvibepollo-app-42-404.service loaded active running duplicate\n' \
-  $'vibepollo-app-42-505.service malformed\n' \
+  $'artlight-app-41-303.service loaded active running stale\n' \
+  $'artlight-app-42-404.service loaded active running first\nartlight-app-42-404.service loaded active running duplicate\n' \
+  $'artlight-app-42-505.service malformed\n' \
   $'--all loaded active running option\n'; do
   mock_reset_app_state
   mock_app_list_outputs=("$unsafe_output")
@@ -567,7 +567,7 @@ done
 # A manager that acknowledges stop but keeps the exact unit active cannot make
 # cleanup succeed; the overall deadline still bounds retries.
 mock_reset_app_state
-mock_app_default_output=$'vibepollo-app-42-606.service loaded active running wedged\n'
+mock_app_default_output=$'artlight-app-42-606.service loaded active running wedged\n'
 mock_app_list_outputs=()
 mock_stopped_units=()
 mock_stop_effective=0
@@ -601,7 +601,7 @@ done
   declare -a batch_units=()
   declare -A stopped=()
   for ((i=1; i<=47; i++)); do
-    unit="vibepollo-session-exec@$i.service"
+    unit="artlight-session-exec@$i.service"
     batch_units+=("$unit")
     batch_output+="Id=$unit"$'\nLoadState=loaded\nActiveState=failed\nSubState=failed\nMainPID=0\nControlGroup=\n\n'
   done
@@ -625,7 +625,7 @@ done
   for malformed_batch in \
     '' \
     "$record"$'\n\n'"$record" \
-    "Id=vibepollo-session-exec@unexpected.service"$'\n'"$stopped_host_properties" \
+    "Id=artlight-session-exec@unexpected.service"$'\n'"$stopped_host_properties" \
     "$stopped_host_properties"; do
     batch_output=$malformed_batch
     if collect_stopped_broker_instances stopped "$((SECONDS + 5))" "$unit"; then
@@ -652,8 +652,8 @@ done
 (
   broker_pass=0
   broker_stops=0
-  first=vibepollo-session-exec@first.service
-  late=vibepollo-session-exec@late.service
+  first=artlight-session-exec@first.service
+  late=artlight-session-exec@late.service
   enumerate_broker_instances() {
     local -n listed=$1
     ((broker_pass += 1))
@@ -670,7 +670,7 @@ done
     [[ "$1" == show ]] || return 1
     local item
     for item in "$@"; do
-      [[ "$item" == vibepollo-session-exec@*.service ]] || continue
+      [[ "$item" == artlight-session-exec@*.service ]] || continue
       /usr/bin/printf 'Id=%s\n' "$item"
       if [[ "$item" == "$late" && "$broker_stops" == 0 ]]; then
         /usr/bin/printf '%s\n\n' $'LoadState=loaded\nActiveState=active\nSubState=running\nMainPID=1234\nControlGroup='

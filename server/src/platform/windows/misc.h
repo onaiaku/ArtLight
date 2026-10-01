@@ -174,7 +174,7 @@ namespace platf {
   bool is_vigem_installed(std::string *version_out = nullptr);
 
   /**
-   * @brief Check whether Vibepollo's own virtual gamepad driver is usable.
+   * @brief Check whether ArtLight's own virtual gamepad driver is usable.
    * @details Probes the driver's private control interface, so it reports what a stream would
    *          actually get rather than merely whether files are present.
    * @return true when a virtual controller can be created without ViGEmBus.

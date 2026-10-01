@@ -48,18 +48,18 @@ namespace platf::mangohud {
   };
 
   inline std::filesystem::path state_directory() {
-    if (const char *override_dir = std::getenv("VIBEPOLLO_MANGOHUD_STATE_DIR");
+    if (const char *override_dir = std::getenv("ARTLIGHT_MANGOHUD_STATE_DIR");
         override_dir && *override_dir) {
       return override_dir;
     }
     if (const char *runtime_dir = std::getenv("XDG_RUNTIME_DIR"); runtime_dir && *runtime_dir) {
-      return std::filesystem::path(runtime_dir) / "vibepollo" / "mangohud";
+      return std::filesystem::path(runtime_dir) / "artlight" / "mangohud";
     }
     if (const char *config_home = std::getenv("XDG_CONFIG_HOME"); config_home && *config_home) {
-      return std::filesystem::path(config_home) / "vibepollo" / "mangohud-runtime";
+      return std::filesystem::path(config_home) / "artlight" / "mangohud-runtime";
     }
     if (const char *home = std::getenv("HOME"); home && *home) {
-      return std::filesystem::path(home) / ".config" / "vibepollo" / "mangohud-runtime";
+      return std::filesystem::path(home) / ".config" / "artlight" / "mangohud-runtime";
     }
     return {};
   }
@@ -126,14 +126,14 @@ namespace platf::mangohud {
     if (!private_directory(runtime_fd.get(), owner)) {
       return std::pair<owned_fd, owned_fd> {};
     }
-    auto vibepollo_fd = open_private_directory_at(
-      runtime_fd.get(), "vibepollo", owner, create
+    auto artlight_fd = open_private_directory_at(
+      runtime_fd.get(), "artlight", owner, create
     );
-    if (!vibepollo_fd) {
+    if (!artlight_fd) {
       return std::pair<owned_fd, owned_fd> {};
     }
     auto state_fd = open_private_directory_at(
-      vibepollo_fd.get(), "mangohud", owner, create
+      artlight_fd.get(), "mangohud", owner, create
     );
     if (!state_fd) {
       return std::pair<owned_fd, owned_fd> {};
@@ -302,7 +302,7 @@ namespace platf::mangohud {
     }
     (void) fsync(state_fd.get());
     const char *runtime = std::getenv("XDG_RUNTIME_DIR");
-    return std::filesystem::path(runtime) / "vibepollo" / "mangohud" /
+    return std::filesystem::path(runtime) / "artlight" / "mangohud" /
            final_name;
   }
 

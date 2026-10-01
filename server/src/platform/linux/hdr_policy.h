@@ -94,7 +94,7 @@ namespace platf::linux_hdr {
     std::uint16_t max_full_frame_luminance;
   };
 
-  // These values mirror Vibepollo's private-display CTA EDID: an approximately
+  // These values mirror ArtLight's private-display CTA EDID: an approximately
   // 1000-nit desired peak and approximately 590-nit full-frame luminance.
   inline constexpr mastering_metadata_t private_display_mastering_metadata {
     .display_primaries = {{{35400, 14600}, {8500, 39850}, {6550, 2300}}},
@@ -108,7 +108,7 @@ namespace platf::linux_hdr {
 
   // PipeWire currently exposes the transfer characteristics but not the
   // physical monitor's mastering metadata. Preserve the historical generic
-  // fallback for non-private sources instead of attributing Vibepollo's EDID
+  // fallback for non-private sources instead of attributing ArtLight's EDID
   // luminance contract to every HDR monitor.
   inline constexpr mastering_metadata_t generic_pipewire_mastering_metadata {
     .display_primaries = {{{35400, 14600}, {8500, 39850}, {6550, 2300}}},

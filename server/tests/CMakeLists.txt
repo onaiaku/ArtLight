@@ -554,7 +554,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         NAME test_component_linux_mangohud_wrapper
         COMMAND sh
             "${CMAKE_CURRENT_LIST_DIR}/unit/platform/linux/test_mangohud_wrapper.sh"
-            "${SUNSHINE_TEST_REPOSITORY_ROOT}/src_assets/linux/misc/vibepollo-mangohud")
+            "${SUNSHINE_TEST_REPOSITORY_ROOT}/src_assets/linux/misc/artlight-mangohud")
     set_tests_properties(test_component_linux_mangohud_wrapper PROPERTIES LABELS "component")
     sunshine_register_component(NAME test_component_linux_smooth_motion_policy TEST_SOURCE unit/platform/linux/test_smooth_motion_policy.cpp)
     sunshine_register_component(NAME test_component_linux_gamescope_session TEST_SOURCE unit/platform/linux/test_gamescope_session.cpp
@@ -696,10 +696,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND SUNSHINE_TEST_ENABLE_COMPONENT)
         "${CMAKE_CURRENT_LIST_DIR}/unit/platform/linux/test_app_supervisor.c")
     target_include_directories(test_linux_app_supervisor PRIVATE "${LIBCAP_INCLUDE_DIRS}")
     target_link_libraries(test_linux_app_supervisor PRIVATE "${LIBCAP_LIBRARIES}")
-    if(TARGET vibepollo_app_supervisor)
+    if(TARGET artlight_app_supervisor)
         add_test(
             NAME test_component_linux_app_supervisor
-            COMMAND test_linux_app_supervisor "$<TARGET_FILE:vibepollo_app_supervisor>")
+            COMMAND test_linux_app_supervisor "$<TARGET_FILE:artlight_app_supervisor>")
         set_tests_properties(test_component_linux_app_supervisor PROPERTIES LABELS "component")
     endif()
 
@@ -730,35 +730,35 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND SUNSHINE_TEST_ENABLE_COMPONENT)
                 "${LIBVIRTUALDISPLAY_LINUX_ROOT}/packaging/vibeshine-vkms")
         set_tests_properties(test_component_linux_vkms_setup PROPERTIES LABELS "component")
         add_test(
-            NAME test_component_linux_vibepollo_drm_install
+            NAME test_component_linux_artlight_drm_install
             COMMAND "${SUNSHINE_TEST_BASH_EXECUTABLE}"
                 "${SUNSHINE_LIBVIRTUALDISPLAY_SOURCE_DIR}/tests/linux/test-vibeshine-drm-install.sh"
                 "${LIBVIRTUALDISPLAY_LINUX_ROOT}/packaging/vibeshine-drm-install.in")
-        set_tests_properties(test_component_linux_vibepollo_drm_install PROPERTIES LABELS "component")
+        set_tests_properties(test_component_linux_artlight_drm_install PROPERTIES LABELS "component")
         add_test(
-            NAME test_component_linux_vibepollo_drm_build_module
+            NAME test_component_linux_artlight_drm_build_module
             COMMAND "${SUNSHINE_TEST_BASH_EXECUTABLE}"
                 "${SUNSHINE_LIBVIRTUALDISPLAY_SOURCE_DIR}/tests/linux/test-vibeshine-drm-build-module.sh"
                 "${LIBVIRTUALDISPLAY_LINUX_ROOT}/vibeshine-drm/build-module"
                 "${LIBVIRTUALDISPLAY_LINUX_ROOT}/vibeshine-drm/dkms.conf.in")
-        set_tests_properties(test_component_linux_vibepollo_drm_build_module PROPERTIES LABELS "component")
+        set_tests_properties(test_component_linux_artlight_drm_build_module PROPERTIES LABELS "component")
         add_test(
             NAME test_component_linux_session_controller
             COMMAND "${SUNSHINE_TEST_BASH_EXECUTABLE}"
                 "${CMAKE_CURRENT_LIST_DIR}/unit/platform/linux/test_session_controller.sh"
-                "${SUNSHINE_TEST_REPOSITORY_ROOT}/packaging/linux/vibepollo-session-controller")
+                "${SUNSHINE_TEST_REPOSITORY_ROOT}/packaging/linux/artlight-session-controller")
         set_tests_properties(test_component_linux_session_controller PROPERTIES LABELS "component")
         add_test(
             NAME test_component_linux_session_command_timeout
             COMMAND "${SUNSHINE_TEST_BASH_EXECUTABLE}"
                 "${CMAKE_CURRENT_LIST_DIR}/unit/platform/linux/test_session_command_timeout.sh"
-                "${SUNSHINE_TEST_REPOSITORY_ROOT}/packaging/linux/vibepollo-session-controller")
+                "${SUNSHINE_TEST_REPOSITORY_ROOT}/packaging/linux/artlight-session-controller")
         set_tests_properties(test_component_linux_session_command_timeout PROPERTIES LABELS "component" TIMEOUT 15)
         add_test(
             NAME test_component_linux_machine_host_manifest
             COMMAND "${SUNSHINE_TEST_BASH_EXECUTABLE}"
                 "${CMAKE_CURRENT_LIST_DIR}/unit/platform/linux/test_machine_host_manifest.sh"
-                "${SUNSHINE_TEST_REPOSITORY_ROOT}/packaging/linux/vibepollo-machine-host")
+                "${SUNSHINE_TEST_REPOSITORY_ROOT}/packaging/linux/artlight-machine-host")
         set_tests_properties(test_component_linux_machine_host_manifest PROPERTIES LABELS "component")
     else()
         message(WARNING "bash was not found; skipping the Linux VKMS setup shell test")
@@ -784,17 +784,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND SUNSHINE_TEST_ENABLE_COMPONENT)
                 "${CMAKE_CURRENT_LIST_DIR}/unit/platform/linux/test_local_deploy.py")
         set_tests_properties(test_component_linux_local_deploy PROPERTIES LABELS "component" TIMEOUT 30)
         add_test(
-            NAME test_component_linux_vibepollo_vkms_peercred
+            NAME test_component_linux_artlight_vkms_peercred
             COMMAND "${SUNSHINE_TEST_PYTHON_EXECUTABLE}"
                 "${SUNSHINE_LIBVIRTUALDISPLAY_SOURCE_DIR}/tests/linux/test-vkms-peercred.py"
                 "$<TARGET_FILE:vibeshine_vkms_peercred>")
-        set_tests_properties(test_component_linux_vibepollo_vkms_peercred PROPERTIES LABELS "component")
+        set_tests_properties(test_component_linux_artlight_vkms_peercred PROPERTIES LABELS "component")
         add_test(
-            NAME test_component_linux_vibepollo_drm_contract
+            NAME test_component_linux_artlight_drm_contract
             COMMAND "${SUNSHINE_TEST_PYTHON_EXECUTABLE}"
                 "${SUNSHINE_LIBVIRTUALDISPLAY_SOURCE_DIR}/tests/linux/test-vibeshine-drm-contract.py"
                 "${LIBVIRTUALDISPLAY_LINUX_ROOT}/vibeshine-drm")
-        set_tests_properties(test_component_linux_vibepollo_drm_contract PROPERTIES LABELS "component")
+        set_tests_properties(test_component_linux_artlight_drm_contract PROPERTIES LABELS "component")
         add_test(
             NAME test_component_linux_kwin_gpu_bridge_contract
             COMMAND "${SUNSHINE_TEST_PYTHON_EXECUTABLE}"
@@ -802,7 +802,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND SUNSHINE_TEST_ENABLE_COMPONENT)
                 "${LIBVIRTUALDISPLAY_LINUX_ROOT}")
         set_tests_properties(test_component_linux_kwin_gpu_bridge_contract PROPERTIES LABELS "component")
     else()
-        message(WARNING "python3 was not found; skipping the Vibepollo DRM source contract test")
+        message(WARNING "python3 was not found; skipping the ArtLight DRM source contract test")
     endif()
 endif()
 

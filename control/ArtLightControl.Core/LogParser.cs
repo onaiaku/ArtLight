@@ -23,14 +23,14 @@ namespace ArtLightControl
         // "ArtLight Server" first: when several are present, prefer our own build.
         private static readonly string[] KnownAppNames =
         {
-            "ArtLight Server", "Vibepollo", "Vibeshine", "Apollo", "Sunshine"
+            "ArtLight Server", "ArtLight", "Vibeshine", "Apollo", "Sunshine"
         };
 
-        // Friendly name shown in the UI: legacy install folders (Apollo/Vibepollo/Vibeshine)
+        // Friendly name shown in the UI: legacy install folders (Apollo/ArtLight/Vibeshine)
         // are all our fork now, so present them under the ArtLight Server brand.
         public static string ToDisplayName(string appName) => appName switch
         {
-            "Vibepollo" or "Vibeshine" or "Apollo" => "ArtLight Server",
+            "ArtLight" or "Vibeshine" or "Apollo" => "ArtLight Server",
             _ => appName
         };
 
@@ -51,7 +51,7 @@ namespace ArtLightControl
         private static readonly string[] StartMarkers =
         {
             "CLIENT CONNECTED", "Starting stream", "Stream started",
-            // Vibeshine and Vibepollo only (verified absent from Sunshine and Apollo, whose src/
+            // Vibeshine and ArtLight only (verified absent from Sunshine and Apollo, whose src/
             // has no session_history at all). Written by the server's own history subsystem when
             // the RTSP session is negotiated — about a second *before* CLIENT CONNECTED, already
             // carrying resolution, fps, codec and HDR. Two lines meant for machines, paired by a
@@ -66,7 +66,7 @@ namespace ArtLightControl
         /// Without it ArtLightControl never learned the session was over, so the link stayed switched,
         /// the session kept running in the history, and a stream started shortly afterwards was
         /// merged into it. Verified present in src/stream.cpp of Sunshine, Apollo, Vibeshine and
-        /// Vibepollo.
+        /// ArtLight.
         /// </summary>
         private static readonly string[] StopMarkers =
         {
@@ -167,7 +167,7 @@ namespace ArtLightControl
             // ArtLightControl simply never learned the session was over, so the link stayed
             // switched, the session kept running in the history, and a stream started shortly
             // afterwards was merged into it. Verified present in src/stream.cpp of Sunshine,
-            // Apollo, Vibeshine and Vibepollo.
+            // Apollo, Vibeshine and ArtLight.
             if (StartsWithMarker(message, StopMarkers))
             {
                 DebugLog($"StreamStopped detected: {logLine}");
@@ -349,7 +349,7 @@ namespace ArtLightControl
                 string configDir = Path.Combine(installDir, "config");
                 if (!Directory.Exists(configDir)) return null;
 
-                // Dynamic logs subfolder (Vibeshine/Vibepollo style)
+                // Dynamic logs subfolder (Vibeshine/ArtLight style)
                 string logsDir = Path.Combine(configDir, "logs");
                 if (Directory.Exists(logsDir))
                 {

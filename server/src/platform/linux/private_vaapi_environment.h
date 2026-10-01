@@ -20,7 +20,7 @@ namespace platf::linux_private_vaapi {
     for (const auto &entry : source) {
       const auto &name = entry.get_name();
       const auto value = entry.to_string();
-      if (name == "VIBEPOLLO_PRIVATE_VAAPI" ||
+      if (name == "ARTLIGHT_PRIVATE_VAAPI" ||
           (name == "LIBVA_DRIVERS_PATH" && daemon_driver_path && value == daemon_driver_path) ||
           (name == "LIBVA_DRIVER_NAME" && daemon_driver_name && value == daemon_driver_name)) {
         continue;

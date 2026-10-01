@@ -2,8 +2,8 @@
  * @file src/platform/windows/pyrowave_d3d11_core.cpp
  * @brief PyroWave encoding of Direct3D 11 frames through PyroWave's Vulkan C API.
  *
- * The D3D11 conversion half follows dimizago's Vibepollo PyroWave encoder
- * (GPLv3, https://github.com/dimizago/Vibepollo, branch pyrowave), which builds on
+ * The D3D11 conversion half follows dimizago's ArtLight PyroWave encoder
+ * (GPLv3, https://github.com/dimizago/ArtLight, branch pyrowave), which builds on
  * andygrundman's Windows PyroWave host. The encoder half replaces that port's
  * AMD-only Direct3D 12 codec with upstream PyroWave's Vulkan C API.
  */

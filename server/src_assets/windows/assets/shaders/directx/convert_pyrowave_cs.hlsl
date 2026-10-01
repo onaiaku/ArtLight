@@ -1,6 +1,6 @@
 // RGB -> Y'CbCr planes for the PyroWave encoder (src/platform/windows/pyrowave_d3d11_core.cpp).
 //
-// Ported from dimizago's Vibepollo PyroWave converter (itself built on andygrundman's
+// Ported from dimizago's ArtLight PyroWave converter (itself built on andygrundman's
 // Windows PyroWave host); display rotation and the SDR-to-PQ variant were added here.
 //
 // Writes three single-channel UNORM planes (R8 for 8-bit, R16 for 10-bit streams)

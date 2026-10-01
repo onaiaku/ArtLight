@@ -308,7 +308,7 @@ test('history pagination, grouped details, full export, deletion, and chart zoom
   const downloadPromise = page.waitForEvent('download');
   await detailDialog.getByRole('button', { name: 'Export JSON' }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/vibepollo-session-.*\.json/);
+  expect(download.suggestedFilename()).toMatch(/artlight-session-.*\.json/);
   await page.screenshot({ path: testInfo.outputPath('stats-group-1440.png'), fullPage: true });
 
   await detailDialog.getByRole('button', { name: 'Close' }).click();
