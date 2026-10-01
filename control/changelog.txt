@@ -5,6 +5,27 @@ ArtLight Control - Changelog
 https://github.com/onaiaku/ArtLight
 
 ------------------------------------------------
+Version 1.4.0 (01/10/2026)
+------------------------------------------------
+ArtLight Server 1.4.0 brings the upstream Vibepollo 2.0.0 engine in.
+
+PyroWave, a GPU wavelet codec, is available with very low encode and
+decode latency. Its frames are independent, so losing one does not
+force a new keyframe. It wants a fast wired LAN.
+
+ArtLight's own virtual gamepad driver can now be installed with the
+server: Xbox, DualSense, DualShock 4 and Switch Pro emulation with no
+ViGEmBus and no licence key. The installer offers it, ticked by
+default.
+
+Remote Monitor turns a second device into an additional streamed
+display beside your main session. VRR capture is smoother on Windows.
+The v2 web UI is now the default interface.
+
+Control is bumped to 1.4.0 in lockstep so Server and Control report the
+same version. Control's own code is unchanged in this release.
+
+------------------------------------------------
 Version 1.3.1 (27/09/2026)
 ------------------------------------------------
 Startup can no longer be killed by a step it does not need.

@@ -666,8 +666,6 @@ namespace ArtLightServerInstaller {
       };
       contentStack.Children.Add(_installVirtualGamepadSection);
 
-      contentStack.Children.Add(_installVirtualGamepadSection);
-
       var gamepadStack = new StackPanel {
         Orientation = Orientation.Vertical
       };
