@@ -386,9 +386,15 @@ sunshine_register_component(NAME test_component_rtsp_pending_policy TEST_SOURCE 
 sunshine_register_component(NAME test_component_pyrowave_policy TEST_SOURCE unit/test_pyrowave_policy.cpp
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/pyrowave_policy.cpp")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # A test component links only GTest plus whatever it declares, so any component
+    # that reaches Boost headers must name the Boost target. With system Boost the
+    # merged system include path hides that; on the FetchContent fallback (the pinned
+    # 1.89.0) only declared targets contribute include directories, and routed_link.h
+    # includes <boost/asio/ip/address.hpp>.
     sunshine_register_component(NAME test_component_linux_routed_link
         TEST_SOURCE unit/platform/linux/test_routed_link.cpp
-        PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/platform/linux/routed_link.cpp")
+        PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/platform/linux/routed_link.cpp"
+        LINK_LIBRARIES Boost::asio)
 endif()
 sunshine_register_component(NAME test_component_hdr_request_policy TEST_SOURCE unit/test_hdr_request_policy.cpp)
 sunshine_register_component(NAME test_component_single_flight TEST_SOURCE unit/test_single_flight.cpp)
@@ -413,12 +419,14 @@ sunshine_register_component(NAME test_component_steam_artwork TEST_SOURCE test_s
                     "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/steam_integration.cpp"
                     "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/provider_scan_protocol.cpp"
     INCLUDE_DIRECTORIES ${FFMPEG_INCLUDE_DIRS}
-    LINK_LIBRARIES nlohmann_json::nlohmann_json ${FFMPEG_LIBRARIES} ${STEAM_ARTWORK_TEST_LIBRARIES}
+    LINK_LIBRARIES Boost::asio nlohmann_json::nlohmann_json ${FFMPEG_LIBRARIES} ${STEAM_ARTWORK_TEST_LIBRARIES}
                    ${SUNSHINE_TEST_FFMPEG_PLATFORM_LIBRARIES}
     DEFINITIONS ${STEAM_ARTWORK_TEST_DEFINITIONS})
 sunshine_register_component(NAME test_component_config_steam TEST_SOURCE test_config_steam.cpp
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/config_steam.cpp"
-    LINK_LIBRARIES nlohmann_json::nlohmann_json)
+    LINK_LIBRARIES Boost::algorithm Boost::asio Boost::filesystem Boost::format Boost::function
+                   Boost::log Boost::process Boost::property_tree Boost::system
+                   nlohmann_json::nlohmann_json)
 sunshine_register_component(NAME test_component_steam_sync TEST_SOURCE test_steam_sync.cpp
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/steam_sync_policy.cpp"
                     "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/steam_integration.cpp"
@@ -433,7 +441,9 @@ sunshine_register_component(NAME test_component_steam_auto_sync TEST_SOURCE test
     LINK_LIBRARIES nlohmann_json::nlohmann_json)
 sunshine_register_component(NAME test_component_config_lutris TEST_SOURCE test_config_lutris.cpp
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/config_lutris.cpp"
-    LINK_LIBRARIES nlohmann_json::nlohmann_json)
+    LINK_LIBRARIES Boost::algorithm Boost::asio Boost::filesystem Boost::format Boost::function
+                   Boost::log Boost::process Boost::property_tree Boost::system
+                   nlohmann_json::nlohmann_json)
 sunshine_register_component(NAME test_component_lutris_integration TEST_SOURCE test_lutris_integration.cpp
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/lutris_integration.cpp"
                     "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/provider_scan_protocol.cpp"
@@ -464,7 +474,8 @@ sunshine_register_component(NAME test_component_http_auth TEST_SOURCE unit/test_
         "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/http_auth_request_policy.cpp"
         "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/config_http_policy.cpp"
     LINK_LIBRARIES GTest::gmock nlohmann_json::nlohmann_json sunshine_test_simple_web_headers
-        Boost::algorithm Boost::function Boost::property_tree ${SUNSHINE_TEST_SOCKET_LIBRARIES})
+        Boost::algorithm Boost::asio Boost::format Boost::function Boost::log Boost::property_tree
+        ${SUNSHINE_TEST_SOCKET_LIBRARIES})
 sunshine_register_component(NAME test_component_http_policy TEST_SOURCE unit/test_httpcommon.cpp
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/http_policy.cpp"
     LINK_LIBRARIES Boost::property_tree)
