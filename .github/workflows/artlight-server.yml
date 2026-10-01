@@ -14,6 +14,11 @@ on:
         required: false
         type: boolean
         default: false
+      only_windows:
+        description: Build Windows only and skip the Linux job (for testing the Windows installer)
+        required: false
+        type: boolean
+        default: false
   push:
     branches:
       - '**'
@@ -264,7 +269,7 @@ jobs:
       - release-candidate
     # Same gate as Windows: a push only builds when the release gate said so,
     # a manual dispatch always builds.
-    if: github.event_name != 'push' || needs.release-candidate.outputs.should_release == 'true'
+    if: (github.event_name != 'push' || needs.release-candidate.outputs.should_release == 'true') && inputs.only_windows != true
     permissions:
       actions: read
       contents: read

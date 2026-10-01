@@ -2,11 +2,11 @@
 name: Deploy GitHub Pages
 permissions: {}
 
+# Dispatch-only while the signed repository is being brought up, so that this
+# workflow can never change the live Pages site on its own. The publisher calls
+# it explicitly once a release has been signed. Restore a push trigger on
+# `main` and `arch-repo` when Pages should follow the repository automatically.
 on:
-  push:
-    branches:
-      - master
-      - arch-repo
   workflow_dispatch:
 
 concurrency:
@@ -20,10 +20,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout Vibepollo site
+      - name: Checkout ArtLight site
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
-          ref: master
+          ref: main
           fetch-depth: 0
 
       - name: Assemble static site and Arch repository
@@ -31,7 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p _site
-          cp -a gh-pages-template/. _site/
+          cp -a server/gh-pages-template/. _site/
           rm -f _site/.readthedocs.yaml _site/_config.yml
 
           if git fetch --depth=1 origin refs/heads/arch-repo; then

@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Published v-less Vibepollo release tag, for example 1.19.0
+        description: Published v-less ArtLight release tag, for example 1.4.0
         required: true
         type: string
       allow_draft:
@@ -79,10 +79,10 @@ jobs:
           fi
 
           mapfile -t package_assets < <(
-            jq -r '.assets[] | .name as $name | select(($name | test("^vibepollo-.+\\.pkg\\.tar\\.zst$")) and (($name | contains("-debug-")) | not)) | [.id, .name] | @tsv' <<<"${release_json}"
+            jq -r '.assets[] | .name as $name | select(($name | test("^artlight-.+\\.pkg\\.tar\\.zst$")) and (($name | contains("-debug-")) | not)) | [.id, .name] | @tsv' <<<"${release_json}"
           )
           if (( ${#package_assets[@]} != 1 )); then
-            echo "::error::Expected exactly one non-debug Vibepollo Arch package on release ${source_tag}."
+            echo "::error::Expected exactly one non-debug ArtLight Arch package on release ${source_tag}."
             jq -r '.assets[].name' <<<"${release_json}" >&2
             exit 1
           fi
@@ -93,7 +93,7 @@ jobs:
             "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" >"incoming/${package_name}"
 
           package_info="$(bsdtar -xOf "incoming/${package_name}" .PKGINFO)"
-          grep -Fqx 'pkgname = vibepollo' <<<"${package_info}"
+          grep -Fqx 'pkgname = artlight' <<<"${package_info}"
           # Keep this aligned with special_package_configuration.cmake: Arch
           # pkgver strips SemVer's prerelease separator.
           arch_package_version=${release_version//-/}
@@ -149,9 +149,9 @@ jobs:
           printf '%s' "${SIGNING_PASSPHRASE}" | gpg \
             --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
             --local-user "${FINGERPRINT}" --detach-sign "incoming/${PACKAGE_NAME}"
-          gpg --batch --export "${FINGERPRINT}" >incoming/nonary-vibepollo.gpg
-          gpg --batch --armor --export "${FINGERPRINT}" >incoming/nonary-vibepollo.asc
-          printf '%s\n' "${FINGERPRINT}" >incoming/nonary-vibepollo-fingerprint.txt
+          gpg --batch --export "${FINGERPRINT}" >incoming/onaiaku-artlight.gpg
+          gpg --batch --armor --export "${FINGERPRINT}" >incoming/onaiaku-artlight.asc
+          printf '%s\n' "${FINGERPRINT}" >incoming/onaiaku-artlight-fingerprint.txt
           gpg --batch --verify "incoming/${PACKAGE_NAME}.sig" "incoming/${PACKAGE_NAME}"
 
       - name: Update repository database
@@ -174,34 +174,36 @@ jobs:
 
           mkdir -p "${publication_dir}/x86_64"
           cp "incoming/${PACKAGE_NAME}" "incoming/${PACKAGE_NAME}.sig" \
-            incoming/nonary-vibepollo.gpg incoming/nonary-vibepollo.asc \
-            incoming/nonary-vibepollo-fingerprint.txt \
+            incoming/onaiaku-artlight.gpg incoming/onaiaku-artlight.asc \
+            incoming/onaiaku-artlight-fingerprint.txt \
             "${publication_dir}/x86_64/"
 
           cd "${publication_dir}/x86_64"
           # This repository publishes exactly the verified release package.
           # Rebuild both indexes so stale entries cannot survive publication.
-          rm -f vibepollo.db vibepollo.db.sig vibepollo.db.tar.gz \
-            vibepollo.db.tar.gz.sig vibepollo.db.tar.gz.old vibepollo.db.tar.gz.old.sig \
-            vibepollo.files vibepollo.files.sig vibepollo.files.tar.gz \
-            vibepollo.files.tar.gz.sig vibepollo.files.tar.gz.old vibepollo.files.tar.gz.old.sig
-          repo-add vibepollo.db.tar.gz "${PACKAGE_NAME}"
+          # The database name must match PACMAN_REPO_NAME and the [artlight]
+          # section the installer writes to /etc/pacman.d/artlight.conf.
+          rm -f artlight.db artlight.db.sig artlight.db.tar.gz \
+            artlight.db.tar.gz.sig artlight.db.tar.gz.old artlight.db.tar.gz.old.sig \
+            artlight.files artlight.files.sig artlight.files.tar.gz \
+            artlight.files.tar.gz.sig artlight.files.tar.gz.old artlight.files.tar.gz.old.sig
+          repo-add artlight.db.tar.gz "${PACKAGE_NAME}"
           printf '%s' "${SIGNING_PASSPHRASE}" | gpg \
             --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
-            --local-user "${FINGERPRINT}" --detach-sign vibepollo.db.tar.gz
+            --local-user "${FINGERPRINT}" --detach-sign artlight.db.tar.gz
           printf '%s' "${SIGNING_PASSPHRASE}" | gpg \
             --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
-            --local-user "${FINGERPRINT}" --detach-sign vibepollo.files.tar.gz
+            --local-user "${FINGERPRINT}" --detach-sign artlight.files.tar.gz
 
-          rm -f vibepollo.db vibepollo.db.sig vibepollo.files vibepollo.files.sig
-          cp vibepollo.db.tar.gz vibepollo.db
-          cp vibepollo.db.tar.gz.sig vibepollo.db.sig
-          cp vibepollo.files.tar.gz vibepollo.files
-          cp vibepollo.files.tar.gz.sig vibepollo.files.sig
+          rm -f artlight.db artlight.db.sig artlight.files artlight.files.sig
+          cp artlight.db.tar.gz artlight.db
+          cp artlight.db.tar.gz.sig artlight.db.sig
+          cp artlight.files.tar.gz artlight.files
+          cp artlight.files.tar.gz.sig artlight.files.sig
 
           # Prune older payloads only after the new indexes have been signed.
           shopt -s nullglob
-          for old_package in vibepollo-*.pkg.tar.zst vibepollo-*.pkg.tar.zst.sig; do
+          for old_package in artlight-*.pkg.tar.zst artlight-*.pkg.tar.zst.sig; do
             if [[ "${old_package}" != "${PACKAGE_NAME}" && "${old_package}" != "${PACKAGE_NAME}.sig" ]]; then
               rm -f -- "${old_package}"
             fi
@@ -216,16 +218,16 @@ jobs:
           # The checkout is owned by a different uid than the container user.
           git config --global --add safe.directory '*'
           publication_dir="${RUNNER_TEMP}/arch-repo"
-          git -C "${publication_dir}" config user.name 'Nonary release automation'
+          git -C "${publication_dir}" config user.name 'ArtLight release automation'
           git -C "${publication_dir}" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git -C "${publication_dir}" add --all
           if git -C "${publication_dir}" diff --cached --quiet; then
             echo 'Repository already contains this exact signed release.'
             exit 0
           fi
-          git -C "${publication_dir}" commit -m "Publish Vibepollo ${RELEASE_VERSION} for Arch Linux"
+          git -C "${publication_dir}" commit -m "Publish ArtLight ${RELEASE_VERSION} for Arch Linux"
           git -C "${publication_dir}" push origin HEAD:arch-repo
 
       - name: Deploy updated repository through Pages
         shell: bash
-        run: gh workflow run update-pages.yml --ref master
+        run: gh workflow run update-pages.yml --ref main
