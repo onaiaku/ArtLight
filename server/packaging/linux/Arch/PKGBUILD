@@ -166,9 +166,9 @@ build() {
       -D CMAKE_INSTALL_PREFIX=/usr
       -D SUNSHINE_EXECUTABLE_PATH=/usr/bin/vibepollo
       -D SUNSHINE_ASSETS_DIR="share/vibepollo"
-      -D SUNSHINE_PUBLISHER_NAME='Nonary'
-      -D SUNSHINE_PUBLISHER_WEBSITE='https://github.com/Nonary/Vibepollo'
-      -D SUNSHINE_PUBLISHER_ISSUE_URL='https://github.com/Nonary/Vibepollo/issues'
+      -D SUNSHINE_PUBLISHER_NAME='onaiaku'
+      -D SUNSHINE_PUBLISHER_WEBSITE='https://github.com/onaiaku/ArtLight'
+      -D SUNSHINE_PUBLISHER_ISSUE_URL='https://github.com/onaiaku/ArtLight/issues'
     )
 
     if [[ "${_use_cuda::1}" != "t" ]]; then
