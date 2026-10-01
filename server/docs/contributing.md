@@ -1,6 +1,5 @@
 # Contributing
 Read our contribution guide in our organization level
-[docs](https://docs.lizardbyte.dev/latest/developers/contributing.html).
 
 ## Recommended Tools
 
@@ -18,21 +17,17 @@ the semantic tokens generated from `design/tokens.json`, and preserve the
 task-first information hierarchy documented in `docs/design-principles.md`.
 
 ### Localization
-Sunshine and related LizardByte projects are being localized into various languages.
 The default language is `en` (English).
 
-![](https://app.lizardbyte.dev/dashboard/crowdin/LizardByte_graph.svg)
 
 @admonition{Community | We are looking for language coordinators to help approve translations.
 The goal is to have the bars above filled with green!
-If you are interesting, please reach out to us on our Discord server.}
 
 #### CrowdIn
 The translations occur on [CrowdIn][crowdin-url].
 Anyone is free to contribute to the localization there.
 
 ##### Translation Basics
-* The brand names *LizardByte* and *Sunshine* should never be translated.
 * Other brand names should never be translated. Examples include *AMD*, *Intel*, and *NVIDIA*.
 
 ##### CrowdIn Integration
@@ -142,7 +137,6 @@ then make that same test pass with the correction. Run the narrowest relevant te
 Even if your changes cannot be covered in the CI, we still encourage you to write the tests for them. This will allow
 maintainers to run the tests locally.
 
-[crowdin-url]: https://translate.lizardbyte.dev
 
 <div class="section_buttons">
 

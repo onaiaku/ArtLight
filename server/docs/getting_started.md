@@ -18,16 +18,6 @@ Binaries can be found in the [latest release][latest-release].
 
 ## Install
 
-### Docker
-
-> [!WARNING]
-> The Docker images are not recommended for most users.
-
-Docker images are available on [Dockerhub.io](https://hub.docker.com/repository/docker/lizardbyte/sunshine)
-and [ghcr.io](https://github.com/orgs/LizardByte/packages?repo_name=sunshine).
-
-See [Docker](../DOCKER_README.md) for more information.
-
 ### FreeBSD
 
 #### Install
@@ -119,49 +109,6 @@ sudo journalctl -u artlight-session-controller.service -u artlight.service -b
 ```bash
 sudo pacman -R artlight
 ```
-
-### macOS
-
-> [!IMPORTANT]
-> ArtLight Server on macOS is experimental. Gamepads do not work.
-
-#### DMG
-
-##### Install
-
-1. Download and install based on your architecture:
-
-   | Architecture          | Package                                                                                                                |
-   |-----------------------|------------------------------------------------------------------------------------------------------------------------|
-   | arm64 (Apple Silicon) | [Sunshine-macOS-arm64.dmg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-macOS-arm64.dmg)   |
-   | x86_64 (Intel)        | [Sunshine-macOS-x86_64.dmg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-macOS-x86_64.dmg) |
-
-2. Open the downloaded `.dmg` file.
-3. Drag `Sunshine.app` into the `Applications` folder.
-4. Eject the disk image.
-
-##### Uninstall
-1. Quit ArtLight Server if it is running.
-2. Open `Finder`, navigate to `Applications`, and drag `Sunshine.app` to the Trash.
-
-#### Homebrew
-This package requires that you have [Homebrew](https://docs.brew.sh/Installation) installed.
-
-##### Install
-```bash
-brew update
-brew upgrade
-brew tap LizardByte/homebrew
-brew install sunshine
-```
-
-##### Uninstall
-```bash
-brew uninstall sunshine
-```
-
-> [!TIP]
-> For beta you can replace `sunshine` with `sunshine-beta` in the above commands.
 
 ### Windows
 
@@ -285,23 +232,6 @@ sudo systemctl enable --now artlight-session-controller.service
 There is no per-user unit on Linux. Never enable `app-io.github.onaiaku.ArtLight` with
 `systemctl --user`, and never add file capabilities to `/usr/bin/artlight`; the packaged host
 already carries the capabilities it needs.
-
-### macOS
-The first time you start ArtLight Server, you will be asked to grant access to screen recording and your microphone.
-
-ArtLight Server supports native system audio capture on macOS 14.0 (Sonoma) and newer via Apple’s Audio Tap API.
-To use it, simply leave the **Audio Sink** setting blank.
-
-If you prefer to manage your own loopback device, you can still use
-[Soundflower](https://github.com/mattingalls/Soundflower) or
-[BlackHole](https://github.com/ExistentialAudio/BlackHole)
-and enter its device name in the [audio_sink](configuration.md#audio_sink) field.
-
-> [!NOTE]
-> Command Keys are not forwarded by Moonlight. Right Option-Key is mapped to CMD-Key.
-
-> [!CAUTION]
-> Gamepads are not currently supported.
 
 ### Windows
 In order for virtual gamepads to work, you must install ViGEmBus. You can do this from the troubleshooting tab
@@ -511,7 +441,6 @@ Tutorial videos are available [here](https://www.youtube.com/playlist?list=PLMYr
 Guides are available [here](guides.md).
 
 @admonition{Community! |
-Tutorials and Guides are community generated. Want to contribute? Reach out to us on our discord server.}
 
 ### Version Status Messages
 The Web UI provides detailed context about how your locally built ArtLight Server instance relates to the latest public release:

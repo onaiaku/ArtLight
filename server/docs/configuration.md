@@ -29,7 +29,6 @@ location by modifying the configuration file.
 | FreeBSD | @code{}~/.config/sunshine@endcode               |
 | Linux (native package) | @code{}/var/lib/artlight@endcode |
 | Linux (standalone) | @code{}~/.config/artlight@endcode (or `$XDG_CONFIG_HOME/artlight`) |
-| macOS   | @code{}~/.config/sunshine@endcode               |
 | Windows | @code{}%ProgramFiles%\\Artlight\\Artlight Server\\config@endcode |
 
 Native Linux packages share one machine profile across the login screen and desktop.
@@ -865,14 +864,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @endcode
             <br>
             <br>
-            **macOS:**
-            <br>
-            ArtLight Server can only access microphones on macOS due to system limitations.
-            To stream system audio use
-            [Soundflower](https://github.com/mattingalls/Soundflower) or
-            [BlackHole](https://github.com/ExistentialAudio/BlackHole).
-            <br>
-            <br>
             **Windows:**
             <br>
             Enter the following command in command prompt or PowerShell.
@@ -896,11 +887,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @endcode</td>
     </tr>
     <tr>
-        <td>Example (macOS)</td>
-        <td colspan="2">@code{}
-            audio_sink = BlackHole 2ch
-            @endcode</td>
-    </tr>
     <tr>
         <td>Example (Windows)</td>
         <td colspan="2">@code{}
@@ -950,11 +936,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
             while muting the speakers.
             @tip{See [audio_sink](#audio_sink)!}
             @tip{These are some options for virtual sound devices.
-            * Stream Streaming Speakers (Linux, macOS, Windows)
               * Steam must be installed.
               * Enable [install_steam_audio_drivers](#install_steam_audio_drivers)
                 or use Steam Remote Play at least once to install the drivers.
-            * [Virtual Audio Cable](https://vb-audio.com/Cable) (macOS, Windows)
             }
         </td>
     </tr>
@@ -1132,17 +1116,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
             You need to use the id value inside the parenthesis, e.g. `1`.
             <br>
             <br>
-            **macOS:**
-            <br>
-            During ArtLight Server startup, you should see the list of detected displays:
-            @code{}
-            Info: Detecting displays
-            Info: Detected display: Monitor-0 (id: 3) connected: true
-            Info: Detected display: Monitor-1 (id: 2) connected: true
-            @endcode
-            You need to use the id value inside the parenthesis, e.g. `3`.
-            <br>
-            <br>
             **Windows:**
             <br>
             During ArtLight Server startup, you should see the list of detected displays:
@@ -1209,11 +1182,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @endcode</td>
     </tr>
     <tr>
-        <td>Example (macOS)</td>
-        <td colspan="2">@code{}
-            output_name = 3
-            @endcode</td>
-    </tr>
     <tr>
         <td>Example (Windows)</td>
         <td colspan="2">@code{}
@@ -4197,7 +4165,6 @@ runtime version is written to the log on every AMD HDR HEVC attempt (search for
         <td>Description</td>
         <td colspan="2">
             The entropy encoding to use.
-            @note{This option only applies when using macOS.}
         </td>
     </tr>
     <tr>
@@ -4234,7 +4201,6 @@ runtime version is written to the log on every AMD HDR HEVC attempt (search for
         <td>Description</td>
         <td colspan="2">
             Force Video Toolbox to use software encoding.
-            @note{This option only applies when using macOS.}
         </td>
     </tr>
     <tr>
@@ -4275,7 +4241,6 @@ runtime version is written to the log on every AMD HDR HEVC attempt (search for
         <td>Description</td>
         <td colspan="2">
             Realtime encoding.
-            @note{This option only applies when using macOS.}
             @warning{Disabling realtime encoding might result in a delayed frame encoding or frame drop.}
         </td>
     </tr>

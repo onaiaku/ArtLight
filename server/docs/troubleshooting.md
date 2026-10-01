@@ -239,19 +239,6 @@ high as long as the encoder is used.
 ### Gamescope compatibility
 Some users have reported stuttering issues when streaming games running within Gamescope.
 
-## macOS
-
-### Dynamic session lookup failed
-If you get this error:
-
-> Dynamic session lookup supported but failed: launchd did not provide a socket path, verify that
-> org.freedesktop.dbus-session.plist is loaded!
-
-Try this.
-```bash
-launchctl load -w /Library/LaunchAgents/org.freedesktop.dbus-session.plist
-```
-
 ## Windows
 
 ### No gamepad detected

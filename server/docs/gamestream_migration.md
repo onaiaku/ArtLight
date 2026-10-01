@@ -4,8 +4,6 @@ Luckily, ArtLight Server performance is now equal to or better than Nvidia GameS
 
 ## Migration
 We have developed a simple migration tool to help you migrate your GameStream games and apps to ArtLight Server automatically.
-Please check out our [GSMS](https://github.com/LizardByte/GSMS) project if you're interested in an automated
-migration option. GSMS offers the ability to migrate your custom and auto-detected games and apps. The
 working directory, command, and image are all set in ArtLight Server's `apps.json` file. The box-art image is also copied
 to a specified directory.
 
