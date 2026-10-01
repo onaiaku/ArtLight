@@ -18,26 +18,6 @@ Binaries can be found in the [latest release][latest-release].
 
 ## Install
 
-### FreeBSD
-
-#### Install
-1. Download the appropriate package for your architecture
-
-   | Architecture  | Package                                                                                                                                |
-   |---------------|----------------------------------------------------------------------------------------------------------------------------------------|
-   | amd64/x86_64  | [Sunshine-FreeBSD-14.4-amd64.pkg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-FreeBSD-14.3-amd64.pkg)     |
-   | arm64/aarch64 | [Sunshine-FreeBSD-14.4-aarch64.pkg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-FreeBSD-14.3-aarch64.pkg) |
-
-2. Open terminal and run the following command.
-   ```sh
-   sudo pkg install ./Sunshine-FreeBSD-14.4-{arch}.pkg
-   ```
-
-#### Uninstall
-```sh
-sudo pkg delete Sunshine
-```
-
 ### Linux
 
 Linux support is in **beta** and ships as a native package for **Arch Linux and CachyOS** (x86_64).
@@ -190,22 +170,6 @@ overflow menu. Different versions of Windows may provide slightly different step
 
 ## Initial Setup
 After installation, some initial setup is required.
-
-### FreeBSD
-
-#### Virtual Input Devices
-
-> [!IMPORTANT]
-> To use virtual input devices (keyboard, mouse, gamepads), you must add your user to the `input` group.
-
-The installation process creates the `input` group and configures permissions for `/dev/uinput`.
-To allow your user to create virtual input devices, run:
-
-```bash
-pw groupmod input -m $USER
-```
-
-After adding yourself to the group, log out and log back in for the changes to take effect.
 
 ### Linux
 

@@ -881,7 +881,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">ArtLight Server will select the default audio device.</td>
     </tr>
     <tr>
-        <td>Example (FreeBSD/Linux)</td>
+        <td>Example (Linux)</td>
         <td colspan="2">@code{}
             audio_sink = alsa_output.pci-0000_09_00.3.analog-stereo
             @endcode</td>
@@ -1050,7 +1050,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">ArtLight Server will select the default video card.</td>
     </tr>
     <tr>
-        <td>Example (FreeBSD/Linux)</td>
+        <td>Example (Linux)</td>
         <td colspan="2">@code{}
             adapter_name = /dev/dri/renderD128
             @endcode</td>
@@ -1176,7 +1176,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">ArtLight Server will select the default display.</td>
     </tr>
     <tr>
-        <td>Example (FreeBSD/Linux)</td>
+        <td>Example (Linux)</td>
         <td colspan="2">@code{}
             output_name = 0
             @endcode</td>
