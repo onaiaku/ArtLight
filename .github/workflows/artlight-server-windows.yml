@@ -1466,6 +1466,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.symbol_token }}
+          SYMBOL_TOKEN: ${{ secrets.symbol_token }}
           RELEASE_TAG: ${{ inputs.release_tag || inputs.release_version }}
           SYMBOL_RELEASE_DRAFT: ${{ inputs.symbol_release_draft }}
           SYMBOL_RELEASE_PREFIX: ${{ inputs.symbol_release_prefix }}
@@ -1475,8 +1476,9 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
 
-          if ([string]::IsNullOrWhiteSpace($env:GH_TOKEN)) {
-            throw "SYMBOL_TOKEN is required to upload private symbols to $($env:SYMBOLS_REPO)."
+          if ([string]::IsNullOrWhiteSpace($env:SYMBOL_TOKEN)) {
+            Write-Host "::warning::No symbol token configured; skipping private symbol publication."
+            exit 0
           }
 
           $sourceReleaseTag = $env:RELEASE_TAG
