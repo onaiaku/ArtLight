@@ -46,7 +46,13 @@ jobs:
         working-directory: server
     container:
       image: archlinux/archlinux:base-devel
-      options: --cpus 8 --memory 16g
+      # Upstream set `--cpus 8 --memory 16g` here, which only works on an
+      # 8-CPU self-hosted runner. GitHub's ubuntu-latest has 4 CPUs and docker
+      # refuses to create the container at all:
+      #   "range of CPUs is from 0.01 to 4.00, as there are only 4 CPUs available"
+      # That fails at Initialize containers, before a single step runs. Left unset
+      # the container gets the whole runner, which is what we want on ubuntu-latest.
+      # Restore the limits only if a self-hosted Linux runner with 8+ CPUs is added.
     steps:
 
       - name: Update keyring
