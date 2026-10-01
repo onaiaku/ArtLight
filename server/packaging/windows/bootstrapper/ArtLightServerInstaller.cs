@@ -1960,6 +1960,23 @@ namespace ArtLightServerInstaller {
         RemoveVirtualGamepadDriver = removeGamepadDriverCheckBox.IsChecked == true,
         FactoryResetAppData = factoryReset
       };
+    }
+
+    private async Task ShowInstallDonePageAsync(InstallerResult installResult) {
+      var launchControlCheckBox = new System.Windows.Controls.CheckBox {
+        Content = "Launch ArtLight Control",
+        FontSize = 13,
+        Foreground = new SolidColorBrush(Color.FromRgb(226, 235, 250)),
+        Margin = new Thickness(0, 0, 0, 8),
+        IsChecked = _lastInstallIncludedControl
+      };
+      var openWebUiCheckBox = new System.Windows.Controls.CheckBox {
+        Content = "Open ArtLight Server web UI",
+        FontSize = 13,
+        Foreground = new SolidColorBrush(Color.FromRgb(226, 235, 250)),
+        Margin = new Thickness(0, 0, 0, 0),
+        IsChecked = true
+      };
 
       var result = await ShowOverlayAsync(
         "Installation complete",
@@ -5878,7 +5895,6 @@ namespace ArtLightServerInstaller {
       InstallerArguments arguments,
       bool factoryResetAppData = false,
       bool removeVirtualDisplayDriver = false,
-      bool allowSelfElevation = true,
       bool allowSelfElevation = true,
       bool removeVirtualGamepadDriver = false,
       bool removeServer = true,
