@@ -88,3 +88,7 @@
 	path = server/third-party/libvirtualdisplay
 	url = https://github.com/Nonary/libvirtualdisplay.git
 	branch = master
+[submodule "third-party/libvirtualgamepad"]
+	path = server/third-party/libvirtualgamepad
+	url = https://github.com/Nonary/libvirtualgamepad.git
+	branch = main
