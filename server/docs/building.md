@@ -167,8 +167,8 @@ cmake --build build --target all
 cmake --build build --target package_msi
 ```
 
-This produces `ArtLight Server.msi`. It is the server on its own, and it is what the release
-build uploads unsigned before signing.
+This produces `ArtLight Server.msi`. It is an intermediate: the single installer consumes it, so it is
+not published on its own. The download is `ArtLight Setup.exe`.
 
 ### Build the single installer
 

@@ -98,23 +98,13 @@ sudo pacman -R artlight
 
 #### Installer (recommended)
 
-> [!CAUTION]
-> The msi installer is preferred moving forward. Before using a different type of installer, you should manually
-> uninstall the previous installation.
 
 1. Download and install the Windows installer:
 
    | Download | What it is |
    |----------|------------|
    | [ArtLight.Setup.exe](https://github.com/onaiaku/ArtLight/releases/latest/download/ArtLight.Setup.exe) | Everything in one: ArtLight Server plus ArtLight Control. Start here. |
-   | [ArtLight.Server.msi](https://github.com/onaiaku/ArtLight/releases/latest/download/ArtLight.Server.msi) | The server MSI on its own, for scripted or managed installs. |
 
-> [!TIP]
-> Installer logs can be found in the following locations.<br>
-> | File | log paths |
-> | ---- | --------- |
-> | .exe | `%%PROGRAMFILES%/Sunshine/install.log` (AMD64 only)<br>`%%TEMP%/Sunshine/logs/install/` |
-> | .msi | `%%TEMP%/Sunshine/logs/install/` |
 
 > [!CAUTION]
 > You should carefully select or unselect the options you want to install. Do not blindly install or
@@ -122,49 +112,6 @@ sudo pacman -R artlight
 
 To uninstall, find ArtLight Server in the list <a href="ms-settings:installed-apps">here</a> and select "Uninstall" from the
 overflow menu. Different versions of Windows may provide slightly different steps for uninstall.
-
-#### Standalone (lite version)
-
-> [!WARNING]
-> By using this package instead of the installer, performance will be reduced. This package is not
-> recommended for most users. No support will be provided!
-
-1. Download and extract based on your architecture:
-
-   | Architecture          | Installer                                                                                                                                  |
-   |-----------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-   | AMD64/x64 (Intel/AMD) | [Sunshine-Windows-AMD64-portable.zip](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-portable.zip) |
-   | ARM64                 | [Sunshine-Windows-ARM64-portable.zip](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-ARM64-portable.zip) |
-
-2. Open command prompt as administrator
-3. Firewall rules
-
-   Install:
-   ```bash
-   cd /d {path to extracted directory}
-   scripts/add-firewall-rule.bat
-   ```
-
-   Uninstall:
-   ```bash
-   cd /d {path to extracted directory}
-   scripts/delete-firewall-rule.bat
-   ```
-
-4. Windows service
-
-   Install:
-   ```bash
-   cd /d {path to extracted directory}
-   scripts/install-service.bat
-   scripts/autostart-service.bat
-   ```
-
-   Uninstall:
-   ```bash
-   cd /d {path to extracted directory}
-   scripts/uninstall-service.bat
-   ```
 
 ## Initial Setup
 After installation, some initial setup is required.
