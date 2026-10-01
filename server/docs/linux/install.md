@@ -110,15 +110,17 @@ The `PKGBUILD` in the repository is a template; a CMake configure step fills in 
 version before `makepkg` can use it. Install `cuda` first if you want NVENC (the build detects it):
 
 ```bash
-git clone --branch 2.0.0 https://github.com/onaiaku/ArtLight.git
+git clone --recurse-submodules https://github.com/onaiaku/ArtLight.git
 cd ArtLight
-cmake -S . -B build -DSUNSHINE_CONFIGURE_ONLY=ON -DSUNSHINE_CONFIGURE_PKGBUILD=ON
+git checkout 1.4.0          # or stay on main for the latest code
+cmake -S server -B build -DSUNSHINE_CONFIGURE_ONLY=ON -DSUNSHINE_CONFIGURE_PKGBUILD=ON
 mkdir pkg && cp build/PKGBUILD build/artlight.install pkg/
 cd pkg && makepkg -si
 ```
 
 The build takes a while: it compiles the web interface with `npm`, runs the test suite, and needs
-`nodejs`, `npm`, `ninja`, and `gcc15` (the compiler CUDA supports). Pass `--nocheck` to
+`nodejs`, `npm`, `ninja`, and `gcc14` (the compiler CUDA supports), which the rolling
+repositories no longer carry — take it from the Arch Linux Archive. Pass `--nocheck` to
 `makepkg` to skip the tests.
 
 ## After installation

@@ -27,17 +27,17 @@ location by modifying the configuration file.
 |---------|-------------------------------------------------|
 | Docker  | @code{}/config@endcode                          |
 | FreeBSD | @code{}~/.config/sunshine@endcode               |
-| Linux (native package) | @code{}/var/lib/artlightserver@endcode |
-| Linux (standalone) | @code{}~/.config/artlightserver@endcode (or `$XDG_CONFIG_HOME/artlightserver`) |
+| Linux (native package) | @code{}/var/lib/artlight@endcode |
+| Linux (standalone) | @code{}~/.config/artlight@endcode (or `$XDG_CONFIG_HOME/artlight`) |
 | macOS   | @code{}~/.config/sunshine@endcode               |
 | Windows | @code{}%ProgramFiles%\\Sunshine\\config@endcode |
 
 Native Linux packages share one machine profile across the login screen and desktop.
-Edit settings through the Web UI; use `artlightserver paths` to locate files and
-`sudo artlightserver logs` for diagnostics. Package upgrades import the selected desktop
-user's legacy `~/.config/artlightserver` profile once and preserve existing machine settings.
+Edit settings through the Web UI; use `artlight paths` to locate files and
+`sudo artlight logs` for diagnostics. Package upgrades import the selected desktop
+user's legacy `~/.config/artlight` profile once and preserve existing machine settings.
 
-Although it is recommended to use the configuration UI, it is possible manually configure Sunshine by
+Although it is recommended to use the configuration UI, it is possible manually configure ArtLight Server by
 editing the `conf` file in a text editor. Use the examples as reference.
 
 ## General
@@ -1288,7 +1288,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Linux setup</td>
         <td colspan="2">@code{}
-            sudo artlightserver driver install
+            sudo artlight driver install
             sudo systemctl enable --now vibeshine-vkms.service
             @endcode
             Native packages and <code>vibeshine-drm-setup.service</code> attempt this installation
@@ -1981,8 +1981,7 @@ this option to replace the running app immediately. The default is `true`.
         <td>Notes</td>
         <td colspan="2">
             Only enable this when using a physical dummy plug that needs the 10-bit HDR workaround.<br>
-            The workaround applies to directly launched applications only; Desktop streams keep their normal refresh rate so everyday use remains smooth.<br>
-            See the @hyperlink{https://github.com/Nonary/documentation/wiki/DummyPlugs#enabling-10-bit-color-on-dummy-plugs-at-high-resolutions}{Dummy Plugs guide} for full setup details.
+            The workaround applies to directly launched applications only; Desktop streams keep their normal refresh rate so everyday use remains smooth.
         </td>
     </tr>
 </table>
@@ -3223,7 +3222,7 @@ are detected during the stream. The host log reports hook readiness or failure.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Controls how fast the virtual display refreshes, which decides how soon each game frame is captured. Windows only hands Vibeshine a new frame when it redraws the display, so on a display that refreshes at the stream rate a frame that finishes just after a redraw waits up to a whole refresh before capture, and frames reach the client unevenly. A faster virtual display captures each frame closer to when the game drew it. None of the modes change the stream FPS or bandwidth, and all but @code{}disabled@endcode cap games to the stream rate.
+            Controls how fast the virtual display refreshes, which decides how soon each game frame is captured. Windows only hands the capture path a new frame when the display redraws, so on a display that refreshes at the stream rate a frame that finishes just after a redraw waits up to a whole refresh before capture, and frames reach the client unevenly. A faster virtual display captures each frame closer to when the game drew it. None of the modes change the stream FPS or bandwidth, and all but @code{}disabled@endcode cap games to the stream rate.
             <br>
             @code{}vrr@endcode holds the virtual display at a fixed 1000 Hz whatever the stream rate, so every frame is captured within 1 ms of being drawn and its RTP timestamp carries accurate game timing for clients with VRR pacing. @code{}enabled@endcode keeps the display at 4x the stream rate (within ~2 ms at 120 FPS) and captures at most 2x the stream rate on the desktop. @code{}legacy@endcode uses a fixed 2x refresh, as older versions did. @code{}disabled@endcode leaves the display at the stream rate and turns off the matching game cap. Existing boolean values remain compatible: true maps to enabled and false maps to disabled.
         </td>

@@ -1,369 +1,268 @@
-# Building
-Sunshine binaries are built using [CMake](https://cmake.org) and requires `cmake` > 3.25.
-The browser interface is built with Node.js and npm. CMake's `web_ui` target
-installs the locked dependencies with lifecycle scripts disabled, generates the
-design tokens, type-checks the Vue source, and writes the production bundle to
-`<build-dir>/assets/web`. The `sunshine` target and installer packaging depend on
-this target, and packaging fails rather than shipping an incomplete
+# Building ArtLight Server
+
+ArtLight Server builds with CMake and Ninja. The CMake root is **`server/`** — every command
+below runs from the repository root unless the step says otherwise.
+
+If you only want to *run* ArtLight, install it instead. See the
+[Linux install guide](linux/install.md) for Arch Linux and CachyOS, or the
+[releases page](https://github.com/onaiaku/ArtLight/releases) for the Windows installer.
+This page is for building it yourself.
+
+The CI workflow is the authoritative recipe: [`.github/workflows/ci-archlinux.yml`](../../.github/workflows/ci-archlinux.yml)
+for Linux, [`.github/workflows/artlight-server-windows.yml`](../../.github/workflows/artlight-server-windows.yml)
+for Windows. If this page and the workflow ever disagree, the workflow is right.
+
+## Toolchain
+
+| Compiler | Version |
+| :--- | :--- |
+| GCC | 14+ |
+| Clang | 17+ |
+| Apple Clang | 15+ |
+
+The browser interface is built with Node.js and npm. CMake's `web_ui` target installs the
+locked dependencies with lifecycle scripts disabled, generates the design tokens, type-checks
+the Vue source, and writes the production bundle to `<build-dir>/assets/web`. The server target
+and installer packaging depend on it, and packaging fails rather than shipping an incomplete
 configuration interface.
 
-For frontend-only development, run `npm ci --ignore-scripts` and `npm run dev`
-from `src_assets/common/assets/web`. Use `npm run build` for a production bundle.
+For frontend-only work, run `npm ci --ignore-scripts` then `npm run dev` from
+`src_assets/common/assets/web`. `npm run build` writes a production bundle.
 
-## Building Locally
+## Clone
 
-### Compiler
-It is recommended to use one of the following compilers:
+```bash
+git clone --recurse-submodules https://github.com/onaiaku/ArtLight.git
+cd ArtLight
+```
 
-| Compiler    | Version |
-|:------------|:--------|
-| GCC         | 14+     |
-| Clang       | 17+     |
-| Apple Clang | 15+     |
+Submodules are not optional. The WebRTC wrapper, the PyroWave tree, and several packaging and
+UI dependencies come in as submodules or downloaded release artifacts. A clone without
+`--recurse-submodules` will fail at configure time rather than at build time.
 
-### Linux release CUDA compatibility
-
-Linux release packages pin CUDA Toolkit **12.9.1** (runfile build **575.57.08**)
-to retain Maxwell, Pascal (including GTX 1070), and Volta GPU targets. CUDA 13
-cannot compile those targets. Use GCC 14 as the CUDA host compiler; older
-supported builders may use GCC 13. The runfile installs only the toolkit,
-not a GPU driver.
-
-The shared Linux build script uses the pinned runfile in `build/cuda` by
-default, ignoring a newer system toolkit. It rejects an incompatible cached
-toolkit. Arch's PKGBUILD downloads architecture-specific, SHA-256-verified
-runfiles into its source directory and explicitly selects GCC 14. Arch CI
-installs the signed, versioned GCC 14 packages from the Arch Linux Archive,
-because rolling Arch repositories no longer provide them. Manual Arch package
-builds also need the `gcc14` build dependency installed.
-
-Release packaging enables `SUNSHINE_REQUIRE_CUDA_PASCAL=ON`, which requires
-CUDA 12.9 and the `sm_61` target. Flatpak retains its existing 12.9.1 pin.
-When changing toolchain versions, run
-`python3 tests/unit/test_cuda_release_policy.py` and build the affected
-packages locally before publishing. Developer builds can leave that option
-off to use newer CUDA toolkits with a reduced set of GPU targets.
+## Linux
 
 ### Dependencies
 
-#### FreeBSD
-> [!CAUTION]
-> Sunshine support for FreeBSD is experimental and may be incomplete or not work as expected
+Arch and CachyOS, matching what CI installs:
 
-##### Install dependencies
-```sh
-pkg install -y \
-  audio/opus \
-  audio/pulseaudio \
-  devel/cmake \
-  devel/evdev-proto \
-  devel/git \
-  devel/libayatana-appindicator \
-  devel/libevdev \
-  devel/libnotify \
-  devel/ninja \
-  devel/pkgconf \
-  ftp/curl \
-  graphics/libdrm \
-  graphics/wayland \
-  multimedia/libva \
-  net/miniupnpc \
-  ports-mgmt/pkg \
-  security/openssl \
-  shells/bash \
-  x11/libX11 \
-  x11/libxcb \
-  x11/libXfixes \
-  x11/libXrandr \
-  x11/libXtst
+```bash
+sudo pacman -S --needed base-devel cmake ninja git nodejs npm python openssl
+sudo pacman -S --needed "$(pacman -Qqo /usr/lib/modules/$(uname -r)/vmlinuz)-headers"
 ```
 
-#### Linux
-Dependencies vary depending on the distribution. You can reference our
-[linux_build.sh](https://github.com/LizardByte/Sunshine/blob/master/scripts/linux_build.sh) script for a list of
-dependencies we use in Debian-based, Fedora-based and Arch-based distributions. Please submit a PR if you would like to extend the
-script to support other distributions.
+The headers must match the kernel you are running, not the newest one available. The release
+build also needs `dkms` for the virtual-display module and GCC 14, which the packages carry
+because rolling Arch repositories no longer provide it.
 
-##### KMS Capture
-Do **not** add file capabilities to the `artlightserver` binary. On Linux the public `/usr/bin/artlightserver`
-must stay unprivileged; KMS capture runs inside the private `/usr/libexec/vibeshine/artlightserver-host`,
+`scripts/linux_build.sh` collects the dependency lists for Debian-based and Fedora-based
+distributions as well; that script is a convenience, not a supported path.
+
+### Configure, build, test
+
+```bash
+cmake -S server -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+ctest --test-dir build --output-on-failure -j2
+```
+
+The test suite builds by default. Turn it off with `-DBUILD_TESTS=OFF` for a faster
+edit-compile loop; a packaging build should always run it.
+
+### Install
+
+```bash
+sudo cmake --install build
+```
+
+The package recipe overrides the install locations (`-DCMAKE_INSTALL_PREFIX=/usr`,
+`-DSUNSHINE_EXECUTABLE_PATH=/usr/bin/artlight`, `-DSUNSHINE_ASSETS_DIR=share/artlight`,
+publisher metadata). A plain local install uses the defaults and is not the same layout the
+package produces.
+
+### Building the Arch package
+
+The packaged build is what Arch and CachyOS users receive, and it does more than a plain
+build: it generates the PKGBUILD from the template, validates the AppStream metainfo and the
+desktop files, and runs the test suite before packaging. Follow the recipe in the
+[Linux install guide](linux/install.md#build-from-source).
+
+### KMS capture and file capabilities
+
+Do **not** add file capabilities to the `artlight` binary. On Linux the public `/usr/bin/artlight`
+must stay unprivileged; KMS capture runs inside the private `/usr/libexec/vibeshine/artlight-host`,
 which the package installs with exactly `cap_sys_admin,cap_sys_nice=p`, and the package hook
-verifies that the public binary has no capabilities. Install through the Arch package (or follow the
-staged-install recipe in `AGENTS.md`) rather than running a capability-patched build directly.
+verifies that the public binary has no capabilities. Install through the Arch package rather
+than running a capability-patched build directly.
 
-##### CUDA Toolkit
-CUDA-enabled builds require CUDA Toolkit **12.0 or newer**. The native
-[local build/deploy script](linux/local-development.md#build-settings) uses an
-installed toolkit and compiler; it does not pin CUDA 13 or GCC 15. Choose a
-host compiler supported by that toolkit and a C++ compiler/standard library
-that meets the project's C++23 requirements.
+The rest of `/usr/libexec/vibeshine/` is the privileged side: the session broker, the session
+controller, the machine host, the display-power and limiter helpers, and the `vibeshine-*`
+virtual-display helpers that come with the driver.
 
-The selected toolkit determines which GPU generations can be targeted. Release
-packages deliberately use **CUDA 12.9.1 with GCC 14**, as described above, to
-cover both older and newer GPUs. This release pin is not the minimum for local
-builds. CUDA 13 removes compilation support for Maxwell, Pascal, and Volta;
-upgrading the toolkit can therefore reduce GPU compatibility. See NVIDIA's
-[CUDA 13 release notes](https://docs.nvidia.com/cuda/archive/13.0.0/cuda-toolkit-release-notes/index.html)
-and [CUDA compatibility guide](https://docs.nvidia.com/deploy/cuda-compatibility/index.html).
+### CUDA
 
-The native Arch/CachyOS release package uses a private build-time toolkit and
-does not require users to install the CUDA toolkit to run ArtLight Server.
+CUDA-enabled builds need CUDA Toolkit **12.0 or newer**. The native
+[local build/deploy script](linux/local-development.md#build-settings) uses an installed
+toolkit and compiler; it does not pin CUDA 13 or GCC 15. Choose a host compiler your toolkit
+supports, and a C++ compiler and standard library that meet the project's C++23 requirements.
 
-> [!NOTE]
-> To install older versions, select the appropriate run file based on your desired CUDA version and architecture
-> according to [CUDA Toolkit Archive](https://developer.nvidia.com/cuda-toolkit-archive)
+Release packages deliberately pin **CUDA 12.9.1 with GCC 14** so Maxwell, Pascal (including
+GTX 10-series) and Volta targets stay in. CUDA 13 cannot compile those targets, so upgrading
+the toolkit can *reduce* GPU compatibility. Release packaging also enables
+`SUNSHINE_REQUIRE_CUDA_PASCAL=ON`, which requires CUDA 12.9 and the `sm_61` target. Developer
+builds can leave that option off.
 
-#### macOS
-You can either use [Homebrew](https://brew.sh) or [MacPorts](https://www.macports.org) to install dependencies.
+The Arch package uses a private build-time toolkit and does not require users to install the
+CUDA toolkit to run ArtLight Server.
 
-##### Homebrew
-```bash
-dependencies=(
-  "boost"  # Optional
-  "cmake"
-  "doxygen"  # Optional, for docs
-  "graphviz"  # Optional, for docs
-  "icu4c"  # Optional, if boost is not installed
-  "miniupnpc"
-  "ninja"
-  "openssl@3"
-  "opus"
-  "pkg-config"
-)
-brew install "${dependencies[@]}"
-```
+When you change toolchain versions, run `python3 tests/unit/test_cuda_release_policy.py` and
+build the affected packages locally before publishing.
 
-If there are issues with an SSL header that is not found:
-
-@tabs{
-  @tab{ Intel | ```bash
-    ln -s /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
-    ```}
-  @tab{ Apple Silicon | ```bash
-    ln -s /opt/homebrew/opt/openssl/include/openssl /opt/homebrew/include/openssl
-    ```
-  }
-}
-
-##### MacPorts
-```bash
-dependencies=(
-  "cmake"
-  "curl"
-  "doxygen"  # Optional, for docs
-  "graphviz"  # Optional, for docs
-  "libopus"
-  "miniupnpc"
-  "ninja"
-  "pkgconfig"
-)
-sudo port install "${dependencies[@]}"
-```
-
-#### Windows
+## Windows
 
 > [!WARNING]
-> Cross-compilation is not supported on Windows. You must build on the target architecture.
+> Cross-compilation is not supported. Build on the target architecture.
 
-First, you need to install [MSYS2](https://www.msys2.org).
+Install [MSYS2](https://www.msys2.org), start **MSYS2 UCRT64**, and:
 
-For AMD64 startup "MSYS2 UCRT64" (or for ARM64 startup "MSYS2 CLANGARM64") then execute the following commands.
-
-##### Update all packages
 ```bash
 pacman -Syu
-```
-
-##### Set toolchain variable
-For UCRT64:
-```bash
 export TOOLCHAIN="ucrt-x86_64"
-```
 
-For CLANGARM64:
-```bash
-export TOOLCHAIN="clang-aarch64"
-```
-
-##### Install dependencies
-```bash
 dependencies=(
   "git"
-  "mingw-w64-${TOOLCHAIN}-boost"  # Optional
+  "mingw-w64-${TOOLCHAIN}-boost"           # optional
   "mingw-w64-${TOOLCHAIN}-cmake"
   "mingw-w64-${TOOLCHAIN}-cppwinrt"
   "mingw-w64-${TOOLCHAIN}-curl-winssl"
-  "mingw-w64-${TOOLCHAIN}-doxygen"  # Optional, for docs... better to install official Doxygen
-  "mingw-w64-${TOOLCHAIN}-graphviz"  # Optional, for docs
   "mingw-w64-${TOOLCHAIN}-libjpeg-turbo"
   "mingw-w64-${TOOLCHAIN}-libpng"
   "mingw-w64-${TOOLCHAIN}-libwebp"
   "mingw-w64-${TOOLCHAIN}-miniupnpc"
+  "mingw-w64-${TOOLCHAIN}-ninja"
   "mingw-w64-${TOOLCHAIN}-onevpl"
   "mingw-w64-${TOOLCHAIN}-openssl"
   "mingw-w64-${TOOLCHAIN}-opus"
   "mingw-w64-${TOOLCHAIN}-toolchain"
+  "mingw-w64-${TOOLCHAIN}-MinHook"
+  "mingw-w64-${TOOLCHAIN}-nsis"
 )
-if [[ "${MSYSTEM}" == "UCRT64" ]]; then
-  dependencies+=(
-    "mingw-w64-${TOOLCHAIN}-MinHook"
-    "mingw-w64-${TOOLCHAIN}-nsis"
-  )
-fi
 pacman -S "${dependencies[@]}"
 ```
 
-##### WebRTC (optional, Windows only)
-Sunshine can link against the libwebrtc C++ wrapper when `SUNSHINE_ENABLE_WEBRTC=ON`. The wrapper source is vendored as
-the `third-party/libwebrtc` submodule, but you must build WebRTC separately and provide a staging directory that
-contains `include/` and `lib/` (e.g., `libwebrtc.dll` and its import library). We use the `third-party/depot_tools`
-submodule for `gclient`/`gn`.
+You also need [Node.js](https://nodejs.org) for the web interface, the
+[.NET SDK](https://dotnet.microsoft.com/download) for ArtLight Control, and
+[WiX Toolset](https://github.com/wixtoolset/wix) for the MSI.
 
-###### Quickstart (recommended)
-A helper script automates the full depot_tools / gclient / gn / ninja flow:
+### Build
+
+```bash
+cmake -S server -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target all
+```
+
+### Package the MSI
+
+```bash
+cmake --build build --target package_msi
+```
+
+This produces `ArtLight Server.msi`. It is the server on its own, and it is what the release
+build uploads unsigned before signing.
+
+### Build the single installer
+
+The `ArtLight Setup.exe` that users download is a bootstrapper containing the server MSI and,
+optionally, the ArtLight Control installer. Three pieces:
+
+1. **ArtLight Control** — publish it, then compile its installer:
+
+   ```powershell
+   dotnet publish control/ArtLightControlService/ArtLightControlService.csproj -c Release -r win-x64 --self-contained false
+   dotnet publish control/ArtLightControl/ArtLightControl.csproj -c Release -r win-x64 --self-contained false
+   & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" control\Installer.iss
+   ```
+
+   Inno Setup 6 or 7 both work; the build looks for either.
+
+2. **The bootstrapper** — embeds the Control installer and builds the Setup executable:
+
+   ```powershell
+   & server/packaging/windows/bootstrapper/build_bootstrapper.ps1
+   ```
+
+   Control is only offered in the wizard when a payload is actually embedded, so a build
+   without it collapses that section instead of showing a broken option.
+
+3. **Pinned artifacts** — the virtual display driver, the virtual gamepad driver and the
+   TrueHDR runtime are downloaded at build time by the `scripts/download_*_release.ps1`
+   helpers, and the WebRTC runtime is pinned by `scripts/pin_webrtc_release.ps1`.
+
+### WebRTC (optional, Windows only)
+
+ArtLight Server can link against the libwebrtc C++ wrapper when `SUNSHINE_ENABLE_WEBRTC=ON`.
+The wrapper source is vendored as the `third-party/libwebrtc` submodule, but WebRTC itself must
+be built separately and staged in a directory containing `include/` and `lib/`.
+
+A helper script drives the whole depot_tools / gclient / gn / ninja flow:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_mingw_webrtc.ps1
 ```
 
-By default the script builds under `%LOCALAPPDATA%\ArtLight Server\deps\libwebrtc\src`, stages the reusable SDK under
-`%LOCALAPPDATA%\ArtLight Server\deps\libwebrtc\out`, and removes the large source workspace only after verifying the
-staged headers, DLL, import library, and completed-build DLL identity. The retained `out` directory is **shared
-across every ArtLight Server build dir, worktree, and git checkout on the machine**. This means:
+By default it builds under `%LOCALAPPDATA%\ArtLight Server\deps\libwebrtc\src`, stages the
+reusable SDK under `%LOCALAPPDATA%\ArtLight Server\deps\libwebrtc\out`, and removes the large
+source workspace only after verifying the staged headers, DLL, import library and completed-build
+DLL identity. The retained `out` directory is shared across every ArtLight Server build
+directory, worktree and checkout on the machine, so wiping `build/` does not destroy it. A
+failed build keeps its sources for diagnosis; pass `-RetainBuildSources` while iterating on
+WebRTC itself.
 
-- Wiping `build/` does not destroy libwebrtc — the next CMake configure picks it back up.
-- A successful local dependency build does not leave the multi-gigabyte Chromium/WebRTC source and Git cache behind.
-- A failed build retains its source workspace for diagnosis and retry.
-- Multiple ArtLight Server build dirs share one small staged libwebrtc SDK.
+`cmake/dependencies/webrtc.cmake` looks in that same default location, so no `-DWEBRTC_ROOT=...`
+is needed after the first build. Set `ARTLIGHT_DEPS_DIR=<path>` to relocate the cache.
 
-Pass `-RetainBuildSources` while actively iterating on WebRTC itself. `-Stage Sync` always retains sources because
-its purpose is to prepare a later `-Stage Build`; a successful `All` or `Build` stage cleans sources by default.
-Explicit `WEBRTC_GIT_CACHE_DIR` or `WEBRTC_DEPOT_TOOLS_DIR` paths outside `WEBRTC_BUILD_DIR` are treated as shared
-external caches and are not removed.
+## Options that matter
 
-`cmake/dependencies/webrtc.cmake` looks at the same default location, so no `-DWEBRTC_ROOT=...` is needed after the
-first build. To relocate the cache, set `ARTLIGHT_DEPS_DIR=<path>` in your environment before invoking either the
-script or CMake.
+| Option | Default | What it does |
+| :--- | :--- | :--- |
+| `SUNSHINE_ENABLE_CUDA` | `OFF` | Build the CUDA paths (NVENC and the CUDA-backed filters). |
+| `SUNSHINE_REQUIRE_CUDA_PASCAL` | `OFF` | Require CUDA 12.9 and the `sm_61` target for a Pascal-compatible release build. |
+| `SUNSHINE_ENABLE_PYROWAVE` | `ON` on Linux, `OFF` on Windows | Build the PyroWave codec. On Windows this compiles a stub. |
+| `BUILD_TESTS` | `ON` | Build and register the test suite. |
+| `BUILD_WERROR` | `OFF` | Treat warnings as errors. Packaging turns it on. |
+| `SUNSHINE_ENABLE_WEBRTC` | `OFF` | Link the libwebrtc wrapper (Windows). |
+| `SUNSHINE_CONFIGURE_ONLY` | `OFF` | Generate the packaged configuration files and exit, without building. |
+| `SUNSHINE_CONFIGURE_PKGBUILD` | `OFF` | Generate the Arch `PKGBUILD` from its template. Pair with `SUNSHINE_CONFIGURE_ONLY`. |
 
-For finer control the script accepts overrides via `-BuildDir`/`-OutDir` parameters or the legacy
-`WEBRTC_BUILD_DIR` / `WEBRTC_OUT_DIR` env vars (these still take precedence if set).
+The full list lives in [`server/cmake/prep/options.cmake`](../cmake/prep/options.cmake).
 
-###### Manual build (advanced / first-time porting)
+## Remote build
 
-If you cannot use the helper script, the underlying steps are:
+If you would rather not build locally:
 
-1. Create a checkout directory and add a `.gclient` that points to
-   `https://github.com/webrtc-sdk/webrtc.git@m137_release` with `target_os = ['win']`.
-2. Run `gclient sync`.
-3. In `src`, add the libwebrtc sources (you can copy or link `third-party/libwebrtc` into `src/libwebrtc`).
-4. Apply the audio patch:
-   `git apply libwebrtc/patchs/custom_audio_source_m137.patch`
-5. Update `src/BUILD.gn` to include `//libwebrtc` in `group("default")`.
-6. Generate and build (adjust `GYP_MSVS_OVERRIDE_PATH` if Visual Studio is installed elsewhere; our local install is
-   under `D:\Software\Visual Studio`):
-   ```bash
-   set PATH=D:\sources\sunshine\third-party\depot_tools;%PATH%
-   set DEPOT_TOOLS_WIN_TOOLCHAIN=0
-   set GYP_MSVS_VERSION=2022
-   set GYP_GENERATORS=ninja,msvs-ninja
-   set GYP_MSVS_OVERRIDE_PATH=D:\Software\Visual Studio
-   set vs2022_install=D:\Software\Visual Studio
-   set WINDOWSSDKDIR=D:\Software\WinSDK
-   cd src
-   gn gen out-debug/Windows-x64 --args="target_os=\"win\" target_cpu=\"x64\" is_component_build=false is_clang=true is_debug=true rtc_use_h264=true ffmpeg_branding=\"Chrome\" rtc_include_tests=false rtc_build_examples=false libwebrtc_desktop_capture=true" --ide=vs2022
-   ninja -C out-debug/Windows-x64 libwebrtc
-   ```
-7. Stage the artifacts into a directory with `include/` and `lib/` subfolders. Either place them at the default
-   shared cache location (`%LOCALAPPDATA%\ArtLight Server\deps\libwebrtc\out`) so CMake finds them automatically, or
-   point CMake at your staging directory with `-DWEBRTC_ROOT=<path>`. Copy `libwebrtc.dll` and `libwebrtc.dll.lib`
-   into `lib/`.
-8. Configure Sunshine with `-DSUNSHINE_ENABLE_WEBRTC=ON`. If CMake still fails to find libwebrtc, pass
-   `WEBRTC_INCLUDE_DIR` and `WEBRTC_LIBRARY` explicitly.
+1. Fork the repository.
+2. Enable Actions on your fork.
+3. Run the **ArtLight Server** workflow manually, or push a version tag to trigger a release build.
+4. Download the artifacts from the run summary.
 
-To create a WiX installer, you also need to install [.NET](https://dotnet.microsoft.com/download).
+A manual dispatch with no inputs builds both platforms. On a push, the release gate decides
+whether to build: it only treats the push as a release when the commit carries a version tag
+that matches `project(ArtLightServer VERSION ...)` in `server/CMakeLists.txt` and no release
+with that tag exists yet.
 
-### Clone
-Ensure [git](https://git-scm.com) is installed on your system, then clone the repository using the following command:
+## macOS and FreeBSD
 
-```bash
-git clone https://github.com/ClassicOldSong/Apollo.git --recurse-submodules
-cd Apollo
-mkdir build
-```
+Build support for macOS and FreeBSD is inherited from upstream and is **not built or tested by
+ArtLight**. There is no macOS or FreeBSD installer, and neither platform is part of a release.
+`scripts/macos_build.sh` is a starting point, not a supported path.
 
-### Build
+## Troubleshooting
 
-```bash
-cmake -B build -G Ninja -S .
-ninja -C build
-```
-
-> [!TIP]
-> Available build options can be found in
-> [options.cmake](https://github.com/LizardByte/Sunshine/blob/master/cmake/prep/options.cmake).
-
-### Package
-
-@tabs{
-  @tab{FreeBSD | @tabs{
-    @tab{pkg | ```bash
-      cpack -G FREEBSD --config ./build/CPackConfig.cmake
-      ```}
-  }}
-  @tab{Linux | @tabs{
-    @tab{deb | ```bash
-      cpack -G DEB --config ./build/CPackConfig.cmake
-      ```}
-    @tab{rpm | ```bash
-      cpack -G RPM --config ./build/CPackConfig.cmake
-      ```}
-  }}
-  @tab{macOS | @tabs{
-    @tab{DragNDrop | ```bash
-      cpack -G DragNDrop --config ./build/CPackConfig.cmake
-      ```}
-  }}
-  @tab{Windows | @tabs{
-    @tab{Installer | ```bash
-      cpack -G WIX --config ./build/CPackConfig.cmake
-      # note: MSI packaging requires WiX Toolset v3 to be installed (e.g. `choco install wixtoolset`)
-      ```}
-    @tab{WiX Installer | ```bash
-      cpack -G WIX --config ./build/CPackConfig.cmake
-      ```}
-    @tab{Portable | ```bash
-      cpack -G ZIP --config ./build/CPackConfig.cmake
-      ```}
-  }}
-}
-
-### Remote Build
-It may be beneficial to build remotely in some cases. This will enable easier building on different operating systems.
-
-1. Fork the project
-2. Activate workflows
-3. Trigger the *CI* workflow manually
-4. Download the artifacts/binaries from the workflow run summary
-
-<div class="section_buttons">
-
-| Previous                              |                            Next |
-|:--------------------------------------|--------------------------------:|
-| [Troubleshooting](troubleshooting.md) | [Contributing](contributing.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>
-
-### CUDA compatibility for scripted Linux builds
-
-`scripts/linux_build.sh` pins CUDA 12.9.1 and a compatible host compiler to
-retain Maxwell, Pascal (including GTX 10-series), and Volta targets. It rejects
-incompatible cached toolkits before configuration. Direct CMake builds may
-still use newer CUDA with `SUNSHINE_REQUIRE_CUDA_PASCAL=OFF` (the default);
-CUDA 13 builds omit those older GPU targets. Set the option to `ON` when
-producing a Pascal-compatible build with CUDA 12.9. This does not enable Linux
-release publishing in ArtLight Server's Windows release workflow.
+| Symptom | What to do |
+| :--- | :--- |
+| Configure fails immediately, complaints about missing sources | The clone is missing submodules. Run `git submodule update --init --recursive`. |
+| `web_ui` target fails | Node.js or npm is missing, or the npm install failed. Run `npm ci --ignore-scripts` inside `src_assets/common/assets/web` and read the first error, not the last. |
+| CUDA configure fails | The host compiler is not one your toolkit accepts. Set `CMAKE_CUDA_HOST_COMPILER`, or configure with `-DSUNSHINE_ENABLE_CUDA=OFF`. |
+| Warnings are suddenly fatal | `BUILD_WERROR=ON` is set, usually because you configured with the packaging options. Configure without it for development. |
+| Build succeeds but the app has no display driver | The driver is a kernel module, not part of the build. Install it with `sudo artlight driver install` after installing the package. |
+| `check()` fails inside a `makepkg` run | The package test phase needs the running kernel's headers and, with CUDA, the pinned toolkit. Pass `--nocheck` only to unblock a local experiment. |
