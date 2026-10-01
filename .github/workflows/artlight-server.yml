@@ -9,6 +9,11 @@ on:
         description: Tag to publish, for example 0.1.0 (v-less; a v prefix is skipped)
         required: false
         type: string
+      only_linux:
+        description: Build Linux only and skip the Windows job (for testing the Arch pipeline)
+        required: false
+        type: boolean
+        default: false
   push:
     branches:
       - '**'
@@ -228,7 +233,7 @@ jobs:
     name: Windows
     needs:
       - release-candidate
-    if: github.event_name != 'push' || needs.release-candidate.outputs.should_release == 'true'
+    if: (github.event_name != 'push' || needs.release-candidate.outputs.should_release == 'true') && inputs.only_linux != true
     permissions:
       actions: read
       contents: read
@@ -253,6 +258,27 @@ jobs:
     secrets:
       signpath_api_token: ${{ secrets.SIGNPATH_API_TOKEN }}
 
+  build-linux:
+    name: Linux
+    needs:
+      - release-candidate
+    # Same gate as Windows: a push only builds when the release gate said so,
+    # a manual dispatch always builds.
+    if: github.event_name != 'push' || needs.release-candidate.outputs.should_release == 'true'
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/ci-archlinux.yml
+    with:
+      # No self-hosted Linux runner exists for ArtLight. The Arch build runs in
+      # an archlinux container on ubuntu-latest, which is enough for the DKMS
+      # module compile and the PKGBUILD build.
+      use_self_hosted: false
+      build_tests: ${{ needs.release-candidate.outputs.should_release != 'true' }}
+      release_commit: ${{ needs.release-candidate.outputs.release_commit || github.sha }}
+      # CMakeLists is the single source of truth for the project version.
+      release_version: ${{ needs.release-candidate.outputs.release_version }}
+      artifact_retention_days: ${{ needs.release-candidate.outputs.should_release == 'true' && 14 || 3 }}
   awaiting-signing:
     name: Awaiting manual signing
     if: needs.release-candidate.outputs.should_release == 'true'

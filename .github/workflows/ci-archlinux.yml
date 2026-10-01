@@ -37,7 +37,13 @@ jobs:
       COMMIT: ${{ inputs.release_commit }}
     permissions:
       contents: read
-    runs-on: ${{ inputs.use_self_hosted && github.repository == 'Nonary/Vibepollo' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && fromJSON('["self-hosted", "Linux", "X64", "linux-release"]') || fromJSON('["ubuntu-latest"]') }}
+    runs-on: ${{ inputs.use_self_hosted && github.repository == 'onaiaku/ArtLight' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && fromJSON('["self-hosted", "Linux", "X64", "linux-release"]') || fromJSON('["ubuntu-latest"]') }}
+    # Upstream's repository root is our server/ directory, so every run: step
+    # starts there. This does NOT apply to uses: steps -- see the upload-artifact
+    # path below, which has to be spelled out in full.
+    defaults:
+      run:
+        working-directory: server
     container:
       image: archlinux/archlinux:base-devel
       options: --cpus 8 --memory 16g
@@ -217,7 +223,7 @@ jobs:
             ..
 
           # Make sure builder can read from build directory
-          chmod -R a+rX "${GITHUB_WORKSPACE}/build"
+          chmod -R a+rX "${GITHUB_WORKSPACE}/server/build"
 
       - name: Prepare PKGBUILD Package
         shell: bash
@@ -241,7 +247,7 @@ jobs:
       - name: Build PKGBUILD
         id: build
         shell: bash
-        working-directory: pkg
+        working-directory: server/pkg
         env:
           _build_tests: ${{ inputs.build_tests && 'ON' || 'OFF' }}
         run: |
@@ -271,7 +277,7 @@ jobs:
 
       - name: Verify Arch package contract
         shell: bash
-        working-directory: pkg
+        working-directory: server/pkg
         run: |
           set -euo pipefail
 
@@ -374,7 +380,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: build-Archlinux
-          path: artifacts/
+          path: server/artifacts/
           if-no-files-found: error
           retention-days: ${{ inputs.artifact_retention_days }}
 
