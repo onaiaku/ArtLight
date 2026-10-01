@@ -57,6 +57,10 @@ jobs:
 
       - name: Update keyring
         shell: bash
+        # These five steps run BEFORE Checkout, so server/ does not
+        # exist yet and the job-level default would fail with
+        # `chdir to cwd ... failed`. Run them from the workspace root.
+        working-directory: ${{ github.workspace }}
         run: |
           # Update keyring to avoid signature errors, and update system
           pacman -Syy --disable-download-timeout --needed --noconfirm \
@@ -66,6 +70,10 @@ jobs:
 
       - name: Setup builder user
         shell: bash
+        # These five steps run BEFORE Checkout, so server/ does not
+        # exist yet and the job-level default would fail with
+        # `chdir to cwd ... failed`. Run them from the workspace root.
+        working-directory: ${{ github.workspace }}
         run: |
           # arch prevents running makepkg as root
           useradd -m builder
@@ -73,11 +81,19 @@ jobs:
 
       - name: Patch build flags
         shell: bash
+        # These five steps run BEFORE Checkout, so server/ does not
+        # exist yet and the job-level default would fail with
+        # `chdir to cwd ... failed`. Run them from the workspace root.
+        working-directory: ${{ github.workspace }}
         run: |
           echo "MAKEFLAGS=\"-j${CMAKE_BUILD_PARALLEL_LEVEL}\"" >> /etc/makepkg.conf
 
       - name: Install dependencies
         shell: bash
+        # These five steps run BEFORE Checkout, so server/ does not
+        # exist yet and the job-level default would fail with
+        # `chdir to cwd ... failed`. Run them from the workspace root.
+        working-directory: ${{ github.workspace }}
         run: |
           pacman -Syu --disable-download-timeout --needed --noconfirm \
             base-devel \
@@ -94,6 +110,10 @@ jobs:
 
       - name: Install Pascal-compatible host compiler
         shell: bash
+        # These five steps run BEFORE Checkout, so server/ does not
+        # exist yet and the job-level default would fail with
+        # `chdir to cwd ... failed`. Run them from the workspace root.
+        working-directory: ${{ github.workspace }}
         run: |
           set -euo pipefail
           # GCC 14 is no longer in rolling Arch repos. Verify the archive's
