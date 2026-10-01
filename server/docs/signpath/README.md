@@ -80,10 +80,10 @@ the MSI deep-sign, alongside the first-party PEs. Two files, and only two:
 
 | File | Element | Why |
 | --- | --- | --- |
-| `driver/ArtLightServerVhfGamepad.cat` | `<catalog-file>` | A driver package is trusted through its catalogue. This is what makes it installable. |
-| `tools/ArtLightServerVhfGamepadDeviceSetup.exe` | `<pe-file>` | Not listed in the INF's `CopyFiles`, so the catalogue does not hash it and signing it is safe. |
+| `driver/VibeshineVhfGamepad.cat` | `<catalog-file>` | A driver package is trusted through its catalogue. This is what makes it installable. |
+| `tools/VibeshineVhfGamepadDeviceSetup.exe` | `<pe-file>` | Not listed in the INF's `CopyFiles`, so the catalogue does not hash it and signing it is safe. |
 
-`ArtLightServerVhfGamepad.dll` is **never** signed. The catalogue hashes it, so an
+`VibeshineVhfGamepad.dll` is **never** signed. The catalogue hashes it, so an
 Authenticode signature on the DLL changes the bytes the catalogue attests to
 and the driver stops installing. The DLL's integrity comes from the signed
 catalogue, which is how Windows validates a driver package anyway.
@@ -153,7 +153,7 @@ invalidates its catalog hash and **breaks driver installation**. These must be
 - `Apollo\drivers\sudovda\SudoVDA.dll`, `Apollo\drivers\sudovda\nefconc.exe` (CN=sudovda / Nefarius)
 - `Apollo\drivers\sunshine\SunshineVirtualDisplayDriver.dll` (catalog-bound)
 - `Apollo\drivers\sunshine\nefconc.exe` (publisher-signed upstream)
-- `Apollo\drivers\vhf-gamepad\driver\ArtLightServerVhfGamepad.dll`
+- `Apollo\drivers\vhf-gamepad\driver\VibeshineVhfGamepad.dll`
   is catalog-bound and remains byte-for-byte unchanged. Its CAT and setup tool
   deliberately arrive unsigned from the producer and are signed by this
   repository's MSI request.
