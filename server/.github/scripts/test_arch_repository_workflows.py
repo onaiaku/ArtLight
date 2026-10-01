@@ -9,7 +9,10 @@ from pathlib import Path
 import yaml
 
 
-ROOT = Path(__file__).resolve().parents[2]
+# The workflows moved to the repository root, where GitHub actually runs them.
+# Resolve the root by walking up to the checkout rather than counting parents,
+# so this keeps working from server/.github/scripts/ under either layout.
+ROOT = next(path for path in Path(__file__).resolve().parents if (path / ".git").exists())
 
 
 def load_workflow(name: str) -> dict:
@@ -55,13 +58,13 @@ class ArchRepositoryWorkflowTest(unittest.TestCase):
         self.assertIn("--detach-sign artlight.db.tar.gz", text)
         self.assertIn("gpg --batch --verify", text)
         self.assertIn("git -C \"${publication_dir}\" push origin HEAD:arch-repo", text)
-        self.assertIn("gh workflow run update-pages.yml --ref master", text)
+        self.assertIn("gh workflow run update-pages.yml --ref main", text)
 
-    def test_public_site_uses_nonary_artlight_identity(self) -> None:
-        site = (ROOT / "gh-pages-template" / "index.html").read_text(encoding="utf-8")
+    def test_public_site_uses_onaiaku_artlight_identity(self) -> None:
+        site = (ROOT / "server" / "gh-pages-template" / "index.html").read_text(encoding="utf-8")
         self.assertIn("ArtLight by onaiaku", site)
         self.assertIn("https://github.com/onaiaku/ArtLight", site)
-        self.assertIn("https://nonary.github.io/ArtLight/arch/x86_64", site)
+        self.assertIn("https://onaiaku.github.io/ArtLight/arch/x86_64", site)
         self.assertNotIn("LizardByte", site)
 
 
