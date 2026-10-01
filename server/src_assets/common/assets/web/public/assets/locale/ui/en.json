@@ -1314,7 +1314,7 @@
       "readiness": {
         "attention": "Needs attention",
         "ready": "Ready to stream",
-        "readyDetail": "Connect with Moonlight or start a stream in your browser.",
+        "readyDetail": "Connect with ArtMoon / Any Moonlight compatible client or start a stream in your browser.",
         "remoteSessionActive": "A remote session is active.",
         "streaming": "Streaming now",
         "hostStatus": "Host status"
