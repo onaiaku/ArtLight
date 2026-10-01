@@ -102,14 +102,12 @@ sudo pacman -R artlight
 > The msi installer is preferred moving forward. Before using a different type of installer, you should manually
 > uninstall the previous installation.
 
-1. Download and install based on your architecture:
+1. Download and install the Windows installer:
 
-   | Architecture          | Installer                                                                                                                                    |
-   |-----------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-   | AMD64/x64 (Intel/AMD) | [Sunshine-Windows-AMD64-installer.msi](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-installer.msi) |
-   | AMD64/x64 (Intel/AMD) | [Sunshine-Windows-AMD64-installer.exe](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-installer.exe) |
-   | ARM64                 | [Sunshine-Windows-ARM64-installer.msi](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-ARM64-installer.msi) |
-   | ARM64                 | [Sunshine-Windows-ARM64-installer.exe](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-ARM64-installer.exe) |
+   | Download | What it is |
+   |----------|------------|
+   | [ArtLight.Setup.exe](https://github.com/onaiaku/ArtLight/releases/latest/download/ArtLight.Setup.exe) | Everything in one: ArtLight Server plus ArtLight Control. Start here. |
+   | [ArtLight.Server.msi](https://github.com/onaiaku/ArtLight/releases/latest/download/ArtLight.Server.msi) | The server MSI on its own, for scripted or managed installs. |
 
 > [!TIP]
 > Installer logs can be found in the following locations.<br>
