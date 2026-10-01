@@ -17,7 +17,15 @@ endif()
 
 set(PROJECT_LICENSE "GPL-3.0-only")
 
-set(PROJECT_FQDN "dev.lizardbyte.app.Sunshine")
+# PROJECT_FQDN names the packaged desktop identity. Every file in packaging/linux/
+# is named for it -- io.github.Nonary.vibepollo.desktop, .terminal.desktop,
+# .metainfo.xml, .kwin.desktop.in, and app-io.github.Nonary.vibepollo.service.in --
+# and special_package_configuration.cmake builds those paths from this value, so it
+# must match the filenames or the Linux configure fails outright. ArtLight's own
+# reverse-DNS identity belongs to the deliberate Linux rename, which renames these
+# files and this value together. (Windows does not use PROJECT_FQDN: the Windows
+# identity is WINDOWS_APP_USER_MODEL_ID below.)
+set(PROJECT_FQDN "io.github.Nonary.vibepollo")
 set(WINDOWS_APP_USER_MODEL_ID "onaiaku.ArtLightServer")
 
 set(PROJECT_BRIEF_DESCRIPTION "GameStream host for Artemis")  # must be <= 35 characters
@@ -59,7 +67,14 @@ include(${CMAKE_MODULE_PATH}/prep/options.cmake)
 # initial prep
 include(${CMAKE_MODULE_PATH}/prep/init.cmake)
 
-# configure special package files, such as sunshine.desktop, Flatpak manifest, Portfile , etc.
+# Resolve libvirtualdisplay before the platform package templates consume its
+# driver-owned assets. special_package_configuration.cmake reads
+# LIBVIRTUALDISPLAY_LINUX_ROOT, which only dependencies/libvirtualdisplay_source
+# sets, and the dependency target itself is not added until dependencies/common.cmake
+# further down. Without this the Linux configure dies with
+# "libvirtualdisplay Linux assets are unavailable".
+include(${CMAKE_MODULE_PATH}/dependencies/libvirtualdisplay_source.cmake)
+
 include(${CMAKE_MODULE_PATH}/prep/special_package_configuration.cmake)
 
 # Exit early if END_BUILD is ON, i.e. when only generating package manifests
