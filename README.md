@@ -35,7 +35,7 @@ Both are designed to be set up once and forgotten: install, pair your client, pl
 
 - **PyroWave codec** — a GPU wavelet codec with very low encode and decode latency. Frames are independent, so a dropped one doesn't force a new keyframe. SDR and HDR, 8- and 10-bit colour, and 4:2:0 or 4:4:4 where the GPU and capture path allow. It wants a fast wired LAN. H.264, HEVC and AV1 are all still there and unchanged.
 - **Its own virtual gamepad driver** — Xbox Series, Xbox One, DualSense, DualShock 4 and Switch Pro emulation with no ViGEmBus and no licence or licence key. Rumble, impulse triggers, touchpad, motion sensors, battery reporting, lightbar and adaptive triggers where the profile, client and game support them. The Windows installer offers it as an option, on by default; pick `vhf` in the web UI for automatic controller selection.
-- **Remote Monitor and Remote Input** — launch Remote Monitor from Moonlight on another device and it becomes an extra, independently streamed display beside your main session, up to four clients. Remote Input attaches a client for control with no video.
+- **Remote Monitor and Remote Input** — launch Remote Monitor from Artmoon or any Moonlight compatible client on another device and it becomes an extra, independently streamed display beside your main session, up to four clients. Remote Input attaches a client for control with no video.
 - **Virtual display driver** — stream to a headless monitor with proper resolution and refresh-rate control
 - **HDR / TrueHDR support** — with the pinned TrueHDR runtime
 - **Hardware encoding** — NVENC and friends, frame pacing tuned for real gameplay
