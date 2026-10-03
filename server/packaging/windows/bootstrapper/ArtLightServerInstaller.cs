@@ -178,6 +178,13 @@ namespace ArtLightServerInstaller {
       return InstallerRunner.HasEmbeddedControlPayload();
     }
 
+    // The UI class cannot see InstallerRunner's members, so the same question is asked through a
+    // forwarder here. Control has had one of these all along; the USBip half was written without it,
+    // which is what CS0103 caught.
+    private static bool HasEmbeddedUsbipPayload() {
+      return InstallerRunner.HasEmbeddedUsbipPayload();
+    }
+
     private readonly InstallerRunner.InstalledProductInfo _legacySunshineProduct;
     private readonly InstallerRunner.LegacySunshineRegistration _legacySunshineRegistration;
     private readonly InstallerRunner.LegacySunshineRegistration _legacyApolloRegistration;
