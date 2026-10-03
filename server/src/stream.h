@@ -30,6 +30,10 @@ namespace rtsp_stream {
   struct launch_session_t;
 }
 
+namespace input::usbip {
+  class session_holder_t;
+}
+
 namespace stream {
   constexpr auto VIDEO_STREAM_PORT = 9;
   constexpr auto CONTROL_PORT = 10;
@@ -122,6 +126,15 @@ namespace stream {
       STARTING,  ///< The session is starting
       RUNNING,  ///< The session is running
     };
+
+    /**
+     * @brief Hand this session the USB devices it holds, so the session's own death gives them back.
+     *
+     * Called once, right after start() succeeded and before the session is published. It is a plain
+     * assignment and it deliberately owns the ONLY reference: the devices are released when this
+     * session's last reference goes, which is the end of the stream by every path there is.
+     */
+    void adopt_usbip_holder(session_t &session, std::shared_ptr<input::usbip::session_holder_t> holder);
 
     std::shared_ptr<session_t> alloc(config_t &config, rtsp_stream::launch_session_t &launch_session);
     std::string uuid(const session_t &session);

@@ -302,10 +302,12 @@ namespace config {
     // on. This build is the importer. Never write bare "host" or "client" here.
     bool input_usbip_enabled;
 
-    // Which exporter to attach from. Empty is the NORMAL case, and means "the machine this client
-    // is streaming from" (stream_t::rtsp_source_address) - which is right whenever the devices are
-    // plugged into the machine doing the streaming. A value here is an override for an unusual
-    // topology, such as the exporter not being the streaming machine, not the ordinary path.
+    // Which exporter to attach from. Empty is the NORMAL case, and means "the machine this stream was
+    // asked for from" - rtsp_stream::launch_session_t::rtsp_source_address, which is the address the
+    // launch request came from. That is the machine the person is sitting at, and it is where the
+    // devices are plugged in whenever they are sharing their own keyboard and mouse, which is the
+    // ordinary case. A value here is an override for an unusual topology where the exporter is some
+    // third machine - not the ordinary path.
     std::string input_usbip_exporter;
 
     // Optional comma-separated busid allowlist. Empty means everything the exporter offers, which

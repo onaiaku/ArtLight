@@ -45,6 +45,7 @@ extern "C" {
 #include "stream.h"
 #include "sync.h"
 #include "thread_pool.h"
+#include "usbip_input_session.h"
 #include "video.h"
 
 namespace asio = boost::asio;
@@ -2449,7 +2450,7 @@ namespace rtsp_stream {
       auto launch_session = session->clone_for_startup();
       server->run_startup(
         launch_session->virtual_display_guid_bytes,
-        [server, socket = std::move(socket), session = std::move(session), launch_session, config = std::move(config), remote_address = std::move(remote_address), client_uuid, sequence_number]() mutable {
+        [server, socket = std::move(socket), session = std::move(session), launch_session, config = std::move(config), remote_address = std::move(remote_address), client_uuid, sequence_number, usbip_enabled = config::stream.input_usbip_enabled, usbip_exporter = config::stream.input_usbip_exporter, usbip_busids = config::stream.input_usbip_busids]() mutable {
         // Apply deferred updates and take the hot-apply gate on the startup worker so
         // display/config churn cannot stall the RTSP io_context.
         std::unique_lock<std::mutex> lifecycle_lock(nvhttp::stream_lifecycle_mutex());
@@ -2497,6 +2498,34 @@ namespace rtsp_stream {
 
         const bool stream_hdr_enabled = activates_vulkan_hdr_layer_for_stream(config.monitor);
         if (!startup_failed) {
+          // Take the USB devices this stream is configured for, and hand them to the session.
+          //
+          // Two orderings matter. The stream is already up - we are past a successful start - because
+          // attaching a device TAKES IT AWAY from the machine it is plugged into; attach first and the
+          // seat can go dark while the launch is still completing. And this runs before insert(), so no
+          // concurrent cancellation can find a published session whose devices are still moving.
+          //
+          // From here the session owns the holder, and ~session_t gives the devices back whichever way
+          // this session ends - the quit key, a lost network, a deadline timer, an exception. There is
+          // no end path that skips a destructor, which is the whole reason this is not a detach() call
+          // written at the end of a stop function.
+          if (usbip_enabled) {
+            input::usbip::session_request_t usbip_request;
+            usbip_request.enabled = true;
+
+            // Empty override means "the machine this stream was asked for from", which is where the
+            // devices are plugged in whenever the person streaming is sitting at them.
+            usbip_request.exporter = usbip_exporter.empty() ? launch_session->rtsp_source_address
+                                                            : usbip_exporter;
+            usbip_request.busids = usbip_busids;
+
+            auto usbip_holder = input::usbip::session_holder_t::attach(usbip_request);
+            if (usbip_holder) {
+              BOOST_LOG(info) << "USB input: "sv << usbip_holder->report();
+              stream::session::adopt_usbip_holder(*stream_session, std::move(usbip_holder));
+            }
+          }
+
           // Publish the active session before releasing the lifecycle gate.
           // Cancellation can then find and synchronously join every started
           // session instead of racing the posted RTSP response callback.

@@ -102,6 +102,21 @@ namespace input::usbip {
       return m_ReleaseFailure;
     }
 
+    /**
+     * @brief Give every device back now, and record anything that would not come back.
+     *
+     * The destructor calls this, so every end path still releases the devices and that guarantee is
+     * unchanged. It exists so a caller that wants to REPORT a release failure can release while it can
+     * still read this object: once a destructor has finished there is nothing left to ask, and "a
+     * device is still away from the machine it belongs to" is exactly the state a person needs to be
+     * told about rather than have written into something already gone.
+     *
+     * Calling it more than once is safe and the second call does nothing - without that, a caller that
+     * releases explicitly and then lets the destructor run would detach the same port twice, and by
+     * then that port number may well belong to something else. Never throws.
+     */
+    void release_all();
+
    private:
     session_holder_t() = default;
 
@@ -109,6 +124,9 @@ namespace input::usbip {
     bool release(const held_device_t &device);
 
     std::vector<held_device_t> m_Held;
+
+    /// Set by release_all() so a second call is a no-op. See the note on that method.
+    bool m_Released = false;
 
     /// Devices the destructor tried and FAILED to give back, in words, for the caller to log.
     /// A non-empty value here is the one state that needs a human: a device is still away from

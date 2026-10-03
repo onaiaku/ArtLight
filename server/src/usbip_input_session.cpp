@@ -224,12 +224,21 @@ namespace input::usbip {
     return false;
   }
 
-  session_holder_t::~session_holder_t() {
-    // The promise. Every end path reaches here, which is the entire reason the devices are owned
-    // by an object instead of released by a call.
+  void session_holder_t::release_all() {
+    if (m_Released) {
+      return;
+    }
+    m_Released = true;
+
     for (const auto &device : m_Held) {
       release(device);
     }
+  }
+
+  session_holder_t::~session_holder_t() {
+    // The promise. Every end path reaches here, which is the entire reason the devices are owned
+    // by an object instead of released by a call.
+    release_all();
   }
 
   std::string session_holder_t::report() const {

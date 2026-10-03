@@ -61,6 +61,7 @@ extern "C" {
 #include "system_tray.h"
 #include "thread_safe.h"
 #include "update.h"
+#include "usbip_input_session.h"
 #include "utility.h"
 #include "uuid.h"
 #include "webrtc_stream.h"
@@ -581,6 +582,9 @@ namespace stream {
   };
 
   struct session_t {
+    /// Gives back any USB devices this session took, and says so if it could not.
+    ~session_t();
+
     std::shared_ptr<void> display_power_guard;
     std::shared_ptr<void> normal_display_capture;
     config_t config;
@@ -597,6 +601,14 @@ namespace stream {
     safe::mail_t mail;
 
     std::shared_ptr<input::input_t> input;
+
+    // The USB devices this session took from the exporter, and the promise to give them back.
+    //
+    // Owned by the session, NOT as a local in the ANNOUNCE handler: a local dies when that handler
+    // returns, which is before the stream has even started, and the devices would go home mid-session.
+    // As a member the release runs when the SESSION dies, and a session dies by every end path there
+    // is - including the ones nobody thought to write a detach() for.
+    std::shared_ptr<input::usbip::session_holder_t> usbip_holder;
 
 #ifdef _WIN32
     std::shared_future<rtsp_stream::launch_session_t::display_helper_gate_status_e> display_helper_gate;
@@ -704,6 +716,23 @@ namespace stream {
     } virtual_display;
 #endif
   };
+
+  // Defined in namespace stream, NOT in namespace stream::session: a member definition has to sit
+  // in a namespace that ENCLOSES the class, and stream::session does not enclose stream::session_t.
+  session_t::~session_t() {
+    // Release while we can still say whether it worked. Left to the member's own destructor the
+    // devices would still be given back, but the failure would land in an object that is already
+    // gone - and a device left on a machine its owner cannot reach is precisely the state that has
+    // to reach the log rather than only the kernel.
+    if (usbip_holder) {
+      usbip_holder->release_all();
+
+      const auto &failure = usbip_holder->release_failure();
+      if (!failure.empty()) {
+        BOOST_LOG(error) << "USB devices taken for this stream could not all be given back: "sv << failure;
+      }
+    }
+  }
 
   /**
    * First part of cipher must be struct of type control_encrypted_t
@@ -3342,6 +3371,10 @@ namespace stream {
 
     inline bool send(session_t &session, const std::string_view &payload) {
       return session.broadcast_ref->control_server.send(payload, session.control.peer);
+    }
+
+    void adopt_usbip_holder(session_t &session, std::shared_ptr<input::usbip::session_holder_t> holder) {
+      session.usbip_holder = std::move(holder);
     }
 
     std::string uuid(const session_t &session) {
