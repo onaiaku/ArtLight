@@ -290,6 +290,27 @@ namespace config {
 
     // Limit the packetsize to avoid fragmentation on a low MTU link. 0 = off.
     int packetsize;
+
+    // ── USB device sharing (USB/IP) ────────────────────────────────────────────────────────────
+    //
+    // Off by default, and that default is the point. Attaching a device TAKES IT AWAY from the
+    // machine it is plugged into - the exporter's owner loses their keyboard for as long as the
+    // stream runs. That must never be something an upgrade does to someone by accident, so it is
+    // opt-in and it stays opt-in.
+    //
+    // Naming: exporter = the machine the device is plugged into; importer = the machine it arrives
+    // on. This build is the importer. Never write bare "host" or "client" here.
+    bool input_usbip_enabled;
+
+    // Which exporter to attach from. Empty is the NORMAL case, and means "the machine this client
+    // is streaming from" (stream_t::rtsp_source_address) - which is right whenever the devices are
+    // plugged into the machine doing the streaming. A value here is an override for an unusual
+    // topology, such as the exporter not being the streaming machine, not the ordinary path.
+    std::string input_usbip_exporter;
+
+    // Optional comma-separated busid allowlist. Empty means everything the exporter offers, which
+    // is what someone who has just switched this on almost always wants.
+    std::string input_usbip_busids;
   };
 
   struct nvhttp_t {

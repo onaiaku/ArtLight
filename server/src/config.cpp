@@ -2163,6 +2163,10 @@ namespace config {
     int_between_f(vars, "fec_percentage", stream.fec_percentage, {1, 255});
     int_between_f(vars, "pacing_max_bitrate_kbps", stream.pacing_max_bitrate_kbps, {0, 10000000});
     int_between_f(vars, "packetsize", stream.packetsize, {0, PACKETSIZE_MAX});
+    bool_f(vars, "input_usbip_enabled", stream.input_usbip_enabled);
+    string_f(vars, "input_usbip_exporter", stream.input_usbip_exporter);
+    string_f(vars, "input_usbip_busids", stream.input_usbip_busids);
+
     vars.erase("pyrowave_send_rate_mbps");
     int_between_f(vars, "pyrowave_critical_fec_percentage", stream.pyrowave_critical_fec_percentage, {0, 255});
     int_between_f(vars, "video_max_batch_size_kb", stream.video_max_batch_size_kb, {0, 64});
