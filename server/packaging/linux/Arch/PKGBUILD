@@ -60,7 +60,7 @@ depends=(
   # usbip is the client the importer issues attach/detach with. It is a hard dependency and not an
   # optdepend on purpose: optdepends are not installed automatically, so USB device sharing would
   # silently do nothing on a fresh machine, which is exactly the failure that is hardest to explain.
-  'usbip-utils'
+  'usbip'
   'util-linux'
   'vulkan-icd-loader'
   'wayland-utils'

@@ -153,7 +153,7 @@ Requires: /usr/bin/python3
 Requires: /usr/bin/wayland-info
 Requires: /usr/bin/xdpyinfo
 Requires: socat
-Requires: usbip-utils
+Requires: usbip
 Requires: util-linux
 Recommends: dkms
 Recommends: gcc

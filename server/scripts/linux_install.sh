@@ -640,12 +640,12 @@ check_usb_device_sharing() {
   # USB devices are shared FROM one machine and attached ON another. This machine is the importer,
   # so it needs all four pieces. Miss any one and the feature fails the same silent way: the setting
   # is honoured, the toggle appears to work, and no device ever arrives.
-  #   - usbip-utils: the client that asks
+  #   - usbip: the client that asks
   #   - the input service: does it as root, so the server itself never has to be privileged
   #   - the polkit action: authorises that helper, and only at its exact installed path
   #   - vhci-hcd: the virtual host controller the attached device appears on
   local missing=()
-  command -v usbip >/dev/null 2>&1 || missing+=('usbip-utils')
+  command -v usbip >/dev/null 2>&1 || missing+=('the usbip client')
   [[ -x "$INPUT_SERVICE" ]] || missing+=('the input service')
   [[ -f "$INPUT_POLICY" ]] || missing+=('the polkit action')
 
