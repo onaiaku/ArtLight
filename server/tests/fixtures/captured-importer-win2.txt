@@ -1,0 +1,76 @@
+=== version ===
+--- version : usbip.exe version
+    exit=
+    ! A subcommand is required
+    ! Run with --help for more information.
+
+=== top-level help (the real syntax) ===
+--- --help : usbip.exe --help
+    exit=
+    | USB/IP client
+    | 
+    | 
+    | C:\Program Files\USBip\usbip.exe [OPTIONS] SUBCOMMAND
+    | 
+    | 
+    | OPTIONS:
+    |   -h,     --help              Print this help message and exit
+    |   -V,     --version           Display program version information and exit
+    |   -d,     --debug             Debug output
+    |   -t,     --tcp-port TEXT:INT in [1024 - 65535] [3240]  
+    |                               TCP/IP port number of USB/IP server
+    | 
+    | SUBCOMMANDS:
+    |   attach                      Attach remote/persistent USB device(s)
+    |   detach                      Detach a remote USB device
+    |   list                        List exportable/persistent USB devices
+    |   port                        Show/stash imported USB devices
+
+=== help for the three subcommands we need ===
+--- help list : usbip.exe help list
+    exit=
+    ! Exactly 1 option from [,[Option Group: Remote],[Option Group: Persistent]] is required
+    ! Run with --help for more information.
+
+--- help attach : usbip.exe help attach
+    exit=
+    ! Exactly 1 option from [,[Option Group: Remote],[Option Group: Stop],[Option Group: Persistent]] is required
+    ! Run with --help for more information.
+
+--- help detach : usbip.exe help detach
+    exit=
+    ! Exactly 1 option from [-p,--port,-a,--all] is required
+    ! Run with --help for more information.
+
+--- help port : usbip.exe help port
+    exit=
+    ! C:\Program Files\USBip\usbip.exe: The following argument was not expected: help
+    ! Run with --help for more information.
+
+=== REMOTE LIST - what the mini PC (exporter) is offering ===
+--- list -r 192.168.50.35 : usbip.exe list -r 192.168.50.35
+    exit=
+    | Exportable USB devices
+    | ======================
+    |     9-1    : Razer USA, Ltd : RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)] (1532:007b)
+    |            : USB\VID_1532&PID_007B\7&3A2774D3&0&1
+    |            : (Defined at Interface level) (00/00/00)
+    |            :  0 - Human Interface Device/Boot Interface Subclass/Mouse (03/01/02)
+    |            :  1 - Human Interface Device/No Subclass/Keyboard (03/00/01)
+    |            :  2 - Human Interface Device/No Subclass/Keyboard (03/00/01)
+    | 
+    |     9-2    : Razer USA, Ltd : unknown product (1532:028d)
+    |            : USB\VID_1532&PID_028D\7&3A2774D3&0&2
+    |            : (Defined at Interface level) (00/00/00)
+    |            :  0 - Human Interface Device/Boot Interface Subclass/Keyboard (03/01/01)
+    |            :  1 - Human Interface Device/No Subclass/Keyboard (03/00/01)
+    |            :  2 - Human Interface Device/Boot Interface Subclass/Mouse (03/01/02)
+    |            :  3 - Human Interface Device/No Subclass/None (03/00/00)
+    |            :  4 - Human Interface Device/No Subclass/Keyboard (03/00/01)
+    | 
+
+=== PORT - what this machine currently holds ===
+--- port : usbip.exe port
+    exit=
+
+=== is the emulated host controller healthy right now? ===

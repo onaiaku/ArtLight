@@ -1,0 +1,30 @@
+=== usbip version ===
+usbip (usbip-utils 2.0)
+
+=== A: remote list — what the exporter offers (mini PC as exporter) ===
+
+=== B: local list — the exporter's own view (for reference) ===
+ - busid 3-10 (8087:0033)
+   Intel Corp. : AX211 Bluetooth (8087:0033)
+
+ - busid 3-6 (0b05:1a30)
+   ASUSTek Computer, Inc. : unknown product (0b05:1a30)
+
+ - busid 3-7 (04f3:0c6e)
+   Elan Microelectronics Corp. : unknown product (04f3:0c6e)
+
+ - busid 3-8 (13d3:5492)
+   IMC Networks : unknown product (13d3:5492)
+
+ - busid 3-9 (0b05:18c6)
+   ASUSTek Computer, Inc. : unknown product (0b05:18c6)
+
+
+=== C: port — what THIS machine currently holds (the port numbers detach needs) ===
+libusbip: error: udev_device_new_from_subsystem_sysname failed
+usbip: error: open vhci_driver (is vhci_hcd loaded?)
+usbip: error: list imported devices
+
+=== D: module state ===
+  usbip_host             49152  0
+  usbip_core             45056  1 usbip_host
