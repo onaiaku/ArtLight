@@ -52,4 +52,44 @@ namespace input::usbip {
   inline ClientAvailability client_available() {
     return assess_client(probe_client());
   }
+
+  /**
+   * @brief What a run of the client produced.
+   *
+   * stdout and stderr are kept APART, not merged, and that is deliberate on both platforms. The
+   * reason a tool refused is on stderr while the exit code only says "no", so a merged buffer turns
+   * a diagnosable refusal into an anonymous one. This mirrors the exporter half, where a shell
+   * pipeline that merged the two made a held device look like an unreadable one.
+   */
+  struct run_result_t {
+    int code = 0;
+    std::string out;
+    std::string err;
+  };
+
+  /**
+   * @brief Take one device from the exporter. Blocking; the caller decides where it runs.
+   *
+   * Windows drives the client directly as the logged-on user - proven: a UAC-filtered limited token
+   * attached successfully. Linux CANNOT, because `/sys/devices/platform/vhci_hcd.0/attach` is a
+   * root-only write, so there this goes through the privileged helper and the polkit action beside
+   * it. The asymmetry is real and is not to be smoothed over by giving Windows a helper it
+   * provably does not need.
+   */
+  run_result_t run_attach(std::string_view exporter, std::string_view busid);
+
+  /**
+   * @brief Give one device back. Takes a PORT, not a busid - `detach` accepts nothing else, which
+   *        is why the caller has to remember busid -> port for the life of the session.
+   */
+  run_result_t run_detach(int port);
+
+  /**
+   * @brief Attach, and say what actually happened. The judgement is the policy's, not this file's,
+   *        so the same output is read the same way wherever it came from.
+   */
+  inline AttachResult attach(std::string_view exporter, std::string_view busid) {
+    const auto result = run_attach(exporter, busid);
+    return classify_attach(result.code, result.out, result.err);
+  }
 }  // namespace input::usbip

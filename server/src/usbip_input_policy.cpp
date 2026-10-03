@@ -982,6 +982,18 @@ namespace input::usbip {
       }
     }
 
+    // The exporter does not have it to give. Measured on the real exporter, asking for a device it
+    // was not sharing. Nothing moved, and the fix is on the exporter side - which is why this is
+    // not filed with the generic failures.
+    for (const std::string_view needle : {"not found by bus id", "device not found"}) {
+      const auto line = line_containing(err, needle);
+      if (!line.empty()) {
+        result.outcome = AttachOutcome::NotOffered;
+        result.detail = line;
+        return result;
+      }
+    }
+
     // Privilege or policy said no. The Linux form was measured on the z13: an unprivileged attach
     // dies with this and exit 1, because /sys/devices/platform/vhci_hcd.0/attach is a root-only
     // write. On Linux this is also the shape a missing helper or a declined polkit prompt takes.
@@ -1010,6 +1022,8 @@ namespace input::usbip {
         return "the device attached";
       case AttachOutcome::DeviceBusy:
         return "the exporter still has this device out - nothing moved";
+      case AttachOutcome::NotOffered:
+        return "the exporter is not offering that device - nothing moved";
       case AttachOutcome::Refused:
         return "the attach was refused - nothing moved";
       case AttachOutcome::Failed:

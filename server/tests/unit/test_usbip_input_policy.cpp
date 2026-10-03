@@ -941,3 +941,26 @@ TEST(UsbipAttachOutcome, BusyAndFailedAreNotTheSameWordInTheLog) {
   EXPECT_NE(input::usbip::describe(busy.outcome), input::usbip::describe(failed.outcome));
   EXPECT_NE(input::usbip::describe(busy.outcome), input::usbip::describe(input::usbip::AttachOutcome::Attached));
 }
+
+TEST(UsbipAttachOutcome, ADeviceTheExporterIsNotOfferingIsItsOwnState) {
+  // Measured on the real exporter: asking for a busid it was not sharing came back exit 1 with
+  // this. Nothing moved, and the fix is to tick the device on the exporter - which is not the fix
+  // for any other state here, so it must not be filed with them.
+  const auto r = input::usbip::classify_attach(1, "", "error: Device not found by bus id.\n");
+  EXPECT_EQ(r.outcome, input::usbip::AttachOutcome::NotOffered);
+  EXPECT_EQ(r.detail, "error: Device not found by bus id.");
+}
+
+TEST(UsbipAttachOutcome, TheFourNothingMovedStatesShareNoSentence) {
+  using input::usbip::AttachOutcome;
+  using input::usbip::describe;
+  const std::vector<AttachOutcome> states = {AttachOutcome::Attached, AttachOutcome::DeviceBusy,
+                                            AttachOutcome::NotOffered, AttachOutcome::Refused,
+                                            AttachOutcome::Failed};
+  for (std::size_t i = 0; i < states.size(); ++i) {
+    for (std::size_t j = i + 1; j < states.size(); ++j) {
+      EXPECT_NE(describe(states[i]), describe(states[j]))
+          << "two states with one sentence is one state as far as the person reading it is concerned";
+    }
+  }
+}

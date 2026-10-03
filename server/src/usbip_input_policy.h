@@ -267,9 +267,19 @@ namespace input::usbip {
   /**
    * @brief Build the argument vector to give one device back, or throw refusing to.
    *
-   * @throws std::invalid_argument if the port is negative. Note that **port 0 is valid**: the
-   *         Linux tool numbers ports from 0, and treating 0 as "unset" would make the first
-   *         port on every Linux machine impossible to release.
+   * @throws std::invalid_argument if the port is negative.
+   *
+   * The accepted range is the PORTABLE one (any non-negative integer) and the two tools disagree
+   * inside it. Measured on real machines: the Linux tool numbers ports FROM 0, while usbip-win2
+   * 0.9.8.1 numbers from 1 and rejects 0 outright -
+   *
+   *     --port: Value 0 not in range [1 - 255]
+   *
+   * So 0 must NOT be refused here, because refusing it would make the first port on every Linux
+   * machine impossible to release; and it must not be assumed meaningful on Windows either. The
+   * port always comes from parsing that platform's own `port` output, so each tool only ever sees
+   * numbers it issued. Narrowing this to >= 1 would break Linux; widening the Windows side to
+   * accept 0 would be a lie about a tool that says otherwise.
    */
   std::vector<std::string> build_detach_argv(int port);
 
@@ -348,6 +358,9 @@ namespace input::usbip {
   enum class AttachOutcome {
     Attached,     ///< The device is here.
     DeviceBusy,   ///< The exporter still has it out. Nothing moved.
+    NotOffered,   ///< The exporter does not have that busid to give. Nothing moved. Measured on
+                  ///< the real exporter: "error: Device not found by bus id." Its own fix - tick
+                  ///< the device on the exporter - which is not the fix for any other state here.
     Refused,      ///< Privilege or policy said no. Nothing moved. On Linux this is the shape a
                   ///< missing helper, or a declined polkit prompt, takes.
     Failed,       ///< It ran, it did not work, and this build cannot name the reason.
