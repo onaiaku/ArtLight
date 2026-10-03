@@ -233,6 +233,33 @@ namespace input::usbip {
     return {};
   }
 
+  run_result_t run_list_remote(const std::string_view exporter) {
+    try {
+      const auto argv = build_list_remote_argv(exporter);  // the policy validates the address first
+      return run_process(argv);
+    } catch (const std::exception &error) {
+      run_result_t refused;
+      refused.code = -1;
+      refused.err = error.what();
+      return refused;
+    }
+  }
+
+  run_result_t run_list_attached() {
+    // Unprivileged on purpose. Reading the port table is a query; `usbip port` printed a complete
+    // table to an ordinary user on the reference box while a device was attached. Routing this
+    // through pkexec would raise a prompt for a read, and the sweep runs at startup where nobody
+    // is looking at the screen to answer it.
+    const auto path = client_path();
+    if (path.empty()) {
+      run_result_t missing;
+      missing.code = -1;
+      missing.err = "the USB/IP client is not installed on this PC";
+      return missing;
+    }
+    return run_process({path, "port"});
+  }
+
   run_result_t run_attach(const std::string_view exporter, const std::string_view busid) {
     try {
       // Build the argv so the POLICY validates the caller's input before anything is spawned, then

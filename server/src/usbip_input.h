@@ -79,6 +79,24 @@ namespace input::usbip {
   run_result_t run_attach(std::string_view exporter, std::string_view busid);
 
   /**
+   * @brief Ask the exporter what it is offering.
+   *
+   * Read-only and unprivileged on both platforms: it is a query, not an action, so it needs neither
+   * the helper nor elevation. Runs the client with the two streams kept apart.
+   */
+  run_result_t run_list_remote(std::string_view exporter);
+
+  /**
+   * @brief Ask this machine what it is currently holding.
+   *
+   * This is the ONLY way to learn a held device's port, and the port is the only thing `detach`
+   * accepts - so a session that attaches and does not read this back cannot give the device up.
+   * Read-only and unprivileged on both platforms, proven: on Linux `usbip port` printed a full
+   * port table to an unprivileged user on the reference box.
+   */
+  run_result_t run_list_attached();
+
+  /**
    * @brief Give one device back. Takes a PORT, not a busid - `detach` accepts nothing else, which
    *        is why the caller has to remember busid -> port for the life of the session.
    */

@@ -331,6 +331,36 @@ namespace input::usbip {
     }
   }  // namespace
 
+  run_result_t run_list_remote(const std::string_view exporter) {
+    try {
+      // Read-only, so no elevation: this is a query. Verified against the live exporter on the
+      // reference Windows machine - `usbip.exe list -r <host>` returned that exporter's device
+      // list, which is the same `-r` the attach uses.
+      return run_client(argv_with_client(build_list_remote_argv(exporter)));
+    } catch (const std::exception &error) {
+      run_result_t refused;
+      refused.code = -1;
+      refused.err = error.what();
+      return refused;
+    }
+  }
+
+  run_result_t run_list_attached() {
+    // The Windows asymmetry lives here and it is measurable: usbip-win2 prints its banner ONLY when
+    // it finds a device, so with nothing attached this returns ZERO BYTES and exits 0 - the caller
+    // cannot tell that from a call that never reached the driver except by the exit code. Measured
+    // on the reference machine, where this machine held nothing: zero bytes. parse_attached reports
+    // NoOutput and the caller reclassifies with the exit code, exactly as the policy documents.
+    try {
+      return run_client(argv_with_client(build_list_attached_argv()));
+    } catch (const std::exception &error) {
+      run_result_t refused;
+      refused.code = -1;
+      refused.err = error.what();
+      return refused;
+    }
+  }
+
   run_result_t run_attach(const std::string_view exporter, const std::string_view busid) {
     try {
       return run_client(argv_with_client(build_attach_argv(exporter, busid)));

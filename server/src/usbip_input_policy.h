@@ -275,6 +275,23 @@ namespace input::usbip {
    * @throws std::invalid_argument if the busid is not a valid busid, or the exporter is empty,
    *         carries whitespace, or begins with '-' and would be read as an option.
    */
+  /**
+   * @brief Build the argv that asks an exporter what it is offering.
+   *
+   * Read-only, so unlike attach it needs no privilege on either platform. The address is validated
+   * here for the same reason it is validated in build_attach_argv: this function's output is an
+   * argument VECTOR, and an unvalidated address in one is a way to run something else.
+   *
+   * Element 0 is a placeholder - the platform layer replaces it with the client it resolved,
+   * because on Windows the client is deliberately not on PATH.
+   */
+  std::vector<std::string> build_list_remote_argv(std::string_view exporter);
+
+  /**
+   * @brief Build the argv that asks this machine what it holds. Element 0 is a placeholder, as above.
+   */
+  std::vector<std::string> build_list_attached_argv();
+
   std::vector<std::string> build_attach_argv(std::string_view exporter, std::string_view busid);
 
   /**

@@ -787,6 +787,18 @@ namespace input::usbip {
     return plan;
   }
 
+  std::vector<std::string> build_list_remote_argv(const std::string_view exporter) {
+    if (!is_usable_exporter(exporter)) {
+      throw std::invalid_argument("refusing to list an unusable exporter address: '" +
+                                  std::string(exporter) + "'");
+    }
+    return {"usbip", "list", "-r", std::string(exporter)};
+  }
+
+  std::vector<std::string> build_list_attached_argv() {
+    return {"usbip", "port"};
+  }
+
   std::vector<std::string> build_attach_argv(const std::string_view exporter,
                                              const std::string_view busid) {
     if (!is_valid_busid(busid)) {

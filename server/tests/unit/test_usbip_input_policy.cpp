@@ -671,6 +671,36 @@ TEST(UsbipArgv, DetachCarriesThePortItWasGiven) {
 // attach nothing at all while the Windows host beside it worked, and an exporter genuinely
 // offering nothing reported "we could not understand this" instead of "there is nothing here".
 
+namespace {
+  /**
+   * Captured 2026-10-03 from the reference Windows exporter, live, with `usbip.exe list -r`.
+   *
+   * Two things about these bytes are the reason they are filed rather than paraphrased. The
+   * Windows client's exportable-device list is NOT the Linux tool's - there is no `busid` word and
+   * the separator is a colon - and the exporter is a Windows box, so this is the shape that will
+   * actually arrive in production. A hand-written fixture would have been written in the shape the
+   * author already had in mind, which is how the wrong row format got claimed in the first place.
+   */
+  constexpr auto kListRemoteWindowsReal = R"(Exportable USB devices
+======================
+    9-1    : Razer USA, Ltd : RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)] (1532:007b)
+           : USB\VID_1532&PID_007B\7&3A2774D3&0&1
+           : (Defined at Interface level) (00/00/00)
+           :  0 - Human Interface Device/Boot Interface Subclass/Mouse (03/01/02)
+           :  1 - Human Interface Device/No Subclass/Keyboard (03/00/01)
+)";
+}  // namespace
+
+TEST(UsbipParseRemote, aRealWindowsExporterListReads) {
+  const auto list = input::usbip::parse_device_list(kListRemoteWindowsReal);
+
+  ASSERT_EQ(list.outcome, ListOutcome::Devices);
+  ASSERT_EQ(list.devices.size(), 1u);
+  EXPECT_EQ(list.devices[0].busid, "9-1");
+  EXPECT_EQ(list.devices[0].vid_pid, "1532:007b");
+  EXPECT_EQ(list.devices[0].product, "RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)]");
+}
+
 TEST(UsbipParseRemote, TheLinuxToolsPerExporterHeaderIsNotADevice) {
   const auto out = parse(usbip_fixtures::kListRemoteLinux);
   ASSERT_EQ(out.outcome, ListOutcome::Devices) << "detail: " << out.detail;
