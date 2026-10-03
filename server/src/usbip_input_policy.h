@@ -170,4 +170,106 @@ namespace input::usbip {
 
   /// @brief Render a port outcome as words. Never empty.
   std::string describe(PortOutcome outcome);
+
+  /// What the importer should do about one device.
+  enum class Action {
+    Attach,  ///< Fetch it: offered, wanted, and this machine does not hold it.
+    Detach,  ///< Give it back: this machine holds it and it is no longer wanted or offered.
+  };
+
+  /// @brief Render an action as words, for a log line. Never empty.
+  std::string describe(Action action);
+
+  /**
+   * @brief One thing to do, and why.
+   *
+   * The reason is carried because this plan is what a log line is written from, and "detached
+   * 9-1" without the reason is the kind of entry that makes a later reader guess.
+   */
+  struct PlannedAction {
+    Action action = Action::Attach;
+    /// For Attach: the device to fetch, validated. For Detach: the device being released, and
+    /// legitimately EMPTY when the tool could not read the port's remote identity.
+    std::string busid;
+    /// For Detach: the hub port to release, which is the ONLY thing usbip detach accepts.
+    /// -1 for Attach, which is addressed by busid.
+    int port = -1;
+    /// Why this action is in the plan, in words. Never empty.
+    std::string reason;
+  };
+
+  struct Plan {
+    /// Detaches first, then attaches, each in the order its input arrived.
+    std::vector<PlannedAction> actions;
+
+    bool empty() const { return actions.empty(); }
+    std::size_t attach_count() const;
+    std::size_t detach_count() const;
+  };
+
+  /**
+   * @brief Decide what to do, given what is offered, what is held, and what is wanted.
+   *
+   * Four states, and each is a real one on a real pair of machines:
+   *
+   *   offered, wanted, not held        -> attach
+   *   held, offered, wanted            -> leave alone (already right)
+   *   held, not wanted                 -> detach (the user unticked it)
+   *   held, no longer offered          -> detach (the exporter unbound it, or this is a stale
+   *                                       hold from a session that did not end cleanly)
+   *   offered, not wanted              -> leave alone. ArtMoon binds only what is ticked, so in
+   *                                       practice everything offered is wanted; this branch
+   *                                       exists for the case where they disagree.
+   *
+   * **`wanted` empty means every offered device is wanted.** That is not a convenience: ArtMoon
+   * binds exactly what the user toggled on, so "what the exporter is offering" IS the user's
+   * answer. The parameter exists so a caller that knows better can say so, not so every caller
+   * has to repeat the list back.
+   *
+   * **A held device whose busid is empty is detached.** Linux prints no remote identity for a
+   * port whose record it cannot read, so such an entry cannot be matched against `wanted` at
+   * all. Giving it back is the safe direction: the device returns to the machine it is plugged
+   * into, and it can always be attached again. The alternative - leaving it held because we
+   * cannot name it - is a device that never goes home.
+   *
+   * **Detach is by PORT, never by busid.** `usbip attach` assigns a vhci port and
+   * `usbip detach -p <port>` is the only way back, so every Detach action carries the port it
+   * was read with. Attach is by busid, because the port does not exist until it succeeds.
+   *
+   * Deterministic and idempotent: the same three inputs always produce the same plan, in the
+   * same order, so running it twice cannot double-attach anything. Detaches are ordered before
+   * attaches so that a swap (the user wants B instead of A) frees A's port before B needs one.
+   *
+   * @param offered What the exporter says it is offering, in the order it was read.
+   * @param attached What this machine currently holds, in the order it was read.
+   * @param wanted The busids the user wants. Empty means "everything offered".
+   * @return The actions to take, and the reason for each.
+   */
+  Plan plan_reconcile(const std::vector<Device> &offered,
+                      const std::vector<Attached> &attached,
+                      const std::vector<std::string> &wanted);
+
+  /**
+   * @brief Build the argument vector to fetch one device, or throw refusing to.
+   *
+   * The shape is identical on both tools - `attach -r <exporter> -b <busid>` - so this is
+   * portable, and only element 0 differs: it is written here as the bare name `usbip`, and the
+   * platform layer REPLACES it with the path it resolved, because on Windows the client is
+   * deliberately not on PATH.
+   *
+   * Always a vector, never a shell string, so nothing can be re-split on the way to exec.
+   *
+   * @throws std::invalid_argument if the busid is not a valid busid, or the exporter is empty,
+   *         carries whitespace, or begins with '-' and would be read as an option.
+   */
+  std::vector<std::string> build_attach_argv(std::string_view exporter, std::string_view busid);
+
+  /**
+   * @brief Build the argument vector to give one device back, or throw refusing to.
+   *
+   * @throws std::invalid_argument if the port is negative. Note that **port 0 is valid**: the
+   *         Linux tool numbers ports from 0, and treating 0 as "unset" would make the first
+   *         port on every Linux machine impossible to release.
+   */
+  std::vector<std::string> build_detach_argv(int port);
 }  // namespace input::usbip

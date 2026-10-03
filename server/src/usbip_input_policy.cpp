@@ -5,6 +5,7 @@
 #include "usbip_input_policy.h"
 
 #include <cstddef>
+#include <stdexcept>
 
 namespace input::usbip {
   namespace {
@@ -561,5 +562,161 @@ namespace input::usbip {
         return "output came back that this build could not read";
     }
     return "unknown";
+  }
+  std::string describe(const Action action) {
+    switch (action) {
+      case Action::Attach:
+        return "attach";
+      case Action::Detach:
+        return "detach";
+    }
+    return "unknown";
+  }
+
+  std::size_t Plan::attach_count() const {
+    std::size_t count = 0;
+    for (const PlannedAction &action : actions) {
+      if (action.action == Action::Attach) {
+        ++count;
+      }
+    }
+    return count;
+  }
+
+  std::size_t Plan::detach_count() const {
+    std::size_t count = 0;
+    for (const PlannedAction &action : actions) {
+      if (action.action == Action::Detach) {
+        ++count;
+      }
+    }
+    return count;
+  }
+
+  namespace {
+    bool contains(const std::vector<std::string> &values, const std::string_view needle) {
+      for (const std::string &value : values) {
+        if (value == needle) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    bool offers(const std::vector<Device> &offered, const std::string_view busid) {
+      for (const Device &device : offered) {
+        if (device.busid == busid) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /// Whether this machine already holds that device. An entry with no readable remote identity
+    /// never matches: it cannot be shown to be the device in question, and treating it as a match
+    /// would leave a device held forever under a name nobody can check.
+    bool holds(const std::vector<Attached> &attached, const std::string_view busid) {
+      for (const Attached &held : attached) {
+        if (!held.busid.empty() && held.busid == busid) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /// The exporter's address becomes an argument to another program. It arrives from config
+    /// rather than from the wire, so this is not the same threat as a busid - but a leading '-'
+    /// would be read as an option and whitespace cannot survive an argument vector at all, so
+    /// both are refused here rather than passed on and hoped about.
+    bool is_usable_exporter(const std::string_view exporter) {
+      if (exporter.empty() || exporter.front() == '-') {
+        return false;
+      }
+      for (const char c : exporter) {
+        const bool allowed = is_digit(c) || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                             || c == '.' || c == ':' || c == '-' || c == '_';
+        if (!allowed) {
+          return false;
+        }
+      }
+      return true;
+    }
+  }  // namespace
+
+  Plan plan_reconcile(const std::vector<Device> &offered,
+                      const std::vector<Attached> &attached,
+                      const std::vector<std::string> &wanted) {
+    Plan plan;
+
+    // An empty want list means the user's answer is "whatever the exporter is offering", because
+    // ArtMoon binds exactly what was toggled on and nothing else.
+    const bool everything_wanted = wanted.empty();
+
+    // Detaches first. A swap - the user now wants B instead of A - has to give up A's port
+    // before B can be given one.
+    for (const Attached &held : attached) {
+      const bool still_wanted = everything_wanted || contains(wanted, held.busid);
+      const bool still_offered = !held.busid.empty() && offers(offered, held.busid);
+
+      if (still_wanted && still_offered) {
+        continue;  // already right: held, offered and wanted
+      }
+
+      PlannedAction action;
+      action.action = Action::Detach;
+      action.busid = held.busid;
+      action.port = held.port;
+      if (held.busid.empty()) {
+        action.reason = "port " + std::to_string(held.port)
+                        + " is held with no readable remote identity, so it is given back";
+      } else if (!still_wanted) {
+        action.reason = held.busid + " is held but no longer wanted";
+      } else {
+        action.reason = held.busid + " is held but no longer offered by the exporter";
+      }
+      plan.actions.push_back(std::move(action));
+    }
+
+    // Then attaches, in the order the exporter listed them, so the plan is stable across runs.
+    for (const Device &device : offered) {
+      if (!everything_wanted && !contains(wanted, device.busid)) {
+        continue;  // offered but not wanted: leave it exactly where it is
+      }
+      if (holds(attached, device.busid)) {
+        continue;  // already held
+      }
+
+      PlannedAction action;
+      action.action = Action::Attach;
+      action.busid = device.busid;
+      action.reason = device.busid + " is offered and wanted";
+      plan.actions.push_back(std::move(action));
+    }
+
+    return plan;
+  }
+
+  std::vector<std::string> build_attach_argv(const std::string_view exporter,
+                                             const std::string_view busid) {
+    if (!is_valid_busid(busid)) {
+      throw std::invalid_argument("refusing to attach a busid that is not a busid: '" +
+                                  std::string(busid) + "'");
+    }
+    if (!is_usable_exporter(exporter)) {
+      throw std::invalid_argument("refusing to attach from an unusable exporter address: '" +
+                                  std::string(exporter) + "'");
+    }
+    // Element 0 is a placeholder. The platform layer replaces it with the client it resolved,
+    // because on Windows the client is deliberately not on PATH.
+    return {"usbip", "attach", "-r", std::string(exporter), "-b", std::string(busid)};
+  }
+
+  std::vector<std::string> build_detach_argv(const int port) {
+    if (port < 0) {
+      throw std::invalid_argument("refusing to detach a negative port");
+    }
+    // Port 0 is valid: the Linux tool numbers from 0, and reading 0 as "unset" would make the
+    // first port on every Linux machine impossible to release.
+    return {"usbip", "detach", "-p", std::to_string(port)};
   }
 }  // namespace input::usbip

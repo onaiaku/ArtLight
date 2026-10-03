@@ -9,6 +9,7 @@
  */
 #include "../tests_common.h"
 
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -438,4 +439,224 @@ TEST(UsbipPortParse, EveryPortOutcomeHasWords) {
   EXPECT_FALSE(input::usbip::describe(PortOutcome::NothingAttached).empty());
   EXPECT_FALSE(input::usbip::describe(PortOutcome::NoOutput).empty());
   EXPECT_FALSE(input::usbip::describe(PortOutcome::Unreadable).empty());
+}
+
+// ── the reconcile plan ───────────────────────────────────────────────────────────────────
+
+namespace {
+  using input::usbip::Action;
+  using input::usbip::Attached;
+  using input::usbip::Device;
+  using input::usbip::Plan;
+
+  /// A device the exporter is offering. Real busids, read off the mini PC and the z13.
+  Device offer(const char *busid) {
+    Device device;
+    device.busid = busid;
+    return device;
+  }
+
+  /// A device this machine is holding, at the port usbip gave it.
+  Attached holds(const char *busid, const int port) {
+    Attached attached;
+    attached.busid = busid;
+    attached.port = port;
+    return attached;
+  }
+
+  Plan reconcile(const std::vector<Device> &offered,
+                 const std::vector<Attached> &attached,
+                 const std::vector<std::string> &wanted) {
+    return input::usbip::plan_reconcile(offered, attached, wanted);
+  }
+}  // namespace
+
+TEST(UsbipPlan, AttachesWhatIsOfferedAndNotYetHeld) {
+  const Plan plan = reconcile({offer("9-1"), offer("9-2")}, {}, {});
+  EXPECT_EQ(plan.attach_count(), 2u);
+  EXPECT_EQ(plan.detach_count(), 0u);
+  EXPECT_EQ(plan.actions[0].action, Action::Attach);
+  EXPECT_EQ(plan.actions[0].busid, "9-1");
+  EXPECT_EQ(plan.actions[1].busid, "9-2");
+}
+
+TEST(UsbipPlan, LeavesAnAlreadyHeldDeviceExactlyAlone) {
+  // Held, offered and wanted is the steady state. A plan that re-attaches here would fight
+  // itself on every session start.
+  const Plan plan = reconcile({offer("9-1")}, {holds("9-1", 1)}, {});
+  EXPECT_TRUE(plan.empty());
+}
+
+TEST(UsbipPlan, NothingAnywhereIsAnEmptyPlan) {
+  EXPECT_TRUE(reconcile({}, {}, {}).empty());
+}
+
+TEST(UsbipPlan, DetachesWhatIsHeldButNoLongerOffered) {
+  // The exporter unbound it, or this is a hold left over from a session that did not end
+  // cleanly. Either way the device belongs back on its own machine.
+  const Plan plan = reconcile({}, {holds("9-1", 1)}, {});
+  EXPECT_EQ(plan.detach_count(), 1u);
+  EXPECT_EQ(plan.actions[0].action, Action::Detach);
+  EXPECT_EQ(plan.actions[0].busid, "9-1");
+}
+
+TEST(UsbipPlan, DetachesWhatIsNoLongerWanted) {
+  // The user unticked it in ArtMoon. In practice ArtMoon also unbinds it, so this arrives as
+  // "no longer offered" - but a caller that passes a want list gets the right answer anyway.
+  const Plan plan = reconcile({offer("9-1"), offer("9-2")}, {holds("9-2", 2)}, {"9-1"});
+  EXPECT_EQ(plan.detach_count(), 1u);
+  EXPECT_EQ(plan.actions[0].busid, "9-2");
+  EXPECT_EQ(plan.attach_count(), 1u);
+  EXPECT_EQ(plan.actions[1].busid, "9-1");
+}
+
+TEST(UsbipPlan, LeavesAnOfferedButUnwantedDeviceWhereItIs) {
+  const Plan plan = reconcile({offer("9-1")}, {}, {"9-2"});
+  EXPECT_TRUE(plan.empty());
+}
+
+TEST(UsbipPlan, AnEmptyWantListMeansEverythingOfferedIsWanted) {
+  // ArtMoon binds exactly what the user toggled on, so "what the exporter offers" IS the
+  // user's answer. This is the ordinary path, not a special case.
+  const Plan plan = reconcile({offer("9-1"), offer("9-2"), offer("9-3")}, {}, {});
+  EXPECT_EQ(plan.attach_count(), 3u);
+}
+
+TEST(UsbipPlan, DetachesBeforeItAttachesSoASwapCanReuseThePort) {
+  // The user now wants 9-2 instead of 9-1. Attaching first would ask for a port while the one
+  // being given up is still held.
+  const Plan plan = reconcile({offer("9-2")}, {holds("9-1", 1)}, {"9-2"});
+  ASSERT_EQ(plan.actions.size(), 2u);
+  EXPECT_EQ(plan.actions[0].action, Action::Detach);
+  EXPECT_EQ(plan.actions[0].busid, "9-1");
+  EXPECT_EQ(plan.actions[1].action, Action::Attach);
+  EXPECT_EQ(plan.actions[1].busid, "9-2");
+}
+
+TEST(UsbipPlan, ADetachCarriesThePortAndNotOnlyTheBusid) {
+  // detach takes a port. Carrying the busid is for the log line; carrying the port is the
+  // thing that actually gives the device back.
+  const Plan plan = reconcile({}, {holds("9-1", 3)}, {});
+  ASSERT_EQ(plan.actions.size(), 1u);
+  EXPECT_EQ(plan.actions[0].port, 3);
+}
+
+TEST(UsbipPlan, DetachesAHeldDeviceWithNoReadableRemoteIdentity) {
+  // A real Linux state: the tool prints the port and no remote identity at all. Such an entry
+  // cannot be matched against anything, and leaving it held because we cannot name it is a
+  // device that never goes home.
+  const Plan plan = reconcile({}, {holds("", 0)}, {});
+  ASSERT_EQ(plan.actions.size(), 1u);
+  EXPECT_EQ(plan.actions[0].action, Action::Detach);
+  EXPECT_EQ(plan.actions[0].port, 0);
+  EXPECT_TRUE(plan.actions[0].busid.empty());
+}
+
+TEST(UsbipPlan, AHeldDeviceWithNoIdentityIsNotMistakenForTheDeviceWeWant) {
+  // The dangerous direction of the case above: an unnamed hold must never satisfy "we already
+  // have 9-1", or 9-1 is never fetched. The hold is given back AND 9-1 is still fetched, in
+  // that order - so this asserts on the action, not on its position.
+  const Plan plan = reconcile({offer("9-1")}, {holds("", 0)}, {});
+  EXPECT_EQ(plan.attach_count(), 1u);
+  EXPECT_EQ(plan.detach_count(), 1u);
+
+  bool fetched_nine_one = false;
+  for (const auto &action : plan.actions) {
+    if (action.action == Action::Attach && action.busid == "9-1") {
+      fetched_nine_one = true;
+    }
+  }
+  EXPECT_TRUE(fetched_nine_one);
+}
+
+TEST(UsbipPlan, IsIdempotentSoARerunCannotDoubleAttach) {
+  const std::vector<Device> offered = {offer("9-1"), offer("9-2")};
+  const std::vector<Attached> attached = {holds("9-2", 1)};
+  const Plan first = reconcile(offered, attached, {});
+  const Plan second = reconcile(offered, attached, {});
+  ASSERT_EQ(first.actions.size(), second.actions.size());
+  for (std::size_t i = 0; i < first.actions.size(); ++i) {
+    EXPECT_EQ(first.actions[i].action, second.actions[i].action);
+    EXPECT_EQ(first.actions[i].busid, second.actions[i].busid);
+    EXPECT_EQ(first.actions[i].port, second.actions[i].port);
+  }
+}
+
+TEST(UsbipPlan, EveryPlannedActionSaysWhyItIsThere) {
+  // This plan is what the log is written from. "detached 9-1" with no reason is the entry that
+  // makes a later reader guess.
+  const Plan plan = reconcile({offer("9-1")}, {holds("9-2", 1)}, {"9-1"});
+  ASSERT_FALSE(plan.empty());
+  for (const auto &action : plan.actions) {
+    EXPECT_FALSE(action.reason.empty());
+  }
+}
+
+TEST(UsbipPlan, EveryActionHasWords) {
+  EXPECT_FALSE(input::usbip::describe(Action::Attach).empty());
+  EXPECT_FALSE(input::usbip::describe(Action::Detach).empty());
+}
+
+// ── the argument vectors ─────────────────────────────────────────────────────────────────
+
+TEST(UsbipArgv, AttachNamesTheExporterAndTheDevice) {
+  const std::vector<std::string> argv =
+    input::usbip::build_attach_argv("192.168.50.35", "9-1");
+  ASSERT_EQ(argv.size(), 6u);
+  EXPECT_EQ(argv[0], "usbip");  // a placeholder; the platform layer replaces it
+  EXPECT_EQ(argv[1], "attach");
+  EXPECT_EQ(argv[2], "-r");
+  EXPECT_EQ(argv[3], "192.168.50.35");
+  EXPECT_EQ(argv[4], "-b");
+  EXPECT_EQ(argv[5], "9-1");
+}
+
+TEST(UsbipArgv, AttachRefusesABusidThatIsNotABusid) {
+  // The busid list comes off the wire, so a value that is not a busid must never reach an
+  // argument vector - it is refused while building it, not after.
+  for (const char *bad : {"", "-p", "9-1; rm -rf /", "9 1", "../9-1", "9-1\n", "--help"}) {
+    EXPECT_THROW(input::usbip::build_attach_argv("192.168.50.35", bad), std::invalid_argument)
+      << "'" << bad << "'";
+  }
+}
+
+TEST(UsbipArgv, AttachRefusesAnExporterThatWouldBeReadAsAnOption) {
+  EXPECT_THROW(input::usbip::build_attach_argv("-r", "9-1"), std::invalid_argument);
+  EXPECT_THROW(input::usbip::build_attach_argv("--help", "9-1"), std::invalid_argument);
+}
+
+TEST(UsbipArgv, AttachRefusesAnEmptyOrWhitespaceExporter) {
+  EXPECT_THROW(input::usbip::build_attach_argv("", "9-1"), std::invalid_argument);
+  EXPECT_THROW(input::usbip::build_attach_argv("  ", "9-1"), std::invalid_argument);
+  EXPECT_THROW(input::usbip::build_attach_argv("192.168.50.35; whoami", "9-1"),
+               std::invalid_argument);
+}
+
+TEST(UsbipArgv, AttachAcceptsTheExporterShapesThisPairActuallyUses) {
+  // A LAN address, a Tailscale address, and an IPv6 literal - the three shapes that appear on
+  // these machines.
+  EXPECT_NO_THROW(input::usbip::build_attach_argv("192.168.50.35", "9-1"));
+  EXPECT_NO_THROW(input::usbip::build_attach_argv("10.6.0.3", "3-10"));
+  EXPECT_NO_THROW(input::usbip::build_attach_argv("fe80::1", "3-10"));
+  EXPECT_NO_THROW(input::usbip::build_attach_argv("niks-minipc", "9-1"));
+}
+
+TEST(UsbipArgv, DetachTakesAPortAndPortZeroIsValid) {
+  // The Linux tool numbers ports from 0. Reading 0 as "unset" would make the first port on
+  // every Linux machine impossible to release.
+  const std::vector<std::string> argv = input::usbip::build_detach_argv(0);
+  ASSERT_EQ(argv.size(), 4u);
+  EXPECT_EQ(argv[0], "usbip");
+  EXPECT_EQ(argv[1], "detach");
+  EXPECT_EQ(argv[2], "-p");
+  EXPECT_EQ(argv[3], "0");
+}
+
+TEST(UsbipArgv, DetachRefusesANegativePort) {
+  EXPECT_THROW(input::usbip::build_detach_argv(-1), std::invalid_argument);
+}
+
+TEST(UsbipArgv, DetachCarriesThePortItWasGiven) {
+  EXPECT_EQ(input::usbip::build_detach_argv(1)[3], "1");
+  EXPECT_EQ(input::usbip::build_detach_argv(12)[3], "12");
 }
