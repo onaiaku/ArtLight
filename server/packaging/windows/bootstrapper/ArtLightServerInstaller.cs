@@ -98,7 +98,8 @@ namespace ArtLightServerInstaller {
           allowSelfElevation: false,
           removeVirtualGamepadDriver: parsed.InternalUninstallRemoveVirtualGamepadDriver,
           removeServer: parsed.InternalUninstallRemoveServer,
-          removeControl: parsed.InternalUninstallRemoveControl);
+          removeControl: parsed.InternalUninstallRemoveControl,
+          removeUsbip: parsed.InternalUninstallRemoveUsbip);
         InstallerRunner.TryWriteInternalInstallResult(parsed.InternalUninstallResultPath, internalUninstall);
         return internalUninstall.ExitCode == 1605 ? 0 : internalUninstall.ExitCode;
       }
@@ -1293,7 +1294,8 @@ namespace ArtLightServerInstaller {
           allowSelfElevation: true,
           removeVirtualGamepadDriver: uninstallOptions.Value.RemoveVirtualGamepadDriver,
           removeServer: removingServer,
-          removeControl: uninstallOptions.Value.RemoveControl)),
+          removeControl: uninstallOptions.Value.RemoveControl,
+          removeUsbip: uninstallOptions.Value.RemoveUsbip)),
         "Uninstall",
         removingServer ? "Removing ArtLight Server and ArtLight Control..." : "Removing ArtLight Control...",
         removingServer ? "ArtLight uninstall completed." : "ArtLight Control uninstall completed.");
@@ -1926,6 +1928,7 @@ namespace ArtLightServerInstaller {
     private struct UninstallOptions {
       public bool RemoveServer;
       public bool RemoveControl;
+      public bool RemoveUsbip;
       public bool RemoveVirtualDisplayDriver;
       public bool RemoveVirtualGamepadDriver;
       public bool FactoryResetAppData;
@@ -1933,6 +1936,7 @@ namespace ArtLightServerInstaller {
 
     private async Task<UninstallOptions?> ShowOverlayUninstallOptionsAsync() {
       var installedControl = InstallerRunner.TryGetInstalledControlState() != null;
+      var installedUsbip = InstallerRunner.TryGetInstalledUsbipState() != null;
       var hasServerCheckBox = _installedProduct != null;
 
       var removeServerCheckBox = new CheckBox {
@@ -1948,6 +1952,13 @@ namespace ArtLightServerInstaller {
         Foreground = new SolidColorBrush(Color.FromRgb(226, 235, 250)),
         Margin = new Thickness(0, 0, 0, 8),
         IsChecked = installedControl
+      };
+      var removeUsbipCheckBox = new CheckBox {
+        Content = "Uninstall USB device sharing (USBip)",
+        FontSize = 13,
+        Foreground = new SolidColorBrush(Color.FromRgb(226, 235, 250)),
+        Margin = new Thickness(0, 0, 0, 8),
+        IsChecked = installedUsbip
       };
       var removeDriverCheckBox = new CheckBox {
         Content = "Remove virtual display driver",
@@ -1989,6 +2000,9 @@ namespace ArtLightServerInstaller {
           if (installedControl) {
             content.Children.Add(removeControlCheckBox);
           }
+          if (installedUsbip) {
+            content.Children.Add(removeUsbipCheckBox);
+          }
           content.Children.Add(removeDriverCheckBox);
           content.Children.Add(removeGamepadDriverCheckBox);
           content.Children.Add(deleteFolderCheckBox);
@@ -2001,10 +2015,11 @@ namespace ArtLightServerInstaller {
 
       var removeServer = hasServerCheckBox && removeServerCheckBox.IsChecked == true;
       var removeControl = installedControl && removeControlCheckBox.IsChecked == true;
+      var removeUsbip = installedUsbip && removeUsbipCheckBox.IsChecked == true;
       var removeDriver = removeDriverCheckBox.IsChecked == true;
       var factoryReset = deleteFolderCheckBox.IsChecked == true;
 
-      if (!removeServer && !removeControl) {
+      if (!removeServer && !removeControl && !removeUsbip) {
         // Nothing selected: treat as cancel, no changes made.
         return null;
       }
@@ -2012,6 +2027,7 @@ namespace ArtLightServerInstaller {
       return new UninstallOptions {
         RemoveServer = removeServer,
         RemoveControl = removeControl,
+        RemoveUsbip = removeUsbip,
         RemoveVirtualDisplayDriver = removeDriver,
         RemoveVirtualGamepadDriver = removeGamepadDriverCheckBox.IsChecked == true,
         FactoryResetAppData = factoryReset
@@ -2445,6 +2461,7 @@ namespace ArtLightServerInstaller {
     private const string InternalUninstallFactoryResetToken = "--internal-uninstall-factory-reset";
     private const string InternalUninstallRemoveServerToken = "--internal-uninstall-remove-server";
     private const string InternalUninstallRemoveControlToken = "--internal-uninstall-remove-control";
+    private const string InternalUninstallRemoveUsbipToken = "--internal-uninstall-remove-usbip";
     private const string InternalUninstallRemoveVirtualDisplayDriverToken = "--internal-uninstall-remove-virtual-display-driver";
     private const string InternalUninstallRemoveVirtualGamepadDriverToken = "--internal-uninstall-remove-virtual-gamepad-driver";
     private const string InternalUninstallResultPathToken = "--internal-uninstall-result-path";
@@ -2463,6 +2480,7 @@ namespace ArtLightServerInstaller {
     public bool InternalUninstallFactoryReset { get; set; }
     public bool InternalUninstallRemoveServer { get; set; }
     public bool InternalUninstallRemoveControl { get; set; }
+    public bool InternalUninstallRemoveUsbip { get; set; }
     public bool InternalUninstallRemoveVirtualDisplayDriver { get; set; }
     public bool InternalUninstallRemoveVirtualGamepadDriver { get; set; }
     public string InternalUninstallResultPath { get; set; }
@@ -2475,6 +2493,7 @@ namespace ArtLightServerInstaller {
       InternalInstallUsbip = true;
       InternalUninstallRemoveServer = true;
       InternalUninstallRemoveControl = true;
+      InternalUninstallRemoveUsbip = true;
       ForwardedArguments = new List<string>();
     }
 
@@ -2553,6 +2572,10 @@ namespace ArtLightServerInstaller {
         }
         if (string.Equals(arg, InternalUninstallRemoveControlToken, StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length) {
           parsed.InternalUninstallRemoveControl = ParseBooleanToken(args[++index]);
+          continue;
+        }
+        if (string.Equals(arg, InternalUninstallRemoveUsbipToken, StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length) {
+          parsed.InternalUninstallRemoveUsbip = ParseBooleanToken(args[++index]);
           continue;
         }
         if (string.Equals(arg, InternalUninstallRemoveVirtualGamepadDriverToken, StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length) {
@@ -6082,7 +6105,8 @@ namespace ArtLightServerInstaller {
       bool allowSelfElevation = true,
       bool removeVirtualGamepadDriver = false,
       bool removeServer = true,
-      bool removeControl = true) {
+      bool removeControl = true,
+      bool removeUsbip = true) {
       if (allowSelfElevation && !IsProcessElevated()) {
         return RunElevatedBootstrapperUninstall(
           arguments,
@@ -6090,7 +6114,8 @@ namespace ArtLightServerInstaller {
           removeVirtualDisplayDriver,
           removeVirtualGamepadDriver,
           removeServer,
-          removeControl);
+          removeControl,
+          removeUsbip);
       }
 
       SweepStaleInstallerRecoveryDirectories();
@@ -6125,10 +6150,144 @@ namespace ArtLightServerInstaller {
         }
       }
 
+      // USB device sharing. USBip is a separate product that ArtLight bundled, so it is removed by
+      // running USBip's own uninstaller rather than by deleting files: its drivers were installed as
+      // drivers and only its uninstaller knows how to take them back out again.
+      if (removeUsbip) {
+        var usbipResult = UninstallUsbipProduct();
+        if (!usbipResult.Succeeded && usbipResult.ExitCode != 1605) {
+          componentFailures.Add(
+            "USB device sharing (USBip): " + (string.IsNullOrWhiteSpace(usbipResult.Message) ? "uninstaller exited with code " + usbipResult.ExitCode : usbipResult.Message));
+        }
+      }
+
       if (componentFailures.Count > 0) {
         uninstallResult.ComponentFailures = componentFailures;
       }
       return uninstallResult;
+    }
+
+    // ── USB device sharing (USBip) selective uninstall ──────────────────────
+    //
+    // USBip is a separate product that ArtLight bundles, so it is removed by running USBip's own
+    // uninstaller rather than by deleting its files. That is not tidiness: it installs two kernel
+    // drivers (usbip2_ude, usbip2_filter) as drivers, and only its own uninstaller knows how to take
+    // those back out. Deleting the folder would leave the drivers registered and the device stack in
+    // a state nothing else can clean up.
+    //
+    // Matching, measured on the real machine rather than assumed:
+    //   DisplayName    USBip 0.9.8.1
+    //   Publisher      usbip-win2
+    //   UninstallString  "C:\Program Files\USBip\unins000.exe" /LOG
+    //
+    // Matched on Publisher OR DisplayName, because a version bump changes the DisplayName and a
+    // publisher rename would change the other; either one alone would eventually stop matching.
+
+    internal static InstalledControlState TryGetInstalledUsbipState() {
+      var uninstallRoots = new[] {
+        @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+      };
+      foreach (var rootKey in uninstallRoots) {
+        Microsoft.Win32.RegistryKey key = null;
+        try {
+          key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(rootKey);
+          if (key == null) {
+            continue;
+          }
+          foreach (var subKeyName in key.GetSubKeyNames()) {
+            Microsoft.Win32.RegistryKey productKey = null;
+            try {
+              productKey = key.OpenSubKey(subKeyName);
+              if (productKey == null) {
+                continue;
+              }
+              var displayName = Convert.ToString(productKey.GetValue("DisplayName")) ?? string.Empty;
+              var publisher = Convert.ToString(productKey.GetValue("Publisher")) ?? string.Empty;
+              var matchesPublisher = publisher.IndexOf("usbip-win2", StringComparison.OrdinalIgnoreCase) >= 0;
+              var matchesDisplayName = displayName.StartsWith("USBip", StringComparison.OrdinalIgnoreCase);
+              if (!matchesPublisher && !matchesDisplayName) {
+                continue;
+              }
+              var state = new InstalledControlState {
+                UninstallString = Convert.ToString(productKey.GetValue("UninstallString")),
+                DisplayVersion = Convert.ToString(productKey.GetValue("DisplayVersion")),
+                InstallLocation = Convert.ToString(productKey.GetValue("InstallLocation"))
+              };
+              if (string.IsNullOrWhiteSpace(state.UninstallString)) {
+                continue;
+              }
+              // Same ghost check as Control: a registry entry whose uninstaller has been deleted
+              // cannot uninstall anything, and treating it as present would report a failure for a
+              // product that is already gone.
+              string ghostExecutablePath;
+              string ghostArguments;
+              if (!TrySplitExecutableAndArguments(state.UninstallString, out ghostExecutablePath, out ghostArguments)
+                  || !System.IO.File.Exists(ghostExecutablePath)) {
+                continue;
+              }
+              return state;
+            } finally {
+              if (productKey != null) {
+                productKey.Dispose();
+              }
+            }
+          }
+        } catch {
+          // Registry read failures simply mean "not detected".
+        } finally {
+          if (key != null) {
+            key.Dispose();
+          }
+        }
+      }
+      return null;
+    }
+
+    internal static InstallerResult UninstallUsbipProduct() {
+      var result = new InstallerResult {
+        Operation = InstallerOperation.Uninstall
+      };
+      var state = TryGetInstalledUsbipState();
+      if (state == null) {
+        result.ExitCode = 0;
+        result.Message = "USB device sharing (USBip) is not installed; nothing to remove.";
+        return result;
+      }
+
+      string executablePath;
+      string uninstallArguments;
+      if (!TrySplitExecutableAndArguments(state.UninstallString, out executablePath, out uninstallArguments)) {
+        result.ExitCode = 1603;
+        result.Message = "Could not parse the USBip uninstall command: " + state.UninstallString;
+        return result;
+      }
+
+      // /VERYSILENT rather than the /SILENT in USBip's own QuietUninstallString: /SILENT still draws
+      // a progress window, and this runs inside our own uninstall with the UI already gone.
+      var silentArguments = (string.IsNullOrWhiteSpace(uninstallArguments) ? string.Empty : uninstallArguments + " ")
+        + "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART";
+      var startInfo = new ProcessStartInfo {
+        FileName = executablePath,
+        Arguments = silentArguments,
+        UseShellExecute = false,
+        CreateNoWindow = true
+      };
+      try {
+        using (var process = Process.Start(startInfo)) {
+          process.WaitForExit();
+          result.ExitCode = process.ExitCode;
+        }
+      } catch (Exception ex) {
+        result.ExitCode = 1603;
+        result.Message = "Failed to launch the USBip uninstaller: " + ex.Message;
+        return result;
+      }
+
+      result.Message = result.ExitCode == 0
+        ? "USB device sharing (USBip) removed."
+        : "The USBip uninstaller exited with code " + result.ExitCode + ".";
+      return result;
     }
 
     // ── ArtLight Control selective uninstall ────────────────────────────────
@@ -8716,7 +8875,8 @@ namespace ArtLightServerInstaller {
       bool removeVirtualDisplayDriver,
       bool removeVirtualGamepadDriver,
       bool removeServer = true,
-      bool removeControl = true) {
+      bool removeControl = true,
+      bool removeUsbip = true) {
       var resultPath = Path.Combine(Path.GetTempPath(), "artlight_uninstall_result_" + Guid.NewGuid().ToString("N") + ".txt");
       var elevatedArgs = new List<string> {
         "--internal-elevated-uninstall",
@@ -8730,6 +8890,8 @@ namespace ArtLightServerInstaller {
         removeServer ? "1" : "0",
         "--internal-uninstall-remove-control",
         removeControl ? "1" : "0",
+        "--internal-uninstall-remove-usbip",
+        removeUsbip ? "1" : "0",
         "--internal-uninstall-result-path",
         resultPath
       };
