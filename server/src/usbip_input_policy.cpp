@@ -903,4 +903,119 @@ namespace input::usbip {
     result.reason.clear();
     return result;
   }
+  namespace {
+    /// Case-insensitive substring. Used ONLY to recognise failure lines that have actually been
+    /// seen on real machines - never to interpret something a machine did not say.
+    bool contains_ci(const std::string_view haystack, const std::string_view needle) {
+      if (needle.empty() || haystack.size() < needle.size()) {
+        return false;
+      }
+      for (std::size_t start = 0; start + needle.size() <= haystack.size(); ++start) {
+        bool matched = true;
+        for (std::size_t i = 0; i < needle.size(); ++i) {
+          if (to_lower(haystack[start + i]) != to_lower(needle[i])) {
+            matched = false;
+            break;
+          }
+        }
+        if (matched) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /// The first line carrying `needle`, trimmed, kept as the tool wrote it. This is what goes in
+    /// the log: a paraphrase of a tool's complaint is a new claim, and the raw line is the only
+    /// thing that can be checked against the machine later.
+    std::string line_containing(const std::string_view text, const std::string_view needle) {
+      std::size_t start = 0;
+      while (start <= text.size()) {
+        const auto end = text.find('\n', start);
+        const auto line = text.substr(start, end == std::string_view::npos ? std::string_view::npos : end - start);
+        if (contains_ci(line, needle)) {
+          return std::string(trim(line));
+        }
+        if (end == std::string_view::npos) {
+          break;
+        }
+        start = end + 1;
+      }
+      return {};
+    }
+
+    std::string first_meaningful_line(const std::string_view text) {
+      std::size_t start = 0;
+      while (start <= text.size()) {
+        const auto end = text.find('\n', start);
+        const auto line = text.substr(start, end == std::string_view::npos ? std::string_view::npos : end - start);
+        const auto trimmed = trim(line);
+        if (!trimmed.empty()) {
+          return std::string(trimmed);
+        }
+        if (end == std::string_view::npos) {
+          break;
+        }
+        start = end + 1;
+      }
+      return {};
+    }
+  }  // namespace
+
+  AttachResult classify_attach(const int exit_code, const std::string_view out, const std::string_view err) {
+    AttachResult result;
+
+    if (exit_code == 0) {
+      result.outcome = AttachOutcome::Attached;
+      return result;
+    }
+
+    // The exporter still counts the device as out. Documented on the exporter, and note the trap
+    // recorded there: an EMPTY `Persisted:` table does not clear this - it is the vendor's veto,
+    // not stale state, and retrying forever will not shake it loose.
+    for (const std::string_view needle : {"already exported", "device busy"}) {
+      const auto line = line_containing(err, needle);
+      if (!line.empty()) {
+        result.outcome = AttachOutcome::DeviceBusy;
+        result.detail = line;
+        return result;
+      }
+    }
+
+    // Privilege or policy said no. The Linux form was measured on the z13: an unprivileged attach
+    // dies with this and exit 1, because /sys/devices/platform/vhci_hcd.0/attach is a root-only
+    // write. On Linux this is also the shape a missing helper or a declined polkit prompt takes.
+    for (const std::string_view needle :
+         {"import device", "permission denied", "operation not permitted", "access denied"}) {
+      const auto line = line_containing(err, needle);
+      if (!line.empty()) {
+        result.outcome = AttachOutcome::Refused;
+        result.detail = line;
+        return result;
+      }
+    }
+
+    // It ran, it did not work, and this build will not pretend to know why. Keep what it said.
+    result.outcome = AttachOutcome::Failed;
+    result.detail = first_meaningful_line(err);
+    if (result.detail.empty()) {
+      result.detail = first_meaningful_line(out);
+    }
+    return result;
+  }
+
+  std::string describe(const AttachOutcome outcome) {
+    switch (outcome) {
+      case AttachOutcome::Attached:
+        return "the device attached";
+      case AttachOutcome::DeviceBusy:
+        return "the exporter still has this device out - nothing moved";
+      case AttachOutcome::Refused:
+        return "the attach was refused - nothing moved";
+      case AttachOutcome::Failed:
+        return "the attach failed";
+    }
+    throw std::runtime_error("unhandled AttachOutcome");
+  }
+
 }  // namespace input::usbip

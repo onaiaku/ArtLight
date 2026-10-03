@@ -892,3 +892,52 @@ TEST(UsbipUninstallRecord, NothingAtAllIsNotTheClient) {
   EXPECT_FALSE(input::usbip::names_the_client("USB/IP client"));
   EXPECT_FALSE(input::usbip::names_the_client("Razer Synapse"));
 }
+
+// ── what an attach attempt actually did ──────────────────────────────────────────────────
+//
+// The point of this classifier is that "nothing moved" and "it failed" are different sentences to
+// the person reading them. Every string below was seen on a real machine.
+
+TEST(UsbipAttachOutcome, ASuccessfulAttachSaysSo) {
+  const auto r = input::usbip::classify_attach(0, "", "");
+  EXPECT_EQ(r.outcome, input::usbip::AttachOutcome::Attached);
+  EXPECT_TRUE(r.detail.empty()) << "nothing went wrong, so there is nothing to quote";
+}
+
+TEST(UsbipAttachOutcome, TheExportersVetoIsItsOwnState) {
+  // The exporter refused because it still counts the device as out. An empty `Persisted:` table
+  // does NOT clear this, so it must not be filed with ordinary failures - retrying will not help,
+  // and the person needs to know the device did not move.
+  const auto r = input::usbip::classify_attach(1, "", "usbip: error: Device busy (already exported)\n");
+  EXPECT_EQ(r.outcome, input::usbip::AttachOutcome::DeviceBusy);
+  EXPECT_NE(r.outcome, input::usbip::AttachOutcome::Failed) << "this is the whole reason the enum exists";
+  EXPECT_EQ(r.detail, "usbip: error: Device busy (already exported)") << "kept verbatim, not paraphrased";
+}
+
+TEST(UsbipAttachOutcome, TheLinuxPrivilegeRefusalIsMeasuredNotGuessed) {
+  // Verbatim from the z13: an unprivileged attach, because /sys/.../attach is a root-only write.
+  const auto r = input::usbip::classify_attach(1, "", "usbip: error: import device\n");
+  EXPECT_EQ(r.outcome, input::usbip::AttachOutcome::Refused);
+  EXPECT_EQ(r.detail, "usbip: error: import device");
+}
+
+TEST(UsbipAttachOutcome, AnUnnameableFailureKeepsItsOwnWords) {
+  // A build that guesses here is worse than one that admits it cannot name the reason: the raw
+  // line is the only thing checkable against the machine afterwards.
+  const auto r = input::usbip::classify_attach(1, "", "usbip: error: something nobody has seen yet\n");
+  EXPECT_EQ(r.outcome, input::usbip::AttachOutcome::Failed);
+  EXPECT_EQ(r.detail, "usbip: error: something nobody has seen yet");
+}
+
+TEST(UsbipAttachOutcome, SilenceOnStderrStillFindsTheReasonOnStdout) {
+  const auto r = input::usbip::classify_attach(2, "usbip: error: cannot open\n", "");
+  EXPECT_EQ(r.outcome, input::usbip::AttachOutcome::Failed);
+  EXPECT_EQ(r.detail, "usbip: error: cannot open") << "the reason is not always on stderr";
+}
+
+TEST(UsbipAttachOutcome, BusyAndFailedAreNotTheSameWordInTheLog) {
+  const auto busy = input::usbip::classify_attach(1, "", "Device busy (already exported)\n");
+  const auto failed = input::usbip::classify_attach(1, "", "usbip: error: unknown\n");
+  EXPECT_NE(input::usbip::describe(busy.outcome), input::usbip::describe(failed.outcome));
+  EXPECT_NE(input::usbip::describe(busy.outcome), input::usbip::describe(input::usbip::AttachOutcome::Attached));
+}

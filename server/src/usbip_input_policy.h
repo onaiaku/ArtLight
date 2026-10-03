@@ -335,4 +335,42 @@ namespace input::usbip {
 
   ClientAvailability assess_client(const ClientProbe &probe);
   std::string describe(ClientState state);
+
+  /**
+   * @brief What an attach attempt actually did.
+   *
+   * These states are not decoration and they must not be collapsed. `DeviceBusy` means the device
+   * did NOT move and the exporter still counts it as exported - someone else holds it, or a
+   * previous session never gave it back. `Failed` means the attach did not happen at all. One sends
+   * someone to find out who has their keyboard; the other sends them to read a log. Reporting both
+   * as "attach failed" costs them the device.
+   */
+  enum class AttachOutcome {
+    Attached,     ///< The device is here.
+    DeviceBusy,   ///< The exporter still has it out. Nothing moved.
+    Refused,      ///< Privilege or policy said no. Nothing moved. On Linux this is the shape a
+                  ///< missing helper, or a declined polkit prompt, takes.
+    Failed,       ///< It ran, it did not work, and this build cannot name the reason.
+  };
+
+  struct AttachResult {
+    AttachOutcome outcome = AttachOutcome::Failed;
+    std::string detail;  ///< The line that decided it, kept VERBATIM. Never paraphrased.
+  };
+
+  /**
+   * @brief Read an attach attempt's exit code and output as one of the four states above.
+   *
+   * The patterns below are the ones that have actually been seen on real machines - a vendor-engine
+   * refusal, and an unprivileged Linux attach. Everything else that fails is `Failed` with its raw
+   * output kept, deliberately: naming a failure is a claim about what went wrong, and a claim this
+   * build cannot support is worse than an honest "it failed and here is exactly what it said". A
+   * new state is added when a real machine produces a real instance of it, not before.
+   *
+   * stderr is passed in for the same reason the recorder captures it: on both platforms the reason
+   * a tool refused appears there, beside an exit code that only says "no".
+   */
+  AttachResult classify_attach(int exit_code, std::string_view out, std::string_view err);
+
+  std::string describe(AttachOutcome outcome);
 }  // namespace input::usbip
