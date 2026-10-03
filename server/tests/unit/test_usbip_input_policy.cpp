@@ -284,7 +284,7 @@ TEST(UsbipPortParse, ReadsTheWindowsShapeAndThePortItReports) {
   EXPECT_EQ(list.devices[0].busid, "9-1");
   EXPECT_EQ(list.devices[0].exporter, "192.168.50.35");
   EXPECT_EQ(list.devices[0].service, "3240");
-  EXPECT_EQ(list.devices[0].speed, "High Speed(480Mbps)");
+  EXPECT_EQ(list.devices[0].speed, "Full Speed(12Mbps)");
   EXPECT_EQ(list.devices[0].mode, "zero-copy");
   EXPECT_NE(list.devices[0].product.find("Viper"), std::string::npos);
 

@@ -71,60 +71,76 @@ usbip: error: list imported devices
 
   // ── the "port" rows: what this machine is currently holding ─────────────────────────────
   //
-  // THE PROVENANCE IS DIFFERENT HERE AND IT MATTERS. The three above are live captures from
-  // machines. These are not. They are derived from the format string of the program that
-  // prints them, at the exact version in use — which is real evidence (the emitter's own code,
-  // not a memory of its output) but it is NOT a machine's bytes, and none of these may be
-  // called a capture:
+  // Windows port fixtures below are REAL CAPTURES taken from the gaming PC on 2026-10-03 with
+  // usbip-win2 0.9.8.1 (verified on the box: `usbip.exe --version`) against the mini PC as
+  // exporter, by attaching the Razer Viper Ultimate and reading `usbip port`. Byte-for-byte, CRLF
+  // included — see captured-2026-10-03-port-win2-*.txt.
   //
-  //   Windows  vadimgrn/usbip-win2 tag v.0.9.8.1, userspace/usbip/port.cpp + strings.cpp
-  //            Confirmed to be the importer's installed version: usbip.exe --version = 0.9.8.1
-  //   Linux    linux, tools/usb/usbip, src/usbip_port.c + libsrc/vhci_driver.c
+  // The live capture corrected two things a format-derived version of these had wrong, and both
+  // are the sort of thing only real bytes catch:
+  //   * the description row ends with the device's VID:PID, " (1532:007b)", which the derived
+  //     version did not have at all;
+  //   * the speed was "Full Speed(12Mbps)", not the "High Speed(480Mbps)" that had been assumed
+  //     for a wireless mouse dongle.
   //
-  // Confirming these live means attaching a device, and attaching MOVES it off the machine it
-  // is plugged into. That is far too much to spend on confirming a format string, so it was
-  // not spent, and the gap is written down here rather than quietly closed with a guess.
+  // The Linux port rows are still DERIVED, from linux tools/usb/usbip src/usbip_port.c and
+  // libsrc/vhci_driver.c, because the z13 was unreachable when the capture was taken. That is the
+  // emitter's own code, not a memory of its output — but it is not a machine's bytes, and the
+  // Linux fixtures are a debt against a real capture rather than a substitute for one.
   //
   // Written as explicit lines rather than one raw literal on purpose: the leading whitespace
   // IS the format under test (9 spaces before the Windows description row, 11 before its
   // detail rows, 7 on Linux, and the Linux busid right-aligned in 10), and a raw literal hides
   // exactly the thing a reader needs to count.
 
-  /// usbip-win2, holding nothing. LIVE: `usbip.exe port` on the gaming PC, 2026-10-03, USBip
-  /// 0.9.8.1, nothing attached. Zero bytes and exit 0 — and that pair is the whole point. The
-  /// banner is printed only when a device is found, so this is byte-identical to a call that
-  /// never reached the driver. Only the exit code tells them apart.
+  // What the CLI itself does, measured on the gaming PC, because the executor has to tell these
+  // apart and none of them was known before:
+  //   usbip port      holding nothing     0 bytes, exit 0        <- ambiguous by itself
+  //   usbip port      holding a device    the table, exit 0
+  //   usbip attach    success             "successfully attached to port N", exit 0
+  //   usbip attach -t success             just "N", exit 0
+  //   usbip attach    cannot connect      "error: A connection attempt failed ...", exit 1,
+  //                                       after ~22 SECONDS
+  //   usbip detach    success             "port N is successfully detached", exit 0
+  //   usbip detach    nothing there       "error: The device is not connected.", exit 1
+  // That 22s is the number the attach timeout has to clear: a 5s timeout would abort a call that
+  // was going to fail on its own schedule anyway. `--once` did NOT shorten it (21s with, 22s
+  // without) — it prevents repeated attempts, it does not make the connect fail faster.
+
+  /// usbip-win2, holding nothing. REAL: 0 bytes, exit 0, and it is byte-identical to a call that
+  /// never reached the driver — the exit code is the only thing that separates them.
   inline constexpr std::string_view kPortWin2NothingAttached = "";
 
-  /// usbip-win2, one device attached. Note "serial:" with nothing after it but a space: an
-  /// attach that carried no --serial prints the key and stops, which is the normal case.
+  /// usbip-win2, one device attached. REAL capture. Note "serial:" with nothing after it but a
+  /// space: an attach that carried no --serial prints the key and stops, which is the normal case.
   inline const std::string_view kPortWin2OneDevice =
-    "Imported USB devices\n"
-    "====================\n"
-    "Port 01: device in use at High Speed(480Mbps)\n"
-    "         Razer USA, Ltd : RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)]\n"
-    "           -> usbip://192.168.50.35:3240/9-1\n"
-    "           -> remote bus/dev: 001/002\n"
-    "           -> serial: \n"
-    "           -> mode: zero-copy\n";
+    "Imported USB devices\r\n"
+    "====================\r\n"
+    "Port 01: device in use at Full Speed(12Mbps)\r\n"
+    "         Razer USA, Ltd : RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)] (1532:007b)\r\n"
+    "           -> usbip://192.168.50.35:3240/9-1\r\n"
+    "           -> remote bus/dev: 009/001\r\n"
+    "           -> serial: \r\n"
+    "           -> mode: zero-copy\r\n";
 
-  /// usbip-win2, two devices — the map a detach sweep has to walk, and the reason the port is
-  /// an integer rather than the busid.
+  /// usbip-win2, two devices — the map a detach sweep has to walk, and the reason the port is an
+  /// integer rather than the busid. NOT a capture: only one device was attached, so the second
+  /// record is built to the shape the real one above proved, VID:PID suffix included.
   inline const std::string_view kPortWin2TwoDevices =
-    "Imported USB devices\n"
-    "====================\n"
-    "Port 01: device in use at High Speed(480Mbps)\n"
-    "         Razer USA, Ltd : RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)]\n"
-    "           -> usbip://192.168.50.35:3240/9-1\n"
-    "           -> remote bus/dev: 001/002\n"
-    "           -> serial: \n"
-    "           -> mode: zero-copy\n"
-    "Port 02: device in use at Full Speed(12Mbps)\n"
-    "         Razer USA, Ltd : unknown product\n"
-    "           -> usbip://192.168.50.35:3240/9-2\n"
-    "           -> remote bus/dev: 001/003\n"
-    "           -> serial: \n"
-    "           -> mode: low-latency\n";
+    "Imported USB devices\r\n"
+    "====================\r\n"
+    "Port 01: device in use at Full Speed(12Mbps)\r\n"
+    "         Razer USA, Ltd : RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)] (1532:007b)\r\n"
+    "           -> usbip://192.168.50.35:3240/9-1\r\n"
+    "           -> remote bus/dev: 009/001\r\n"
+    "           -> serial: \r\n"
+    "           -> mode: zero-copy\r\n"
+    "Port 02: device in use at Full Speed(12Mbps)\r\n"
+    "         Razer USA, Ltd : unknown product (1532:028d)\r\n"
+    "           -> usbip://192.168.50.35:3240/9-2\r\n"
+    "           -> remote bus/dev: 009/002\r\n"
+    "           -> serial: \r\n"
+    "           -> mode: low-latency\r\n";
 
   /// The Linux tool, holding nothing. It prints the banner UNCONDITIONALLY — before it looks at
   /// any port — so unlike the Windows case this empty state is distinguishable from silence.
