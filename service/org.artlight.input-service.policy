@@ -13,7 +13,7 @@
     and deliberate: Windows needs no equivalent of either, because attach there works from a
     UAC-filtered limited token. Do not "fix" that by adding a service Windows does not need.
 
-    The helper at /usr/libexec/artlight-input-service refuses to act without administrator rights,
+    The helper at /usr/libexec/vibeshine/artlight-input-service refuses to act without administrator rights,
     and on Linux the app has no way to hand it privilege except through pkexec. This action is what
     makes that pkexec call silent: allow_active grants it to the local active session with no
     authentication, so the one approval the user gives is the one that placed this file and the
@@ -55,7 +55,7 @@
       <allow_inactive>no</allow_inactive>
       <allow_active>yes</allow_active>
     </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/artlight-input-service</annotate>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/vibeshine/artlight-input-service</annotate>
   </action>
 
 </policyconfig>

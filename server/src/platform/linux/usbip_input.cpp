@@ -38,7 +38,7 @@ namespace input::usbip {
     /// it. Both must be present: a helper with no action cannot be invoked, and an action with no
     /// helper authorises nothing. Named to match the exporter's existing pair so the two halves of
     /// this feature are recognisably the same shape.
-    constexpr auto kHelperPath = "/usr/libexec/artlight-input-service";
+    constexpr auto kHelperPath = "/usr/libexec/vibeshine/artlight-input-service";
     constexpr auto kPolicyPath = "/usr/share/polkit-1/actions/org.artlight.input-service.policy";
 
     /// The client's usual homes. Checked before PATH because a package that installs elsewhere

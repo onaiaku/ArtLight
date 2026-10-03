@@ -35,6 +35,11 @@ elseif(UNIX)
         # These files are executed/read by root. They intentionally do not
         # follow a user-selectable CMAKE_INSTALL_PREFIX.
         set(VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR "/usr/libexec/vibeshine")
+        # Root-owned config, like the systemd units. vhci-hcd is the kernel half of USB/IP on the
+        # importer: without it there is no virtual host controller for an attached device to appear
+        # on, and usbip itself can do nothing. The kernel packages carry the module but nothing
+        # loads it, so a fresh machine comes up without it.
+        set(VIBESHINE_MODULES_LOAD_INSTALL_DIR "/usr/lib/modules-load.d")
         set(VIBESHINE_DRM_SOURCE_INSTALL_DIR "/usr/src/vibeshine-drm-${PROJECT_VERSION_NUMERIC}")
         set(VIBESHINE_DS5_SOURCE_INSTALL_DIR "/usr/src/vibeshine-ds5-${PROJECT_VERSION_NUMERIC}")
         set(VIBESHINE_DS5_SOURCE_DIR "${CMAKE_SOURCE_DIR}/third-party/libvirtualgamepad/linux/vibeshine-ds5")

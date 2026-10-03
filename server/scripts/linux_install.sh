@@ -38,6 +38,8 @@ readonly PACMAN_REPO_CONF='/etc/pacman.d/artlight.conf'
 readonly MIN_KERNEL_MAJOR=6
 readonly MIN_KERNEL_MINOR=16
 readonly DRM_INSTALL='/usr/libexec/vibeshine/vibeshine-drm-install'
+readonly INPUT_SERVICE='/usr/libexec/vibeshine/artlight-input-service'
+readonly INPUT_POLICY='/usr/share/polkit-1/actions/org.artlight.input-service.policy'
 readonly DS5_INSTALL='/usr/libexec/vibeshine/vibeshine-ds5-install'
 readonly MACHINE_HOST='/usr/libexec/vibeshine/artlight-machine-host'
 
@@ -634,6 +636,38 @@ check_driver_state() {
   fi
 }
 
+check_usb_device_sharing() {
+  # USB devices are shared FROM one machine and attached ON another. This machine is the importer,
+  # so it needs all four pieces. Miss any one and the feature fails the same silent way: the setting
+  # is honoured, the toggle appears to work, and no device ever arrives.
+  #   - usbip-utils: the client that asks
+  #   - the input service: does it as root, so the server itself never has to be privileged
+  #   - the polkit action: authorises that helper, and only at its exact installed path
+  #   - vhci-hcd: the virtual host controller the attached device appears on
+  local missing=()
+  command -v usbip >/dev/null 2>&1 || missing+=('usbip-utils')
+  [[ -x "$INPUT_SERVICE" ]] || missing+=('the input service')
+  [[ -f "$INPUT_POLICY" ]] || missing+=('the polkit action')
+
+  if ((${#missing[@]})); then
+    warn "USB device sharing is incomplete - missing: ${missing[*]}. Reinstall the artlight package."
+    return
+  fi
+
+  if [[ ! -d /sys/module/vhci_hcd ]]; then
+    if modinfo vhci-hcd >/dev/null 2>&1; then
+      # Loaded from /usr/lib/modules-load.d/vhci-hcd.conf, which only takes effect at boot.
+      reboot_required=1
+      warn 'USB device sharing is installed; the vhci-hcd module loads at next boot.'
+    else
+      warn "USB device sharing is installed but ${kernel_release} has no vhci-hcd module."
+    fi
+    return
+  fi
+
+  ok 'USB device sharing is installed and ready.'
+}
+
 check_session_restart() {
   # First installation adds KWin startup hooks. A running greeter/desktop
   # predates those hooks even when the newly installed DRM module loads.
@@ -688,6 +722,7 @@ main() {
   install_dualsense_driver
   open_firewall
   check_driver_state
+  check_usb_device_sharing
   check_services
   print_summary
 }

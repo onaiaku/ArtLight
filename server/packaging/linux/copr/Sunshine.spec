@@ -153,6 +153,7 @@ Requires: /usr/bin/python3
 Requires: /usr/bin/wayland-info
 Requires: /usr/bin/xdpyinfo
 Requires: socat
+Requires: usbip-utils
 Requires: util-linux
 Recommends: dkms
 Recommends: gcc
@@ -1720,6 +1721,9 @@ fi
 %attr(0755,root,root) %{_prefix}/libexec/vibeshine/artlight-app-supervisor
 %{_prefix}/libexec/vibeshine/artlight-machine-host
 %attr(0755,root,root) %{_prefix}/libexec/vibeshine/artlight-kwin-session-environment
+# 0755 root:root and NOT setuid, with no file capabilities: not privileged by what it is, only by
+# what pkexec grants it for the length of a single call.
+%attr(0755,root,root) %{_prefix}/libexec/vibeshine/artlight-input-service
 %attr(0750,root,artlight) %caps(cap_sys_admin,cap_sys_nice+p) %{_prefix}/libexec/vibeshine/artlight-host
 %attr(4755,root,root) %{_libdir}/libvibeshine-kwin-gpu.so
 
@@ -1756,9 +1760,13 @@ fi
 %{_sysconfdir}/ufw/applications.d/artlight
 %{_datadir}/pipewire/pipewire.conf.d/50-artlight-audio.conf
 
+# The polkit action that authorises the USB input service, and only at its exact installed path
+%{_datadir}/polkit-1/actions/org.artlight.input-service.policy
+
 # Modules-load configuration
 %{_modulesloaddir}/*-sunshine.conf
 %{_modulesloaddir}/70-vibeshine-ds5.conf
+%{_modulesloaddir}/70-artlight-usbip.conf
 
 # Desktop entries
 %{_datadir}/applications/*.desktop
