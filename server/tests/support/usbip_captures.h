@@ -68,4 +68,87 @@ namespace usbip_fixtures {
 usbip: error: open vhci_driver (is vhci_hcd loaded?)
 usbip: error: list imported devices
 )USBIPFIXTURE";
+
+  // ── the "port" rows: what this machine is currently holding ─────────────────────────────
+  //
+  // THE PROVENANCE IS DIFFERENT HERE AND IT MATTERS. The three above are live captures from
+  // machines. These are not. They are derived from the format string of the program that
+  // prints them, at the exact version in use — which is real evidence (the emitter's own code,
+  // not a memory of its output) but it is NOT a machine's bytes, and none of these may be
+  // called a capture:
+  //
+  //   Windows  vadimgrn/usbip-win2 tag v.0.9.8.1, userspace/usbip/port.cpp + strings.cpp
+  //            Confirmed to be the importer's installed version: usbip.exe --version = 0.9.8.1
+  //   Linux    linux, tools/usb/usbip, src/usbip_port.c + libsrc/vhci_driver.c
+  //
+  // Confirming these live means attaching a device, and attaching MOVES it off the machine it
+  // is plugged into. That is far too much to spend on confirming a format string, so it was
+  // not spent, and the gap is written down here rather than quietly closed with a guess.
+  //
+  // Written as explicit lines rather than one raw literal on purpose: the leading whitespace
+  // IS the format under test (9 spaces before the Windows description row, 11 before its
+  // detail rows, 7 on Linux, and the Linux busid right-aligned in 10), and a raw literal hides
+  // exactly the thing a reader needs to count.
+
+  /// usbip-win2, holding nothing. LIVE: `usbip.exe port` on the gaming PC, 2026-10-03, USBip
+  /// 0.9.8.1, nothing attached. Zero bytes and exit 0 — and that pair is the whole point. The
+  /// banner is printed only when a device is found, so this is byte-identical to a call that
+  /// never reached the driver. Only the exit code tells them apart.
+  inline constexpr std::string_view kPortWin2NothingAttached = "";
+
+  /// usbip-win2, one device attached. Note "serial:" with nothing after it but a space: an
+  /// attach that carried no --serial prints the key and stops, which is the normal case.
+  inline const std::string_view kPortWin2OneDevice =
+    "Imported USB devices\n"
+    "====================\n"
+    "Port 01: device in use at High Speed(480Mbps)\n"
+    "         Razer USA, Ltd : RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)]\n"
+    "           -> usbip://192.168.50.35:3240/9-1\n"
+    "           -> remote bus/dev: 001/002\n"
+    "           -> serial: \n"
+    "           -> mode: zero-copy\n";
+
+  /// usbip-win2, two devices — the map a detach sweep has to walk, and the reason the port is
+  /// an integer rather than the busid.
+  inline const std::string_view kPortWin2TwoDevices =
+    "Imported USB devices\n"
+    "====================\n"
+    "Port 01: device in use at High Speed(480Mbps)\n"
+    "         Razer USA, Ltd : RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)]\n"
+    "           -> usbip://192.168.50.35:3240/9-1\n"
+    "           -> remote bus/dev: 001/002\n"
+    "           -> serial: \n"
+    "           -> mode: zero-copy\n"
+    "Port 02: device in use at Full Speed(12Mbps)\n"
+    "         Razer USA, Ltd : unknown product\n"
+    "           -> usbip://192.168.50.35:3240/9-2\n"
+    "           -> remote bus/dev: 001/003\n"
+    "           -> serial: \n"
+    "           -> mode: low-latency\n";
+
+  /// The Linux tool, holding nothing. It prints the banner UNCONDITIONALLY — before it looks at
+  /// any port — so unlike the Windows case this empty state is distinguishable from silence.
+  inline const std::string_view kPortLinuxNothingAttached =
+    "Imported USB devices\n"
+    "====================\n";
+
+  /// The Linux tool, one device. Two differences from Windows in one sample: the status is
+  /// bracketed, and the busid LEADS the URL row (right-aligned in 10) instead of being absent.
+  /// The port is 00, which is valid here and must never be read as "unset".
+  inline const std::string_view kPortLinuxOneDevice =
+    "Imported USB devices\n"
+    "====================\n"
+    "Port 00: <Port in Use> at High Speed(480Mbps)\n"
+    "       Razer USA, Ltd : RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)]\n"
+    "       9-1 -> usbip://192.168.50.35:3240/9-1\n"
+    "           -> remote bus/dev 001/002\n";
+
+  /// The Linux tool when it cannot read a port's record. There is no URL row at all, so there
+  /// is no remote identity — but the port is real and the port is what releases the device.
+  inline const std::string_view kPortLinuxUnknownRemote =
+    "Imported USB devices\n"
+    "====================\n"
+    "Port 01: <Port in Use> at Full Speed(12Mbps)\n"
+    "       unknown product\n"
+    "           -> unknown host, remote port and remote busid\n";
 }  // namespace usbip_fixtures

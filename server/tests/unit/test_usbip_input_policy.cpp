@@ -259,3 +259,183 @@ TEST(UsbipListParse, EveryOutcomeHasWords) {
   EXPECT_FALSE(input::usbip::describe(ListOutcome::NoOutput).empty());
   EXPECT_FALSE(input::usbip::describe(ListOutcome::Unreadable).empty());
 }
+
+// ── what this machine is currently holding ───────────────────────────────────────────────
+//
+// The port is what detach is addressed by, so this parse decides whether a device can ever be
+// given back. The fixtures for these are derived from the printers' own format strings rather
+// than captured from a machine — that provenance is stated at the fixtures, and the reason it
+// is not a capture is that obtaining one means attaching a device, which moves it.
+
+namespace {
+  using input::usbip::AttachedList;
+  using input::usbip::PortOutcome;
+
+  AttachedList ports(const std::string_view text) {
+    return input::usbip::parse_attached(text);
+  }
+}  // namespace
+
+TEST(UsbipPortParse, ReadsTheWindowsShapeAndThePortItReports) {
+  const AttachedList list = ports(usbip_fixtures::kPortWin2OneDevice);
+  ASSERT_EQ(list.outcome, PortOutcome::Devices);
+  ASSERT_EQ(list.devices.size(), 1u);
+  EXPECT_EQ(list.devices[0].port, 1);
+  EXPECT_EQ(list.devices[0].busid, "9-1");
+  EXPECT_EQ(list.devices[0].exporter, "192.168.50.35");
+  EXPECT_EQ(list.devices[0].service, "3240");
+  EXPECT_EQ(list.devices[0].speed, "High Speed(480Mbps)");
+  EXPECT_EQ(list.devices[0].mode, "zero-copy");
+  EXPECT_NE(list.devices[0].product.find("Viper"), std::string::npos);
+
+  // The row really does read "-> serial: " with nothing after the space when the attach carried
+  // no --serial. Without trim this would come back as a serial of " ".
+  EXPECT_TRUE(list.devices[0].serial.empty());
+}
+
+TEST(UsbipPortParse, ThePortIsTheKeyAndItIsAnInteger) {
+  // Two devices is the shape a detach sweep has to walk, and the port — not the busid — is the
+  // handle that gives each one back.
+  const AttachedList list = ports(usbip_fixtures::kPortWin2TwoDevices);
+  ASSERT_EQ(list.outcome, PortOutcome::Devices);
+  ASSERT_EQ(list.devices.size(), 2u);
+  EXPECT_EQ(list.devices[0].port, 1);
+  EXPECT_EQ(list.devices[1].port, 2);
+  EXPECT_EQ(list.devices[0].busid, "9-1");
+  EXPECT_EQ(list.devices[1].busid, "9-2");
+  EXPECT_EQ(list.devices[1].mode, "low-latency");
+}
+
+TEST(UsbipPortParse, WindowsHoldingNothingIsNoOutputAndTheExitCodeDecides) {
+  // The one a confident parser gets wrong. usbip-win2 prints its banner only when it finds a
+  // device, so "holding nothing" and "never reached the driver" are the same zero bytes. The
+  // parse refuses to choose between them; exit 0 is what makes it NothingAttached.
+  EXPECT_EQ(ports(usbip_fixtures::kPortWin2NothingAttached).outcome, PortOutcome::NoOutput);
+  EXPECT_EQ(ports("").outcome, PortOutcome::NoOutput);
+  EXPECT_EQ(ports("\n\n").outcome, PortOutcome::NoOutput);
+}
+
+TEST(UsbipPortParse, LinuxHoldingNothingSaysSoWithItsBanner) {
+  // The mirror of the mistake above: the Linux tool prints the banner before it looks at any
+  // port, so its empty case IS an answer and calling it NoOutput would be wrong the other way.
+  const AttachedList list = ports(usbip_fixtures::kPortLinuxNothingAttached);
+  EXPECT_EQ(list.outcome, PortOutcome::NothingAttached);
+  EXPECT_EQ(list.devices.size(), 0u);
+}
+
+TEST(UsbipPortParse, ReadsTheLinuxShapeWhereTheBusidLeadsTheRow) {
+  const AttachedList list = ports(usbip_fixtures::kPortLinuxOneDevice);
+  ASSERT_EQ(list.outcome, PortOutcome::Devices);
+  ASSERT_EQ(list.devices.size(), 1u);
+  // Port 00 is a real Linux port number. Treating 0 as "unset" would strand the device.
+  EXPECT_EQ(list.devices[0].port, 0);
+  EXPECT_EQ(list.devices[0].busid, "9-1");
+  EXPECT_EQ(list.devices[0].exporter, "192.168.50.35");
+  EXPECT_EQ(list.devices[0].service, "3240");
+}
+
+TEST(UsbipPortParse, ADeviceWithNoRemoteIdentityStillKeepsItsPort) {
+  // A real Linux state: the record could not be read, so there is no URL row and no busid. The
+  // port is still true, and the port is what releases the device.
+  const AttachedList list = ports(usbip_fixtures::kPortLinuxUnknownRemote);
+  ASSERT_EQ(list.outcome, PortOutcome::Devices);
+  ASSERT_EQ(list.devices.size(), 1u);
+  EXPECT_EQ(list.devices[0].port, 1);
+  EXPECT_TRUE(list.devices[0].busid.empty());
+}
+
+TEST(UsbipPortParse, TheRealLinuxDriverFailureIsUnreadableAndSaysWhatToDo) {
+  // A live capture: usbip-utils with vhci_hcd not loaded. It must never read as "holding
+  // nothing" — the machine was never successfully asked.
+  const AttachedList list = ports(usbip_fixtures::kPortErrorLinux);
+  EXPECT_EQ(list.outcome, PortOutcome::Unreadable);
+  EXPECT_NE(list.detail.find("vhci_hcd"), std::string::npos) << list.detail;
+}
+
+TEST(UsbipPortParse, ACarriageReturnDoesNotBreakTheWindowsShape) {
+  // usbip-win2 runs on Windows, where rows end CRLF. Nothing here may depend on the line ending.
+  std::string crlf(usbip_fixtures::kPortWin2OneDevice);
+  for (std::size_t at = crlf.find('\n'); at != std::string::npos; at = crlf.find('\n', at + 1)) {
+    crlf.insert(at, 1, '\r');
+    ++at;
+  }
+  const AttachedList list = ports(crlf);
+  ASSERT_EQ(list.outcome, PortOutcome::Devices);
+  ASSERT_EQ(list.devices.size(), 1u);
+  EXPECT_EQ(list.devices[0].port, 1);
+  EXPECT_EQ(list.devices[0].busid, "9-1");
+  EXPECT_TRUE(list.devices[0].serial.empty());
+}
+
+TEST(UsbipPortParse, RefusesAPortRowThatIsNotANumber) {
+  // Starts like our format and is not it. Skipping it would turn "cannot read this" into
+  // "holding nothing", and the device would never be given back.
+  EXPECT_EQ(ports("Imported USB devices\nPort xx: device in use\n").outcome,
+            PortOutcome::Unreadable);
+}
+
+TEST(UsbipPortParse, RefusesAPortNumberThatDetachCouldNotAddress) {
+  // 256 is outside usbip's own [1,255], so it is not a port we could ever detach with.
+  const AttachedList list = ports("Imported USB devices\nPort 256: device in use at High Speed\n");
+  EXPECT_EQ(list.outcome, PortOutcome::Unreadable);
+}
+
+TEST(UsbipPortParse, RefusesARowThatIsNeitherTheDescriptionNorADetail) {
+  const AttachedList list = ports(
+    "Imported USB devices\n"
+    "Port 01: device in use at High Speed(480Mbps)\n"
+    "         Some Device\n"
+    "         some stray row\n");
+  EXPECT_EQ(list.outcome, PortOutcome::Unreadable);
+  EXPECT_EQ(list.detail, "some stray row");
+}
+
+TEST(UsbipPortParse, ADescriptionRowCannotBeADetailRow) {
+  // A header with no description row is not a shape we know. Absorbing the detail row into the
+  // product name would hide the fact that the layout moved under us.
+  const AttachedList list = ports(
+    "Imported USB devices\n"
+    "Port 01: device in use at High Speed(480Mbps)\n"
+    "           -> usbip://192.168.50.35:3240/9-1\n");
+  EXPECT_EQ(list.outcome, PortOutcome::Unreadable);
+}
+
+TEST(UsbipPortParse, RefusesAUrlWhoseBusidIsNotABusid) {
+  // The busid arrives from another machine, and this is the row where it enters — so this is
+  // where it is checked. An option, a path, or anything with a space is never stored.
+  for (const char *bad : {"a-1", "-a", "9-1 extra", "../etc/passwd", ""}) {
+    const std::string text =
+      std::string("Imported USB devices\nPort 01: device in use at High Speed(480Mbps)\n"
+                  "         Some Device\n"
+                  "           -> usbip://192.168.50.35:3240/") + bad + "\n";
+    EXPECT_EQ(ports(text).outcome, PortOutcome::Unreadable) << bad;
+  }
+}
+
+TEST(UsbipPortParse, ADetailRowBeforeAnyDeviceIsRefused) {
+  EXPECT_EQ(ports("Imported USB devices\n           -> usbip://192.168.50.35:3240/9-1\n").outcome,
+            PortOutcome::Unreadable);
+}
+
+TEST(UsbipPortParse, RefusesADetailRowThatIsNotOneOfTheKnownOnes) {
+  // Found by mutation testing, which is the only reason it exists: an earlier version of this
+  // suite refused a *stray* row and so never reached the refusal for a "->" row that is not one
+  // of the detail rows we know. Removing that refusal changed nothing the tests could see.
+  //
+  // This is the row that says the tool grew a field, or moved the layout. Absorbing it silently
+  // would be claiming to have read a document we do not understand.
+  const AttachedList list = ports(
+    "Imported USB devices\n"
+    "Port 01: device in use at High Speed(480Mbps)\n"
+    "         Some Device\n"
+    "           -> something we have never seen before\n");
+  EXPECT_EQ(list.outcome, PortOutcome::Unreadable);
+  EXPECT_EQ(list.detail, "-> something we have never seen before");
+}
+
+TEST(UsbipPortParse, EveryPortOutcomeHasWords) {
+  EXPECT_FALSE(input::usbip::describe(PortOutcome::Devices).empty());
+  EXPECT_FALSE(input::usbip::describe(PortOutcome::NothingAttached).empty());
+  EXPECT_FALSE(input::usbip::describe(PortOutcome::NoOutput).empty());
+  EXPECT_FALSE(input::usbip::describe(PortOutcome::Unreadable).empty());
+}
