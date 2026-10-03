@@ -4,6 +4,8 @@ param(
     [string]$BuildDir,
     [string]$MsiPath = "",
     [string]$ControlInstallerPath = "",
+    [string]$UsbipInstallerPath = "",
+    [string]$UsbipLicensePath = "",
     [string]$OutputName = "",
     [switch]$UninstallOnly,
     [switch]$SignWithSignPath,
@@ -332,6 +334,20 @@ if ($UninstallOnly) {
         $controlPath = Resolve-PathStrict $ControlInstallerPath
         Write-Host "[bootstrapper] Embedding Control payload: $controlPath"
         $args += "/resource:$controlPath,Payload.control.exe"
+    }
+    # USB device sharing. Third-party (USBip, BSD-2-Clause) and embedded as its own installer rather
+    # than unpacked, because its driver has to be installed AS a driver. The licence travels too -
+    # BSD-2-Clause requires the notice to ship with a binary redistribution, and the upstream
+    # installer carries none of its own.
+    if (-not [string]::IsNullOrWhiteSpace($UsbipInstallerPath)) {
+        $usbipPath = Resolve-PathStrict $UsbipInstallerPath
+        Write-Host "[bootstrapper] Embedding USBip payload: $usbipPath"
+        $args += "/resource:$usbipPath,Payload.usbip.exe"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($UsbipLicensePath)) {
+        $usbipLicensePath = Resolve-PathStrict $UsbipLicensePath
+        Write-Host "[bootstrapper] Embedding USBip licence: $usbipLicensePath"
+        $args += "/resource:$usbipLicensePath,License.USBip.txt"
     }
 }
 

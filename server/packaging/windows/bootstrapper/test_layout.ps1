@@ -82,7 +82,7 @@ foreach ($reference in @('System', 'System.Core', 'System.Data', 'System.Xml', '
 foreach ($reference in @('WindowsBase', 'PresentationCore', 'PresentationFramework')) {
     $compilerArgs += "/reference:$framework/WPF/$reference.dll"
 }
-$compilerArgs += (Join-Path $PSScriptRoot 'VibeshineInstaller.cs')
+$compilerArgs += (Join-Path $PSScriptRoot 'ArtLightServerInstaller.cs')
 $compilerArgs += $harness
 & "$framework/csc.exe" @compilerArgs
 if ($LASTEXITCODE -ne 0) { throw 'Layout test compilation failed.' }

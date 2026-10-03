@@ -78,6 +78,14 @@ namespace ArtLightServerInstaller {
               "ArtLight Control: " + (string.IsNullOrWhiteSpace(controlResult.Message) ? "silent install failed (exit " + controlResult.ExitCode + ")" : controlResult.Message));
           }
         }
+        if (internalInstall.Succeeded && parsed.InternalInstallUsbip) {
+          var usbipResult = InstallerRunner.InstallUsbipPayload(installPath);
+          if (!usbipResult.Succeeded) {
+            internalInstall.ComponentFailures = internalInstall.ComponentFailures ?? new List<string>();
+            internalInstall.ComponentFailures.Add(
+              "USB/IP (USBip): " + (string.IsNullOrWhiteSpace(usbipResult.Message) ? "silent install failed (exit " + usbipResult.ExitCode + ")" : usbipResult.Message));
+          }
+        }
         InstallerRunner.TryWriteInternalInstallResult(parsed.InternalInstallResultPath, internalInstall);
         return internalInstall.ExitCode;
       }
@@ -128,6 +136,8 @@ namespace ArtLightServerInstaller {
     private readonly TextBox _installPathTextBox;
     private readonly ComboBox _virtualDisplayDriverComboBox;
     private readonly CheckBox _virtualGamepadDriverCheckBox;
+    private System.Windows.Controls.CheckBox _installUsbipCheckBox;
+    private Border _installUsbipSection;
     private readonly TextBlock _statusText;
     private readonly TextBlock _statusDetailText;
     private readonly ProgressBar _progressBar;
@@ -727,6 +737,48 @@ namespace ArtLightServerInstaller {
       contentStack.Children.Add(_installControlSection);
       _installControlSection.Visibility = HasEmbeddedControlPayload() ? Visibility.Visible : Visibility.Collapsed;
 
+      // ── USB device sharing (USB/IP) ─────────────────────────────────────
+      //
+      // Third-party, unlike Control: USBip is a separate product under BSD-2-Clause, so its licence
+      // is shipped alongside it. It is only offered when its installer is actually embedded, because
+      // a tick box with nothing behind it is worse than none.
+      //
+      // This is the IMPORTER half. It lets this machine take a USB device from the machine you are
+      // streaming from. The other half - the machine the device is plugged into offering it - is
+      // ArtMoon's setting, and neither does anything without the other.
+      _installUsbipSection = new Border {
+        CornerRadius = new CornerRadius(10),
+        Padding = new Thickness(16),
+        Margin = new Thickness(0, 0, 0, 10),
+        Background = new SolidColorBrush(Color.FromArgb(44, 99, 102, 241)),
+        BorderBrush = new SolidColorBrush(Color.FromArgb(112, 128, 133, 255)),
+        BorderThickness = new Thickness(1)
+      };
+      var usbipStack = new StackPanel { Orientation = Orientation.Vertical };
+      _installUsbipSection.Child = usbipStack;
+      var usbipHeader = new StackPanel { Orientation = Orientation.Horizontal };
+      _installUsbipCheckBox = new System.Windows.Controls.CheckBox {
+        IsChecked = true,
+        VerticalAlignment = VerticalAlignment.Center,
+        Content = new TextBlock {
+          Text = "USB device sharing",
+          FontSize = 13,
+          FontWeight = FontWeights.SemiBold,
+          Foreground = new SolidColorBrush(Color.FromRgb(226, 235, 250))
+        }
+      };
+      usbipHeader.Children.Add(_installUsbipCheckBox);
+      usbipStack.Children.Add(usbipHeader);
+      usbipStack.Children.Add(new TextBlock {
+        Text = "Installs USBip, which lets this PC use a keyboard, mouse or controller plugged into the PC you stream from. Requires Windows to trust its driver - Windows will ask once. Untick to skip; you can install it later by running this setup again.",
+        FontSize = 12.5,
+        Foreground = new SolidColorBrush(Color.FromRgb(209, 222, 241)),
+        Margin = new Thickness(0, 6, 0, 0),
+        TextWrapping = TextWrapping.Wrap
+      });
+      contentStack.Children.Add(_installUsbipSection);
+      _installUsbipSection.Visibility = HasEmbeddedUsbipPayload() ? Visibility.Visible : Visibility.Collapsed;
+
       var divider = new System.Windows.Shapes.Rectangle {
         Height = 1,
         Fill = new SolidColorBrush(Color.FromArgb(120, 88, 104, 124)),
@@ -1191,8 +1243,10 @@ namespace ArtLightServerInstaller {
         var installVirtualDisplayDriver = ShouldInstallVirtualDisplayDriver();
         var installVirtualGamepadDriver = ShouldInstallVirtualGamepadDriver();
         var installControl = _installControlCheckBox == null || _installControlCheckBox.IsChecked == true;
+        var installUsbip = ShouldInstallUsbip();
         var serverDir = GetServerDirectoryForRoot(selectedPath);
         _arguments.InternalInstallControl = installControl;
+        _arguments.InternalInstallUsbip = installUsbip;
         _lastInstallIncludedControl = installControl && HasEmbeddedControlPayload();
         _lastServerInstallDirectory = serverDir;
         var result = await Task.Run(() => InstallerRunner.RunInteractiveInstall(
@@ -1211,6 +1265,10 @@ namespace ArtLightServerInstaller {
 
     private bool ShouldInstallVirtualGamepadDriver() {
       return _showInstallVirtualGamepadOption && _virtualGamepadDriverCheckBox.IsChecked == true;
+    }
+
+    private bool ShouldInstallUsbip() {
+      return HasEmbeddedUsbipPayload() && _installUsbipCheckBox != null && _installUsbipCheckBox.IsChecked == true;
     }
 
     private async Task RunUninstallFlow() {
@@ -2382,6 +2440,7 @@ namespace ArtLightServerInstaller {
     private const string InternalInstallSaveLogsToken = "--internal-install-save-logs";
     private const string InternalInstallResultPathToken = "--internal-install-result-path";
     private const string InternalInstallControlToken = "--internal-install-control";
+    private const string InternalInstallUsbipToken = "--internal-install-usbip";
     private const string InternalUninstallDeleteInstallDirToken = "--internal-uninstall-delete-install-dir";
     private const string InternalUninstallFactoryResetToken = "--internal-uninstall-factory-reset";
     private const string InternalUninstallRemoveServerToken = "--internal-uninstall-remove-server";
@@ -2399,6 +2458,7 @@ namespace ArtLightServerInstaller {
     public bool InternalInstallVirtualGamepad { get; set; }
     public bool InternalInstallSaveLogs { get; set; }
     public bool InternalInstallControl { get; set; }
+    public bool InternalInstallUsbip { get; set; }
     public string InternalInstallResultPath { get; set; }
     public bool InternalUninstallFactoryReset { get; set; }
     public bool InternalUninstallRemoveServer { get; set; }
@@ -2412,6 +2472,7 @@ namespace ArtLightServerInstaller {
     public InstallerArguments() {
       InternalInstallVirtualDisplay = true;
       InternalInstallControl = true;
+      InternalInstallUsbip = true;
       InternalUninstallRemoveServer = true;
       InternalUninstallRemoveControl = true;
       ForwardedArguments = new List<string>();
@@ -2470,6 +2531,10 @@ namespace ArtLightServerInstaller {
         }
         if (string.Equals(arg, InternalInstallControlToken, StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length) {
           parsed.InternalInstallControl = ParseBooleanToken(args[++index]);
+          continue;
+        }
+        if (string.Equals(arg, InternalInstallUsbipToken, StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length) {
+          parsed.InternalInstallUsbip = ParseBooleanToken(args[++index]);
           continue;
         }
         if ((string.Equals(arg, InternalUninstallFactoryResetToken, StringComparison.OrdinalIgnoreCase)
@@ -4077,6 +4142,127 @@ namespace ArtLightServerInstaller {
       result.Message = exitCode == 0
         ? "ArtLight Control installed to " + controlDir + "."
         : "ArtLight Control installer exited with code " + exitCode + ".";
+      return result;
+    }
+
+    // ── USB device sharing: the USBip payload ───────────────────────────────
+    //
+    // USBip is a separate product (vadimgrn/usbip-win2, BSD-2-Clause) which ArtLight bundles rather
+    // than reimplements. It is the IMPORTER half: usbip.exe is what attaches a device offered by the
+    // machine being streamed from, and its driver is what the device then appears on.
+    //
+    // It is a bundled INSTALLER rather than loose files on purpose. The driver has to be installed
+    // AS a driver; unpacking usbip.exe and hoping is how you get a device that attaches and then
+    // never appears anywhere. Letting upstream's own installer do it is the only version of this
+    // that is not guesswork, and that installer is signed by them, so Windows will trust it.
+
+    internal static bool HasEmbeddedUsbipPayload() {
+      using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Payload.usbip.exe")) {
+        return stream != null;
+      }
+    }
+
+    private static string ExtractEmbeddedUsbipInstaller() {
+      using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Payload.usbip.exe")) {
+        if (stream == null) {
+          return null;
+        }
+        var extractRoot = GetEmbeddedUsbipExtractRoot();
+        Directory.CreateDirectory(extractRoot);
+        var exePath = Path.Combine(extractRoot, "USBip-x64.exe");
+        WriteStreamAtomically(stream, exePath);
+        return exePath;
+      }
+    }
+
+    private static string GetEmbeddedUsbipExtractRoot() {
+      if (IsProcessElevated()) {
+        var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        if (!string.IsNullOrWhiteSpace(programData)) {
+          return Path.Combine(programData, "ArtLight Server", "InstallerCache", "USBip");
+        }
+      }
+      return Path.Combine(Path.GetTempPath(), "ArtLight ServerInstaller", "USBip");
+    }
+
+    /// Writes USBip's own licence next to the installed server.
+    ///
+    /// BSD-2-Clause requires the notice to travel with a binary redistribution, and what is being
+    /// redistributed here is an installer that does not carry one. Failure to copy must not fail the
+    /// install: this is a compliance file, not a component, and the feature works either way.
+    private static void WriteEmbeddedUsbipLicense(string serverInstallDirectory) {
+      try {
+        using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("License.USBip.txt")) {
+          if (stream == null || string.IsNullOrWhiteSpace(serverInstallDirectory)) {
+            return;
+          }
+          Directory.CreateDirectory(serverInstallDirectory);
+          WriteStreamAtomically(stream, Path.Combine(serverInstallDirectory, "USBip-LICENSE.txt"));
+        }
+      } catch {
+      }
+    }
+
+    internal static InstallerResult InstallUsbipPayload(string serverInstallDirectory) {
+      var result = new InstallerResult {
+        Operation = InstallerOperation.Install
+      };
+
+      if (!HasEmbeddedUsbipPayload()) {
+        result.ExitCode = 0;
+        result.Message = "No USBip payload embedded; skipping.";
+        return result;
+      }
+
+      string usbipExePath;
+      try {
+        usbipExePath = ExtractEmbeddedUsbipInstaller();
+        if (string.IsNullOrWhiteSpace(usbipExePath) || !File.Exists(usbipExePath)) {
+          result.ExitCode = 1603;
+          result.Message = "The embedded USBip installer could not be extracted.";
+          return result;
+        }
+      } catch (Exception ex) {
+        result.ExitCode = 1603;
+        result.Message = "Failed to extract the USBip installer: " + ex.Message;
+        return result;
+      }
+
+      // No /DIR. USBip installs where it chooses, and ArtLight finds it by the location it uses and
+      // then by the uninstall record. Redirecting it would put the client somewhere ArtLight is not
+      // looking, and the feature would report "not installed" on a machine that plainly has it.
+      var args = new List<string> {
+        "/VERYSILENT",
+        "/SUPPRESSMSGBOXES",
+        "/NORESTART",
+        "/NOCANCEL"
+      };
+      var startInfo = new ProcessStartInfo {
+        FileName = usbipExePath,
+        Arguments = BuildCommandLine(args),
+        UseShellExecute = false,
+        CreateNoWindow = true
+      };
+      int exitCode;
+      try {
+        using (var process = Process.Start(startInfo)) {
+          process.WaitForExit();
+          exitCode = process.ExitCode;
+        }
+      } catch (Exception ex) {
+        result.ExitCode = 1603;
+        result.Message = "Failed to launch the USBip installer: " + ex.Message;
+        return result;
+      }
+
+      if (exitCode == 0) {
+        WriteEmbeddedUsbipLicense(serverInstallDirectory);
+      }
+
+      result.ExitCode = exitCode;
+      result.Message = exitCode == 0
+        ? "USB device sharing is installed."
+        : "The USBip installer exited with code " + exitCode + ".";
       return result;
     }
 
@@ -8434,6 +8620,8 @@ namespace ArtLightServerInstaller {
         saveInstallLogs ? "1" : "0",
         "--internal-install-control",
         arguments.InternalInstallControl ? "1" : "0",
+        "--internal-install-usbip",
+        arguments.InternalInstallUsbip ? "1" : "0",
         "--internal-install-result-path",
         resultPath
       };
