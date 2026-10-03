@@ -199,6 +199,8 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/state_storage.cpp"
         "${CMAKE_SOURCE_DIR}/src/state_storage.h"
         "${CMAKE_SOURCE_DIR}/src/state_storage_policy.cpp"
+        "${CMAKE_SOURCE_DIR}/src/usbip_input_session.cpp"
+        "${CMAKE_SOURCE_DIR}/src/usbip_input_session.h"
         "${CMAKE_SOURCE_DIR}/src/usbip_input_policy.cpp"
         "${CMAKE_SOURCE_DIR}/src/usbip_input_policy.h"
         "${CMAKE_SOURCE_DIR}/src/usbip_input.h"
