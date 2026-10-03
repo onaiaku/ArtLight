@@ -768,6 +768,7 @@ export const settingsCategories: SettingsCategory[] = [
           boolean('always_send_scancodes', { platform: 'windows' }),
           boolean('high_resolution_scrolling'),
           boolean('native_pen_touch', { platform: 'windows' }),
+          boolean('input_usbip_enabled'),
         ],
       },
       {

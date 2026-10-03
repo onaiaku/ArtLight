@@ -1108,6 +1108,7 @@
     "ignore_encoder_probe_failure": "Ignore encoder probe failure",
     "input_usbip_busids": "USB device IDs to move to this PC",
     "input_usbip_enabled": "Move shared USB devices to this PC during a session",
+    "input_usbip_enabled_desc": "Move the USB devices shared by the PC you are streaming from onto this PC, and give them back when the session ends. Off by default, because a device moved this way is taken away from the machine it is plugged into - whoever is sitting there loses their keyboard and mouse while the stream runs.",
     "input_usbip_exporter": "Machine the shared USB devices are plugged into",
     "keep_sink_default": "Keep audio sink as default",
     "limit_framerate": "Limit frame rate",
