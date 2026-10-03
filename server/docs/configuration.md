@@ -4889,6 +4889,25 @@ Sets the maximum bitrate, in Kbps, considered by the network pacing policy. Set 
 
 Sets the maximum network packet size used for streaming. Set `0` to use the default behavior.
 
+### input_usbip_enabled
+
+Moves the USB devices shared by the machine you are streaming from onto the machine you are streaming
+to, for the duration of the session, and gives them back when the session ends.
+
+Off by default. A device moved this way is taken away from the machine it is plugged into, so this
+does not turn itself on: set it to `true` to enable it per application.
+
+### input_usbip_exporter
+
+The machine the shared USB devices are plugged into. Leave empty to use the address the stream is
+being taken from, which is correct whenever the devices are plugged into the machine that is
+streaming.
+
+### input_usbip_busids
+
+A comma-separated list of the device IDs to move, for example `9-1,9-2`. Leave empty to move every
+device the exporter is offering, which is what the tick boxes on the exporter already decided.
+
 <div class="section_buttons">
 
 | Previous          |                            Next |
