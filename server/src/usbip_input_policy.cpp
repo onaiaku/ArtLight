@@ -450,6 +450,12 @@ namespace input::usbip {
     std::vector<Attached> devices;
     bool saw_any_line = false;
     bool have_device = false;
+    // The tool's own diagnostics: seen, recorded, and skipped. Kept so that "it complained and
+    // named no ports" can be told apart from "it holds nothing" — see the end of this function.
+    std::string diagnostics;
+    std::size_t diagnostic_count = 0;
+    // The Linux tool's diagnostic prefix. It is the tool talking about itself, not about a port.
+    constexpr std::string_view kToolDiagnostic = "libusbip: error:";
     // True once a "Port NN:" row has opened a device that still owes us its description row.
     // While this is set the next line cannot be a header, which is what stops a device whose
     // name merely starts with "Port " from being read as the start of a new one.
@@ -469,6 +475,29 @@ namespace input::usbip {
 
       // Both tools' banner, both rows. The Linux tool prints it even when it holds nothing.
       if (line == "Imported USB devices" || is_header_underline(line)) {
+        continue;
+      }
+
+      // The Linux tool's own diagnostics, printed alongside a perfectly valid port table.
+      //
+      // It emits these when a port is occupied and it cannot read that port's record file — and
+      // on a modern kernel it cannot, every time, because the record directory it wants
+      // (/var/run/vhci_hcd) no longer exists. That is the same reason the occupied port's row
+      // reads "unknown host, remote port and remote busid".
+      //
+      // They must not stop the parse. A merged capture is a normal way to run this — a shell
+      // pipeline, or a popen that did not separate the streams — and refusing a table that is
+      // right there, over a line of the tool talking about itself, costs a device that is never
+      // given back. Skipping is only safe because of the check at the end of this function:
+      // complaining and naming no ports is not the same as holding nothing.
+      if (starts_with(line, kToolDiagnostic)) {
+        if (diagnostic_count < 3) {
+          if (!diagnostics.empty()) {
+            diagnostics += " | ";
+          }
+          diagnostics += std::string(line);
+          ++diagnostic_count;
+        }
         continue;
       }
 
@@ -517,6 +546,24 @@ namespace input::usbip {
         return unreadable_attached(line, output.substr(cursor));
       }
 
+      // The Linux tool prints the remote busid in the row's LEADING column when it has no URL to
+      // put it in — and on a modern kernel it never has one, because the record the URL would
+      // come from is gone. That leaves the leading column as the only place the identity appears:
+      //
+      //     9-1 -> unknown host, remote port and remote busid
+      //
+      // Without it the held device has no identity, and a hold that cannot be shown to be the
+      // device we wanted is one the planner hands back — so the importer would attach a device
+      // and then detach it again on the next reconcile, forever. The column is only read when
+      // what is in it passes the same validation any busid off the wire passes, and it never
+      // overwrites a busid the URL already gave us.
+      if (devices.back().busid.empty()) {
+        const std::string_view lead = trim(line.substr(0, line.find("->")));
+        if (is_valid_busid(lead)) {
+          devices.back().busid = std::string(lead);
+        }
+      }
+
       if (line.find("usbip://") != std::string_view::npos) {
         if (!parse_usbip_url(line, devices.back())) {
           return unreadable_attached(line, output.substr(cursor));
@@ -558,6 +605,16 @@ namespace input::usbip {
     if (!devices.empty()) {
       result.outcome = PortOutcome::Devices;
       result.devices = std::move(devices);
+      return result;
+    }
+
+    // The tool complained and named no ports at all. That is NOT "this machine holds nothing":
+    // these lines are the tool saying it could not read a record, and answering "your hands are
+    // empty" from them would leave a device attached here forever, with the machine it came from
+    // missing the hardware and no row anywhere saying so. Refuse, and hand back what it said.
+    if (diagnostic_count > 0) {
+      result.outcome = PortOutcome::Unreadable;
+      result.detail = diagnostics;
       return result;
     }
 

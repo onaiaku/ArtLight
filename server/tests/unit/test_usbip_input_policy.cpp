@@ -705,3 +705,57 @@ TEST(UsbipParseRemote, TheLocalListsDashRowsAreStillDevices) {
   ASSERT_EQ(out.outcome, ListOutcome::Devices) << "detail: " << out.detail;
   EXPECT_EQ(out.devices.size(), 5u);
 }
+
+// ── a Linux importer that is HOLDING a device ────────────────────────────────────────────
+//
+// Captured for real: the mini PC's mouse was attached to the z13, then detached straight after.
+// Two DERIVED assumptions died in that capture, and both would have cost a device — the second
+// one permanently, because a port read that fails is a device that never gets given back.
+
+TEST(UsbipParseAttached, TheLinuxToolReadsAPortWithNoUrlRowAtAll) {
+  const auto out = input::usbip::parse_attached(usbip_fixtures::kPortLinuxAttached);
+  ASSERT_EQ(out.outcome, input::usbip::PortOutcome::Devices) << "detail: " << out.detail;
+  ASSERT_EQ(out.devices.size(), 1u);
+  EXPECT_EQ(out.devices[0].port, 0) << "port 0 is valid on Linux and must not read as unset";
+  EXPECT_EQ(out.devices[0].busid, "9-1")
+      << "on this kernel the busid is in the row's leading column and nowhere else";
+  EXPECT_EQ(out.devices[0].exporter, "") << "there is no URL row to carry one";
+}
+
+TEST(UsbipParseAttached, TheToolsOwnDiagnosticsDoNotCostUsTheTable) {
+  // The same call with stderr merged in, which is what a shell pipeline or an unseparated popen
+  // produces. Refusing a table that is right there means never releasing the device.
+  const auto out = input::usbip::parse_attached(usbip_fixtures::kPortLinuxAttachedMerged);
+  ASSERT_EQ(out.outcome, input::usbip::PortOutcome::Devices) << "detail: " << out.detail;
+  ASSERT_EQ(out.devices.size(), 1u);
+  EXPECT_EQ(out.devices[0].port, 0);
+  EXPECT_EQ(out.devices[0].busid, "9-1");
+}
+
+// The other direction, and the one that must never be got wrong. The tool complaining is not the
+// machine being empty: answering "your hands are empty" here leaves a device attached to this
+// machine forever, with the machine it came from missing the hardware and nothing saying so.
+TEST(UsbipParseAttached, DiagnosticsWithNoPortsAreNotAnEmptyHand) {
+  const std::string only_noise =
+      "Imported USB devices\n====================\n"
+      "libusbip: error: fopen\nlibusbip: error: read_record\n";
+  const auto out = input::usbip::parse_attached(only_noise);
+  EXPECT_EQ(out.outcome, input::usbip::PortOutcome::Unreadable);
+  EXPECT_FALSE(out.detail.empty()) << "and it says what the tool said";
+}
+
+// A hold whose identity we cannot read is still a hold. It must be reported, not dropped: the
+// planner needs to see it to decide what to do, and silently forgetting a device is how one gets
+// left behind on a machine nobody is looking at.
+TEST(UsbipParseAttached, AHoldWithNoReadableIdentityIsStillReported) {
+  const std::string anonymous_hold =
+      "Imported USB devices\n====================\n"
+      "Port 03: <Port in Use> at High Speed(480Mbps)\n"
+      "       unknown product\n"
+      "           -> unknown host, remote port and remote busid\n";
+  const auto out = input::usbip::parse_attached(anonymous_hold);
+  ASSERT_EQ(out.outcome, input::usbip::PortOutcome::Devices) << "detail: " << out.detail;
+  ASSERT_EQ(out.devices.size(), 1u);
+  EXPECT_EQ(out.devices[0].port, 3);
+  EXPECT_EQ(out.devices[0].busid, "") << "empty is honest; invented would not be";
+}

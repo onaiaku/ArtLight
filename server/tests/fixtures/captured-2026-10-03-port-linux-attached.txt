@@ -1,0 +1,8 @@
+Imported USB devices
+====================
+Port 00: <Port in Use> at Full Speed(12Mbps)
+       Razer USA, Ltd : RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)] (1532:007b)
+       9-1 -> unknown host, remote port and remote busid
+           -> remote bus/dev 009/001
+libusbip: error: fopen
+libusbip: error: read_record

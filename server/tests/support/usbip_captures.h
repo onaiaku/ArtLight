@@ -21,6 +21,8 @@
  *   kListRemoteLinux usbip list -r 192.168.50.35      (usbip-utils 2.0, z13 -> mini PC)
  *                    captured 2026-10-03 evening, one device shared
  *   kPortLinuxEmpty  usbip port                       (usbip-utils 2.0, z13, vhci_hcd, nothing held)
+ *   kPortLinuxAttached  usbip port                    (usbip-utils 2.0, z13, mouse attached)
+ *                    captured 2026-10-03 evening, then detached
  */
 #pragma once
 
@@ -154,6 +156,12 @@ usbip: error: list imported devices
 
   /// The Linux tool, one device. Two differences from Windows in one sample: the status is
   /// bracketed, and the busid LEADS the URL row (right-aligned in 10) instead of being absent.
+  ///
+  /// DERIVED, from the tool's own source — and the real capture has since contradicted the URL
+  /// row outright: on this kernel the tool prints "unknown host, remote port and remote busid"
+  /// instead, because the record it would read is gone (see kPortLinuxAttached). Kept because a
+  /// kernel that does expose the record would print it, so the shape must still parse; do not
+  /// read it as what the machine says.
   /// The port is 00, which is valid here and must never be read as "unset".
   inline const std::string_view kPortLinuxOneDevice =
     "Imported USB devices\n"
@@ -211,5 +219,46 @@ usbip: error: list imported devices
   /// "this machine holds nothing" answer has to be reached from a document that is not empty.
   inline constexpr std::string_view kPortLinuxEmpty = R"USBIPFIXTURE(Imported USB devices
 ====================
+)USBIPFIXTURE";
+
+  /// A Linux importer HOLDING a device. The real thing, captured after genuinely attaching the
+  /// mini PC's mouse to the z13 and detached again straight after.
+  ///
+  /// It corrects two derived assumptions at once, and both were wrong in the same direction —
+  /// they would have left a device attached to the importer forever:
+  ///
+  ///   1. There is NO "usbip://HOST:SERVICE/BUSID" row. On this kernel the tool cannot read the
+  ///      port's record — /var/run/vhci_hcd does not exist — so the row reads "unknown host,
+  ///      remote port and remote busid" instead. The URL row is dead code, not the normal case.
+  ///   2. The remote busid is therefore in the row's LEADING column and nowhere else:
+  ///      "9-1 -> unknown host, ...". Read only from the URL, the held device had no identity —
+  ///      and an unidentifiable hold is one the planner hands back, so the importer would attach
+  ///      a device and detach it again on every reconcile, forever.
+  ///
+  /// Captured 2026-10-03 evening, z13 (usbip-utils 2.0, vhci_hcd loaded), attached to the mini PC.
+  inline constexpr std::string_view kPortLinuxAttached = R"USBIPFIXTURE(Imported USB devices
+====================
+Port 00: <Port in Use> at Full Speed(12Mbps)
+       Razer USA, Ltd : RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)] (1532:007b)
+       9-1 -> unknown host, remote port and remote busid
+           -> remote bus/dev 009/001
+)USBIPFIXTURE";
+
+  /// The SAME call with the tool's stderr merged in, which is what a shell pipeline or an
+  /// unseparated popen produces. The tool talks about itself while printing a perfectly valid
+  /// port table, and the two diagnostics below are the reason the row above says "unknown host".
+  ///
+  /// This is the dangerous one. Treating those lines as an unplaceable row makes the port read
+  /// fail, and a failed port read is a device that never gets given back — the exporter's owner
+  /// has lost their keyboard and nothing on either machine says so. A parser that only ever sees
+  /// separated streams would pass every test and still ship this.
+  inline constexpr std::string_view kPortLinuxAttachedMerged = R"USBIPFIXTURE(Imported USB devices
+====================
+Port 00: <Port in Use> at Full Speed(12Mbps)
+       Razer USA, Ltd : RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)] (1532:007b)
+       9-1 -> unknown host, remote port and remote busid
+           -> remote bus/dev 009/001
+libusbip: error: fopen
+libusbip: error: read_record
 )USBIPFIXTURE";
 }  // namespace usbip_fixtures
