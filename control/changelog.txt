@@ -5,6 +5,27 @@ ArtLight Control - Changelog
 https://github.com/onaiaku/ArtLight
 
 ------------------------------------------------
+Version 1.5.0 (04/10/2026)
+------------------------------------------------
+ArtLight Server 1.5.0 brings USB device sharing in.
+
+A keyboard, mouse or controller plugged into the PC you are streaming
+from can be moved onto this PC for the length of a session, and given
+back when the session ends. The machine you stream from decides which
+devices it offers; this side decides whether to take them. Off by
+default, and deliberately so: a device moved this way is taken away
+from the machine it is plugged into, so whoever is sitting there loses
+it while the stream runs.
+
+On Windows the client is bundled in this installer behind a tick box,
+and it is removed again when ArtLight is uninstalled. On Linux the
+package installs the privileged helper, the polkit action and the
+kernel module it needs.
+
+Control is bumped to 1.5.0 in lockstep so Server and Control report the
+same version. Control's own code is unchanged in this release.
+
+------------------------------------------------
 Version 1.4.0 (01/10/2026)
 ------------------------------------------------
 ArtLight Server 1.4.0 brings the upstream ArtLight 2.0.0 engine in.
