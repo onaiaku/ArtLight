@@ -18,7 +18,6 @@
 
 #include <windows.h>
 
-#include <cwctype>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -84,15 +83,6 @@ namespace input::usbip {
       return status == ERROR_SUCCESS;
     }
 
-    bool contains_usbip(const std::wstring &text) {
-      std::wstring lowered;
-      lowered.reserve(text.size());
-      for (const auto ch : text) {
-        lowered.push_back(static_cast<wchar_t>(::towlower(ch)));
-      }
-      return lowered.find(L"usbip") != std::wstring::npos;
-    }
-
     /// Ask the uninstall record where USBip went, for an install that is not in the default place.
     /// The record is the authority on "is this installed on this machine"; guessing at drive
     /// letters is not.
@@ -117,8 +107,12 @@ namespace input::usbip {
           continue;
         }
 
+        // names_the_client, NOT a substring match. Measured on the reference machines: the
+        // exporter's own tool is "usbipd-win" and the client is "USBip", and both live on these
+        // boxes. A loose match reads the exporter as "the client is installed" on a machine with
+        // no client at all.
         const auto display_name = read_string_value(entry, L"DisplayName");
-        if (contains_usbip(display_name)) {
+        if (!display_name.empty() && names_the_client(to_utf8(display_name))) {
           const auto location = read_string_value(entry, L"InstallLocation");
           if (!location.empty()) {
             std::error_code ec;

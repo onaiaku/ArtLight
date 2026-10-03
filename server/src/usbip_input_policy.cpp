@@ -4,6 +4,7 @@
  */
 #include "usbip_input_policy.h"
 
+#include <cctype>
 #include <cstddef>
 #include <stdexcept>
 
@@ -823,6 +824,38 @@ namespace input::usbip {
         return "the privileged helper is not set up";
     }
     return "the USB/IP client state could not be read";
+  }
+
+  bool names_the_client(const std::string_view display_name) {
+    constexpr std::string_view needle = "usbip";
+    if (display_name.size() < needle.size()) {
+      return false;
+    }
+
+    for (std::size_t start = 0; start + needle.size() <= display_name.size(); ++start) {
+      bool matched = true;
+      for (std::size_t i = 0; i < needle.size(); ++i) {
+        const auto ch = static_cast<unsigned char>(display_name[start + i]);
+        if (std::tolower(ch) != static_cast<unsigned char>(needle[i])) {
+          matched = false;
+          break;
+        }
+      }
+      if (!matched) {
+        continue;
+      }
+
+      const auto after = start + needle.size();
+      if (after == display_name.size()) {
+        return true;
+      }
+      // The boundary is the whole rule. "USBip 0.9.8.1" ends the word here; "usbipd-win" carries
+      // straight on into another product's name.
+      if (std::isalnum(static_cast<unsigned char>(display_name[after])) == 0) {
+        return true;
+      }
+    }
+    return false;
   }
 
   ClientAvailability assess_client(const ClientProbe &probe) {

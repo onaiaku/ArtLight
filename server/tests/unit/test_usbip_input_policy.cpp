@@ -855,3 +855,40 @@ TEST(UsbipClientProbe, EveryStateHasItsOwnSentence) {
   }
   EXPECT_EQ(seen.size(), all.size());
 }
+
+// ── which product is this? ───────────────────────────────────────────────────────────────
+//
+// Both DisplayNames below were read off real machines, and they are the reason this rule exists:
+// the importer's client is "USBip", the exporter's tool is "usbipd-win". They are different
+// products and they live on the same boxes.
+
+TEST(UsbipUninstallRecord, TheClientsOwnDisplayNameIsTheClient) {
+  // niks-gaming, read live.
+  EXPECT_TRUE(input::usbip::names_the_client("USBip 0.9.8.1"));
+  EXPECT_TRUE(input::usbip::names_the_client("USBip"));
+  EXPECT_TRUE(input::usbip::names_the_client("usbip 0.9.8.1")) << "case must not decide this";
+}
+
+TEST(UsbipUninstallRecord, TheExportersToolIsNotTheClient) {
+  // niks-minipc, read live. A loose substring match calls this "the client is installed" on a
+  // machine that has no client at all, and it was only saved downstream by a file check that
+  // happened to fail. The name has to carry the decision, not the folder contents.
+  EXPECT_FALSE(input::usbip::names_the_client("usbipd-win"));
+  EXPECT_FALSE(input::usbip::names_the_client("USBipd-win"));
+  EXPECT_FALSE(input::usbip::names_the_client("usbipd"));
+}
+
+TEST(UsbipUninstallRecord, TheBoundaryIsWhatSeparatesThem) {
+  // "usbip" followed by anything that is not a letter or digit is the client; followed by a letter
+  // or digit it is some other product that merely starts the same way.
+  EXPECT_TRUE(input::usbip::names_the_client("usbip-utils"));
+  EXPECT_TRUE(input::usbip::names_the_client("USBip (x64)"));
+  EXPECT_FALSE(input::usbip::names_the_client("usbipclient"));
+  EXPECT_FALSE(input::usbip::names_the_client("usbip2"));
+}
+
+TEST(UsbipUninstallRecord, NothingAtAllIsNotTheClient) {
+  EXPECT_FALSE(input::usbip::names_the_client(""));
+  EXPECT_FALSE(input::usbip::names_the_client("USB/IP client"));
+  EXPECT_FALSE(input::usbip::names_the_client("Razer Synapse"));
+}
