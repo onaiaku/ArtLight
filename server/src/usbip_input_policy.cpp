@@ -808,4 +808,66 @@ namespace input::usbip {
     // first port on every Linux machine impossible to release.
     return {"usbip", "detach", "-p", std::to_string(port)};
   }
+
+  std::string describe(const ClientState state) {
+    switch (state) {
+      case ClientState::Ready:
+        return "the USB/IP client is ready";
+      case ClientState::NotInstalled:
+        return "the USB/IP client is not installed";
+      case ClientState::DriverMissing:
+        return "the USB/IP driver is missing";
+      case ClientState::DriverNotLoaded:
+        return "the USB/IP driver is present but not loaded";
+      case ClientState::HelperMissing:
+        return "the privileged helper is not set up";
+    }
+    return "the USB/IP client state could not be read";
+  }
+
+  ClientAvailability assess_client(const ClientProbe &probe) {
+    ClientAvailability result;
+
+    // Order matters. Each check assumes the ones above it passed, so the reason names the FIRST
+    // thing missing rather than the last one we happened to look at — which is what makes it
+    // something to act on instead of a list to work through.
+    if (!probe.client_found) {
+      // Not an error. The client ships with ArtLight's installer, so a machine without it is a
+      // machine that has not run setup — the same shape as ArtMoon's install-the-service step.
+      result.state = ClientState::NotInstalled;
+      result.reason = "the USB/IP client is not set up on this PC";
+      return result;
+    }
+
+    if (!probe.driver_present && !probe.driver_loadable) {
+      // Measured on the z13: usbip-utils 2.0 installed and not one device importable, because
+      // vhci_hcd was not loaded. The binary on PATH proves nothing, which is why the driver is
+      // checked separately rather than inferred from the client being present.
+      result.state = ClientState::DriverMissing;
+      result.reason = "the USB/IP client is installed but its driver is not available on this PC";
+      return result;
+    }
+
+    if (!probe.driver_present) {
+      // Present-but-unloaded is deliberately its own state. It is a load, not a reinstall, and
+      // reporting it as "missing" would send someone to reinstall a driver they already have.
+      result.state = ClientState::DriverNotLoaded;
+      result.reason = "the USB/IP driver is present but not loaded, so nothing can arrive yet";
+      return result;
+    }
+
+    // The Linux half. On Windows privilege_required is false and this is skipped, because attach
+    // there was proven to work from a limited token — the asymmetry is between the platforms and
+    // must not be smoothed over by giving Windows a daemon it does not need.
+    if (probe.privilege_required && !probe.helper_present) {
+      result.state = ClientState::HelperMissing;
+      result.reason = "the USB/IP client is ready, but the helper that can attach a device is not set up";
+      return result;
+    }
+
+    result.ok = true;
+    result.state = ClientState::Ready;
+    result.reason.clear();
+    return result;
+  }
 }  // namespace input::usbip

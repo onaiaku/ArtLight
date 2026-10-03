@@ -272,4 +272,48 @@ namespace input::usbip {
    *         port on every Linux machine impossible to release.
    */
   std::vector<std::string> build_detach_argv(int port);
+
+  /**
+   * @brief What this machine looks like, as facts. Gathered by the platform layer, judged here.
+   *
+   * Splitting the gathering from the judging is what makes this testable: the decision that
+   * actually matters — "is this machine ready, and if not, exactly what is missing" — runs in CI
+   * on a machine that has no client and no driver. A field the platform cannot answer is left
+   * false rather than faked, which is why `privilege_required` exists instead of every platform
+   * pretending its privileged path is ready.
+   */
+  struct ClientProbe {
+    bool client_found = false;      ///< The CLI binary exists where it is supposed to be.
+    std::string client_path;        ///< Where it was found, for the log. Empty when not found.
+    bool driver_present = false;    ///< usbip2_ude present (Windows) / vhci_hcd loaded (Linux).
+    bool driver_loadable = false;   ///< Linux only: the module exists but is not loaded yet.
+    bool privilege_required = false;///< Linux only: attach writes a root-only sysfs node.
+    bool helper_present = false;    ///< Linux only: the helper binary AND its polkit policy.
+  };
+
+  /**
+   * @brief Why the client is or is not usable.
+   *
+   * Five states, because four of them are a different thing to do about it, and collapsing any
+   * pair of them sends someone to fix the wrong machine. In particular a module that is present
+   * and merely unloaded is NOT the same as a driver that is missing: one is a load, the other is
+   * a reinstall.
+   */
+  enum class ClientState {
+    Ready,           ///< Everything this platform needs is in place.
+    NotInstalled,    ///< No client at all. A setup step, not an error.
+    DriverMissing,   ///< The client is here, its driver is not and cannot be loaded.
+    DriverNotLoaded, ///< The driver exists but is not loaded. Fixable without reinstalling anything.
+    HelperMissing,   ///< Client and driver are fine; the privileged path attach needs is not set up.
+  };
+
+  /// The verdict, and a sentence a human can act on rather than a code to look up.
+  struct ClientAvailability {
+    bool ok = false;
+    ClientState state = ClientState::NotInstalled;
+    std::string reason;
+  };
+
+  ClientAvailability assess_client(const ClientProbe &probe);
+  std::string describe(ClientState state);
 }  // namespace input::usbip

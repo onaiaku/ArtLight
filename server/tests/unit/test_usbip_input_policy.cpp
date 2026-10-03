@@ -9,6 +9,7 @@
  */
 #include "../tests_common.h"
 
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -758,4 +759,99 @@ TEST(UsbipParseAttached, AHoldWithNoReadableIdentityIsStillReported) {
   ASSERT_EQ(out.devices.size(), 1u);
   EXPECT_EQ(out.devices[0].port, 3);
   EXPECT_EQ(out.devices[0].busid, "") << "empty is honest; invented would not be";
+}
+
+// ── is the client stack actually here? ───────────────────────────────────────────────────
+//
+// Five states, and the whole value is that four of them are a DIFFERENT thing to do about it.
+// The two that get collapsed by accident are DriverMissing and DriverNotLoaded: one is a
+// reinstall, the other is a load. Sending someone to reinstall a driver they already have is
+// the failure this set exists to prevent.
+
+TEST(UsbipClientProbe, NoClientIsASetupStepNotAnError) {
+  const auto out = input::usbip::assess_client({});
+  EXPECT_FALSE(out.ok);
+  EXPECT_EQ(out.state, input::usbip::ClientState::NotInstalled);
+  EXPECT_FALSE(out.reason.empty()) << "a state with no reason is a code the user has to look up";
+}
+
+TEST(UsbipClientProbe, AClientWithNoDriverAndNoModuleIsMissingItsDriver) {
+  input::usbip::ClientProbe probe;
+  probe.client_found = true;
+  probe.client_path = "/usr/bin/usbip";
+  const auto out = input::usbip::assess_client(probe);
+  EXPECT_EQ(out.state, input::usbip::ClientState::DriverMissing);
+}
+
+TEST(UsbipClientProbe, AModuleThatExistsButIsNotLoadedIsItsOwnState) {
+  // The z13 measured exactly this: usbip-utils 2.0 installed, vhci_hcd not loaded, and not one
+  // device importable. "Missing" here would be a lie that costs someone a reinstall.
+  input::usbip::ClientProbe probe;
+  probe.client_found = true;
+  probe.driver_loadable = true;
+  const auto out = input::usbip::assess_client(probe);
+  EXPECT_FALSE(out.ok);
+  EXPECT_EQ(out.state, input::usbip::ClientState::DriverNotLoaded);
+  EXPECT_NE(out.reason, input::usbip::assess_client([] {
+    input::usbip::ClientProbe p;
+    p.client_found = true;
+    return p;
+  }()).reason) << "unloaded and missing must not read as the same thing";
+}
+
+TEST(UsbipClientProbe, WindowsNeedsNoHelperAndMustNotBeAskedForOne) {
+  // Attach on Windows was proven from a UAC-filtered limited token. privilege_required stays
+  // false there, and this is the test that fails if someone "fixes" the symmetry by demanding a
+  // daemon Windows does not need.
+  input::usbip::ClientProbe probe;
+  probe.client_found = true;
+  probe.client_path = R"(C:\Program Files\USBip\usbip.exe)";
+  probe.driver_present = true;
+  probe.privilege_required = false;
+  probe.helper_present = false;
+  const auto out = input::usbip::assess_client(probe);
+  EXPECT_TRUE(out.ok);
+  EXPECT_EQ(out.state, input::usbip::ClientState::Ready);
+  EXPECT_TRUE(out.reason.empty());
+}
+
+TEST(UsbipClientProbe, LinuxWithoutTheHelperIsNotReadyEvenWithEverythingElse) {
+  // The Linux half, and the finding that corrected the plan: attach writes a root-only sysfs
+  // node, so a Linux importer needs a privileged helper the Windows one does not.
+  input::usbip::ClientProbe probe;
+  probe.client_found = true;
+  probe.driver_present = true;
+  probe.privilege_required = true;
+  probe.helper_present = false;
+  const auto out = input::usbip::assess_client(probe);
+  EXPECT_FALSE(out.ok);
+  EXPECT_EQ(out.state, input::usbip::ClientState::HelperMissing);
+}
+
+TEST(UsbipClientProbe, LinuxWithTheHelperIsReady) {
+  input::usbip::ClientProbe probe;
+  probe.client_found = true;
+  probe.driver_present = true;
+  probe.privilege_required = true;
+  probe.helper_present = true;
+  const auto out = input::usbip::assess_client(probe);
+  EXPECT_TRUE(out.ok);
+  EXPECT_EQ(out.state, input::usbip::ClientState::Ready);
+}
+
+TEST(UsbipClientProbe, EveryStateHasItsOwnSentence) {
+  // If two states ever read the same to a human, the split was pointless and this catches it.
+  const std::vector<input::usbip::ClientState> all{
+      input::usbip::ClientState::Ready,
+      input::usbip::ClientState::NotInstalled,
+      input::usbip::ClientState::DriverMissing,
+      input::usbip::ClientState::DriverNotLoaded,
+      input::usbip::ClientState::HelperMissing};
+  std::set<std::string> seen;
+  for (const auto state : all) {
+    const auto text = input::usbip::describe(state);
+    EXPECT_FALSE(text.empty());
+    EXPECT_TRUE(seen.insert(text).second) << "two states describe themselves identically: " << text;
+  }
+  EXPECT_EQ(seen.size(), all.size());
 }
