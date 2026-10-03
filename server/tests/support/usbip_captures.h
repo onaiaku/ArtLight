@@ -18,6 +18,9 @@
  *                    tests/fixtures/captured-2026-10-03.txt, section B
  *   kPortErrorLinux  usbip port                       (usbip-utils 2.0, z13, no vhci_hcd)
  *                    tests/fixtures/captured-2026-10-03.txt, section C
+ *   kListRemoteLinux usbip list -r 192.168.50.35      (usbip-utils 2.0, z13 -> mini PC)
+ *                    captured 2026-10-03 evening, one device shared
+ *   kPortLinuxEmpty  usbip port                       (usbip-utils 2.0, z13, vhci_hcd, nothing held)
  */
 #pragma once
 
@@ -60,6 +63,7 @@ namespace usbip_fixtures {
 
  - busid 3-9 (0b05:18c6)
    ASUSTek Computer, Inc. : unknown product (0b05:18c6)
+
 )USBIPFIXTURE";
 
   /// A tool that failed. There are no devices in this output, and reporting it as "nothing is
@@ -167,4 +171,45 @@ usbip: error: list imported devices
     "Port 01: <Port in Use> at Full Speed(12Mbps)\n"
     "       unknown product\n"
     "           -> unknown host, remote port and remote busid\n";
+
+  /// The Linux tool's REMOTE listing, from a Linux importer reaching a live exporter.
+  ///
+  /// A different code path from `usbip-win2`'s remote list, and it shows: the Linux tool groups
+  /// its output BY EXPORTER and opens each group with a line naming the machine, " - <address>".
+  /// That line is the whole reason this fixture exists — the parser pinned against the Windows
+  /// bytes had no rule for a dash that was not followed by "busid", so it rejected the entire
+  /// reply and a Linux importer could attach nothing at all. The device rows differ too: the
+  /// busid is followed immediately by the separator rather than being padded out to a column,
+  /// and the interface rows are spaced ("Human Interface Device / Boot Interface Subclass / ...")
+  /// where the Windows tool runs the words together.
+  ///
+  /// Captured 2026-10-03 from the z13 (usbip-utils 2.0) against the mini PC, after the exporter
+  /// had one device genuinely shared.
+  inline constexpr std::string_view kListRemoteLinux = R"USBIPFIXTURE(Exportable USB devices
+======================
+ - 192.168.50.35
+        9-1: Razer USA, Ltd : RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)] (1532:007b)
+           : USB\VID_1532&PID_007B\7&3A2774D3&0&1
+           : (Defined at Interface level) (00/00/00)
+           :  0 - Human Interface Device / Boot Interface Subclass / Mouse (03/01/02)
+           :  1 - Human Interface Device / No Subclass / Keyboard (03/00/01)
+           :  2 - Human Interface Device / No Subclass / Keyboard (03/00/01)
+
+)USBIPFIXTURE";
+
+  /// The same call against an exporter that is offering NOTHING. The per-exporter header is
+  /// still printed, which is what makes it worth its own fixture: without a rule for it this
+  /// reads as "we could not understand the reply" instead of "there is nothing to take", and
+  /// the user is sent to check a machine that answered perfectly.
+  inline constexpr std::string_view kListRemoteLinuxNothing = R"USBIPFIXTURE(Exportable USB devices
+======================
+ - 192.168.50.35
+)USBIPFIXTURE";
+
+  /// The Linux tool's port table with nothing attached. NOT derived — captured from the z13
+  /// with `vhci_hcd` loaded and no device held. Two header rows and then nothing, so the
+  /// "this machine holds nothing" answer has to be reached from a document that is not empty.
+  inline constexpr std::string_view kPortLinuxEmpty = R"USBIPFIXTURE(Imported USB devices
+====================
+)USBIPFIXTURE";
 }  // namespace usbip_fixtures

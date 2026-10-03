@@ -116,6 +116,33 @@ namespace input::usbip {
       return true;
     }
 
+    /// True for the Linux tool's per-exporter header, " - 192.168.50.35".
+    ///
+    /// A remote listing from the Linux tool is grouped BY EXPORTER, and each group opens with a
+    /// line naming the machine whose rows follow. It is not a device and it is not the banner,
+    /// and without a rule for it the whole reply is unreadable: the same document reads fine
+    /// from `usbip-win2` and fails from `usbip`, so a Linux importer would attach nothing while
+    /// the Windows host beside it worked — and "the exporter offers nothing" would report the
+    /// identical wrong answer, because the header is still printed when there is nothing under
+    /// it.
+    ///
+    /// Distinguished from the local list's device rows, which also begin with a dash: those
+    /// continue with the word "busid". Anything else after the dash is an address rather than a
+    /// device we failed to read, so the test is deliberately narrow — no whitespace, and only
+    /// the characters a host name or an address can carry. A line that fails that is still
+    /// handed back as unreadable, because a rule loose enough to swallow anything would turn a
+    /// format change into "nothing is offered".
+    bool is_exporter_header(const std::string_view line) {
+      if (!starts_with(line, "- ") || starts_with(line, "- busid")) {
+        return false;
+      }
+      const std::string_view rest = trim(line.substr(2));
+      if (rest.empty() || rest.find_first_of(" \t") != std::string_view::npos) {
+        return false;
+      }
+      return rest.find_first_not_of("0123456789abcdefABCDEF.:-_%[]") == std::string_view::npos;
+    }
+
     /// Gather up to three lines that the tool itself called an error.
     void collect_error_lines(const std::string_view text, std::string &out, std::size_t &count) {
       std::size_t cursor = 0;
@@ -224,6 +251,11 @@ namespace input::usbip {
       // The Windows tool's banner, both of its rows. Recognising it is what lets an empty
       // result mean "nothing is offered" rather than "this build did not understand".
       if (line == "Exportable USB devices" || is_header_underline(line)) {
+        continue;
+      }
+
+      // The Linux tool's per-exporter header, which the Windows tool does not print at all.
+      if (is_exporter_header(line)) {
         continue;
       }
 

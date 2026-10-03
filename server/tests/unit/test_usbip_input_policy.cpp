@@ -660,3 +660,48 @@ TEST(UsbipArgv, DetachCarriesThePortItWasGiven) {
   EXPECT_EQ(input::usbip::build_detach_argv(1)[3], "1");
   EXPECT_EQ(input::usbip::build_detach_argv(12)[3], "12");
 }
+
+// ── the Linux tool's REMOTE listing ──────────────────────────────────────────────────────
+//
+// A remote listing from the Linux tool is grouped BY EXPORTER and opens each group with a line
+// naming the machine, " - <address>". The parser was pinned against `usbip-win2`'s bytes, which
+// print no such line, so it had no rule for a dash that was not followed by "busid" and refused
+// the whole reply. Two consequences, one of them worse than the other: a Linux importer could
+// attach nothing at all while the Windows host beside it worked, and an exporter genuinely
+// offering nothing reported "we could not understand this" instead of "there is nothing here".
+
+TEST(UsbipParseRemote, TheLinuxToolsPerExporterHeaderIsNotADevice) {
+  const auto out = parse(usbip_fixtures::kListRemoteLinux);
+  ASSERT_EQ(out.outcome, ListOutcome::Devices) << "detail: " << out.detail;
+  ASSERT_EQ(out.devices.size(), 1u);
+  EXPECT_EQ(out.devices[0].busid, "9-1");
+  EXPECT_EQ(out.devices[0].vendor, "Razer USA, Ltd");
+  EXPECT_EQ(out.devices[0].vid_pid, "1532:007b");
+  EXPECT_EQ(out.devices[0].product,
+            "RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)]");
+}
+
+TEST(UsbipParseRemote, ALinuxExporterOfferingNothingIsNotUnreadable) {
+  const auto out = parse(usbip_fixtures::kListRemoteLinuxNothing);
+  EXPECT_EQ(out.outcome, ListOutcome::NothingOffered) << "detail: " << out.detail;
+  EXPECT_TRUE(out.devices.empty());
+}
+
+// The header rule has to stay narrow in both directions. Too loose and a format change is
+// reported as "nothing is offered" — a device that never gets given back. So a dash line that
+// is not an address must still stop the parse, and the local list's own dash rows must still
+// be devices.
+TEST(UsbipParseRemote, ADashLineThatIsNotAnAddressIsStillUnreadable) {
+  EXPECT_EQ(parse(" - this is not a device\n").outcome, ListOutcome::Unreadable);
+  EXPECT_EQ(parse(" - 192.168.50.35 and then some prose\n").outcome, ListOutcome::Unreadable);
+}
+
+TEST(UsbipParseRemote, AHeaderAloneIsAnExporterWithNothingToOffer) {
+  EXPECT_EQ(parse(" - 192.168.50.35\n").outcome, ListOutcome::NothingOffered);
+}
+
+TEST(UsbipParseRemote, TheLocalListsDashRowsAreStillDevices) {
+  const auto out = parse(usbip_fixtures::kListLocalLinux);
+  ASSERT_EQ(out.outcome, ListOutcome::Devices) << "detail: " << out.detail;
+  EXPECT_EQ(out.devices.size(), 5u);
+}
