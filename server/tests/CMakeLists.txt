@@ -507,6 +507,8 @@ sunshine_register_component(NAME test_component_audio_policy TEST_SOURCE unit/te
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/audio_policy.cpp")
 sunshine_register_component(NAME test_component_mouse_policy TEST_SOURCE unit/test_mouse.cpp
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/mouse_input.cpp")
+sunshine_register_component(NAME test_component_usbip_input_policy TEST_SOURCE unit/test_usbip_input_policy.cpp
+    PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/usbip_input_policy.cpp")
 sunshine_register_component(NAME test_component_platform_common TEST_SOURCE unit/platform/test_common.cpp
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/platform/common_services.cpp")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
