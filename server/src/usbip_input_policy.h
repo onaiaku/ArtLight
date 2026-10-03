@@ -317,16 +317,19 @@ namespace input::usbip {
   /**
    * @brief Whether an uninstall record's DisplayName names the USB/IP CLIENT.
    *
-   * This exists because of a real trap found on a real machine. The Windows exporter and the
-   * Windows importer install two DIFFERENT products whose names both begin "usbip": the importer's
-   * client is `USBip`, the exporter's tool is `usbipd-win`. A loose substring match accepts both,
-   * and on the reference exporter that loose match was saved only by a downstream check that
-   * `usbip.exe` exists in the install directory - luck, not design, and luck that ends the day
+   * The Windows exporter and the Windows importer install two DIFFERENT products whose names both
+   * begin "usbip": the importer's client is `USBip`, the exporter's tool is `usbipd-win`. Both are
+   * installed on the reference machines.
+   *
+   * A plain substring match puts `usbipd-win` forward as a candidate. Measured on the reference
+   * exporter, that candidate is then rejected downstream - the install directory is required to
+   * contain `usbip.exe` - so the loose match does NOT currently produce a wrong answer. The reason
+   * to name the product instead is that the loose match makes the right answer depend on what
+   * happens to be in a folder rather than on what the product is called, and that holds only until
    * usbipd-win ships a file with that name.
    *
-   * The rule is therefore on the NAME, not on what happens to be in the folder: a case-insensitive
-   * `usbip` whose next character is not a letter or a digit. "USBip 0.9.8.1" is the client.
-   * "usbipd-win" is not.
+   * The rule is on the NAME: a case-insensitive `usbip` whose next character is not a letter or a
+   * digit. "USBip 0.9.8.1" is the client. "usbipd-win" is not.
    */
   bool names_the_client(std::string_view display_name);
 

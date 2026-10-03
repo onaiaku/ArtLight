@@ -108,9 +108,9 @@ namespace input::usbip {
         }
 
         // names_the_client, NOT a substring match. Measured on the reference machines: the
-        // exporter's own tool is "usbipd-win" and the client is "USBip", and both live on these
-        // boxes. A loose match reads the exporter as "the client is installed" on a machine with
-        // no client at all.
+        // exporter's own tool is "usbipd-win" and the client is "USBip", and both are installed on
+        // these boxes. A substring match puts the exporter forward as a candidate and leaves the
+        // right answer resting on whether that folder happens to contain usbip.exe.
         const auto display_name = read_string_value(entry, L"DisplayName");
         if (!display_name.empty() && names_the_client(to_utf8(display_name))) {
           const auto location = read_string_value(entry, L"InstallLocation");
