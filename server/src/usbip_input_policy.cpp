@@ -718,7 +718,9 @@ namespace input::usbip {
     /// rather than from the wire, so this is not the same threat as a busid - but a leading '-'
     /// would be read as an option and whitespace cannot survive an argument vector at all, so
     /// both are refused here rather than passed on and hoped about.
-    bool is_usable_exporter(const std::string_view exporter) {
+  }  // namespace
+
+  bool is_usable_exporter(const std::string_view exporter) {
       if (exporter.empty() || exporter.front() == '-') {
         return false;
       }
@@ -730,8 +732,7 @@ namespace input::usbip {
         }
       }
       return true;
-    }
-  }  // namespace
+  }
 
   Plan plan_reconcile(const std::vector<Device> &offered,
                       const std::vector<Attached> &attached,

@@ -37,6 +37,19 @@ namespace input::usbip {
    */
   bool is_valid_busid(std::string_view busid);
 
+  /**
+   * @brief Whether an exporter address is one this feature will act on.
+   *
+   * Exported, and not duplicated, because the privileged helper is the side that runs as root. A
+   * second copy of this rule living in the helper would be a rule that drifts, and the drift would
+   * be on the privileged side - the one place it must not happen. The helper links this instead.
+   *
+   * Deliberately narrow: letters, digits, dot, colon, hyphen, underscore, and it may not begin with
+   * a hyphen (which would be read as an option). That is enough for a hostname, an IPv4 literal and
+   * an IPv6-literal-with-port, and it cannot carry a shell metacharacter, a space, or a newline.
+   */
+  bool is_usable_exporter(std::string_view exporter);
+
   /// One device an exporter is offering.
   struct Device {
     std::string busid;    ///< "9-1". Guaranteed to have passed is_valid_busid.

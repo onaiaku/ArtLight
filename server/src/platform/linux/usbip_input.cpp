@@ -18,11 +18,17 @@
  */
 #include "src/usbip_input.h"
 
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include <cerrno>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <string>
-#include <unistd.h>
+#include <vector>
 
 namespace input::usbip {
   namespace {
@@ -85,6 +91,115 @@ namespace input::usbip {
     }
   }  // namespace
 
+  namespace {
+    /// pkexec, by absolute path. It is the only supported way for an unprivileged process to hand
+    /// this program privilege, and it is what the polkit action beside the helper binds to.
+    constexpr auto kPkexec = "/usr/bin/pkexec";
+
+    /**
+     * Run a command and bring back BOTH streams separately.
+     *
+     * Separate, not merged, and the exporter half learned this the hard way: the reason a tool
+     * refused arrives on stderr while the exit code says only "no". A shell pipeline that merged the
+     * two once made a held device look like an unreadable one.
+     *
+     * Read sequentially to EOF rather than polled. The child blocks when a pipe fills; it does not
+     * deadlock against us, because we do eventually read the other pipe once this one hits EOF. The
+     * one case that would hang is a child that fills stderr and then waits for us to drain stdout
+     * before writing anything more - which neither usbip nor pkexec does, and the caller runs this
+     * off the request path so even a hang cannot stall a stream.
+     */
+    run_result_t run_process(const std::vector<std::string> &argv) {
+      run_result_t result;
+      if (argv.empty()) {
+        result.code = -1;
+        result.err = "no command to run";
+        return result;
+      }
+
+      int out_pipe[2] = {-1, -1};
+      int err_pipe[2] = {-1, -1};
+      if (::pipe(out_pipe) != 0 || ::pipe(err_pipe) != 0) {
+        result.code = -1;
+        result.err = "could not create a pipe";
+        return result;
+      }
+
+      const pid_t child = ::fork();
+      if (child < 0) {
+        result.code = -1;
+        result.err = "could not fork";
+        return result;
+      }
+
+      if (child == 0) {
+        ::dup2(out_pipe[1], STDOUT_FILENO);
+        ::dup2(err_pipe[1], STDERR_FILENO);
+        ::close(out_pipe[0]);
+        ::close(out_pipe[1]);
+        ::close(err_pipe[0]);
+        ::close(err_pipe[1]);
+
+        std::vector<char *> cargv;
+        cargv.reserve(argv.size() + 1);
+        for (const auto &part : argv) {
+          cargv.push_back(const_cast<char *>(part.c_str()));
+        }
+        cargv.push_back(nullptr);
+        ::execv(cargv[0], cargv.data());
+
+        std::cerr << "artlight: could not run " << argv[0] << ": " << std::strerror(errno) << "\n";
+        ::_exit(127);
+      }
+
+      ::close(out_pipe[1]);
+      ::close(err_pipe[1]);
+
+      char buffer[4096];
+      ssize_t read = 0;
+      while ((read = ::read(out_pipe[0], buffer, sizeof(buffer))) > 0) {
+        result.out.append(buffer, static_cast<std::size_t>(read));
+      }
+      while ((read = ::read(err_pipe[0], buffer, sizeof(buffer))) > 0) {
+        result.err.append(buffer, static_cast<std::size_t>(read));
+      }
+      ::close(out_pipe[0]);
+      ::close(err_pipe[0]);
+
+      int status = 0;
+      ::waitpid(child, &status, 0);
+      result.code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+      return result;
+    }
+
+    /// Whether the privileged half is actually present. Both files, because a helper with no action
+    /// cannot be invoked and an action with no helper authorises nothing - and a missing pair is a
+    /// setup step, not a silent failure.
+    bool helper_installed() {
+      if (!is_executable(kHelperPath)) {
+        return false;
+      }
+      std::error_code ec;
+      return std::filesystem::exists(kPolicyPath, ec);
+    }
+
+    /// Every attach and detach on Linux goes through the helper, never directly. `attach` writes to
+    /// /sys/devices/platform/vhci_hcd.0/attach, which is root-only, so a direct call would fail with
+    /// `usbip: error: import device` - measured on the z13.
+    run_result_t run_privileged(const std::vector<std::string> &args) {
+      if (!helper_installed()) {
+        run_result_t missing;
+        missing.code = -1;
+        missing.err = std::string("the USB/IP helper is not installed on this PC (") + kHelperPath +
+                      " and " + kPolicyPath + ") - USB device sharing needs it";
+        return missing;
+      }
+      std::vector<std::string> argv = {kPkexec, kHelperPath};
+      argv.insert(argv.end(), args.begin(), args.end());
+      return run_process(argv);
+    }
+  }  // namespace
+
   std::string client_path() {
     for (const auto *candidate : kClientCandidates) {
       if (is_executable(candidate)) {
@@ -116,6 +231,33 @@ namespace input::usbip {
       start = end + 1;
     }
     return {};
+  }
+
+  run_result_t run_attach(const std::string_view exporter, const std::string_view busid) {
+    try {
+      // Build the argv so the POLICY validates the caller's input before anything is spawned, then
+      // hand the validated pair to the helper. The helper validates again on its own side with the
+      // same linked-in rules - it does not trust this process, which is the point of it.
+      const auto argv = build_attach_argv(exporter, busid);
+      return run_privileged({"attach", argv[3], argv[5]});
+    } catch (const std::exception &error) {
+      run_result_t refused;
+      refused.code = -1;
+      refused.err = error.what();
+      return refused;
+    }
+  }
+
+  run_result_t run_detach(const int port) {
+    try {
+      build_detach_argv(port);  // refuses a negative port before anything is spawned
+      return run_privileged({"detach", std::to_string(port)});
+    } catch (const std::exception &error) {
+      run_result_t refused;
+      refused.code = -1;
+      refused.err = error.what();
+      return refused;
+    }
   }
 
   ClientProbe probe_client() {

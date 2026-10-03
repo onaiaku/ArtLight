@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+
+  <!--
+    The Linux half of "the importer never attaches by itself".
+
+    This is the mirror of org.artmoon.input-service.reconcile. ArtMoon's helper binds a device on
+    the machine the device is PLUGGED INTO; this one attaches a device to the machine it ARRIVES on.
+    Same shape, same reasoning, opposite end of the wire - and one asymmetry between them is real
+    and deliberate: Windows needs no equivalent of either, because attach there works from a
+    UAC-filtered limited token. Do not "fix" that by adding a service Windows does not need.
+
+    The helper at /usr/libexec/artlight-input-service refuses to act without administrator rights,
+    and on Linux the app has no way to hand it privilege except through pkexec. This action is what
+    makes that pkexec call silent: allow_active grants it to the local active session with no
+    authentication, so the one approval the user gives is the one that placed this file and the
+    helper - not one per device.
+
+    Placing this file is what requires the password. That is the moment to be thinking about what
+    it grants: the active session may run exactly one program as root, and pkexec binds this action
+    to it by the exec.path annotation below, so it cannot be pointed anywhere else.
+
+    Why this is safe to grant, given the program takes input from an unprivileged process - and
+    note that the input here is more dangerous than the exporter's, because it includes an address
+    this machine will connect to:
+
+      - It validates the exporter address with is_usable_exporter() and the busid with
+        is_valid_busid(), BOTH linked in from the same policy the app uses. A second copy of those
+        rules living in the helper would be a rule that drifts, and the drift would be on the side
+        that runs as root.
+      - The address charset admits only letters, digits, dot, colon, hyphen and underscore, and may
+        not begin with a hyphen. That is enough for a hostname, an IPv4 literal and an IPv6 literal
+        with port, and it cannot carry a shell metacharacter, a space or a newline.
+      - It runs the client from an ABSOLUTE path out of a fixed list, never a bare name resolved
+        through PATH, so what executes as root cannot be chosen by the environment it was handed.
+      - It passes an argv vector straight to execv. There is no shell anywhere in this program, so
+        nothing can be re-split on the way.
+      - It keeps no state. It is told one action and performs that action; the kernel's own view is
+        the only thing it consults.
+      - It is statically linked, so there is no library for anything to inject into.
+      - It sets its own PATH before parsing a single argument.
+
+    Deliberately NOT allow_any or allow_inactive: a remote session, or a session nobody is sitting
+    at, cannot use this. That distinction is the reason this is done with polkit rather than by
+    making the helper setuid.
+  -->
+  <action id="org.artlight.input-service.attach">
+    <description>Bring USB devices to this PC over the network</description>
+    <message>Authentication is required to bring USB devices to this PC</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/artlight-input-service</annotate>
+  </action>
+
+</policyconfig>
