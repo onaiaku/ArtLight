@@ -1020,6 +1020,12 @@ export const settingsDefaults: Record<string, unknown> = {
   capture: '',
   stream_audio: true,
   controller: true,
+  // This entry is what makes the settings page agree with the host. The page builds its working
+  // copy as { ...settingsDefaults, ...configured }, so any field the server does not send comes
+  // from this table - and a boolean with no entry here renders OFF however the host is set.
+  // input_usbip_enabled is true in the host's own config (config.h). Without this line the page
+  // showed the feature switched off while the server had it on.
+  input_usbip_enabled: true,
   origin_web_ui_allowed: 'lan',
   upnp: false,
   output_name: '',

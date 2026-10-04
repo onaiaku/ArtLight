@@ -26,6 +26,29 @@ import {
   serializeCommandRows,
 } from '../utils/v2Parity.ts';
 
+// Every BOOLEAN field must carry a default in settingsDefaults.
+//
+// The page builds its working copy as { ...settingsDefaults, ...configured }, so anything the
+// server does not send comes from that table. For a text field that is harmless - an empty box
+// reads as empty, and several host-provided ones (pkey, cert, log_path) are meant to start that
+// way. A boolean has no such empty state: absent and false are indistinguishable on screen, so a
+// missing entry renders as OFF, and OFF is a positive claim about the host. When the host's own
+// default is ON, the page is simply lying to the person reading it.
+//
+// input_usbip_enabled did exactly that: true in config.h, shown off in the UI, and it read as a
+// broken switch rather than a missing row.
+test('every boolean field has a default, so none can render as off by accident', () => {
+  const missing = [...settingsFields.entries()]
+    .filter(([, field]) => field.kind === 'boolean')
+    .map(([key]) => key)
+    .filter((key) => !(key in settingsDefaults));
+  assert.deepEqual(
+    missing,
+    [],
+    `boolean fields with no settingsDefaults entry: ${missing.join(', ')}`,
+  );
+});
+
 test('capture options follow the host platform', () => {
   assert.deepEqual(
     captureOptionsForPlatform('linux').map((option) => option.value),
