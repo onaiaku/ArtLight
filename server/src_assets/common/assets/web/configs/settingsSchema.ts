@@ -754,6 +754,10 @@ export const settingsCategories: SettingsCategory[] = [
       {
         id: 'input_devices',
         fields: [
+          // The USB/IP switch leads the group on purpose. It is the one control here that decides
+          // whether this PC reaches for devices at all, and a person looking for it should not have
+          // to scroll past thirteen device preferences to find out the feature exists.
+          boolean('input_usbip_enabled'),
           boolean('keyboard'),
           boolean('mouse'),
           boolean('controller'),
@@ -768,7 +772,6 @@ export const settingsCategories: SettingsCategory[] = [
           boolean('always_send_scancodes', { platform: 'windows' }),
           boolean('high_resolution_scrolling'),
           boolean('native_pen_touch', { platform: 'windows' }),
-          boolean('input_usbip_enabled'),
         ],
       },
       {

@@ -293,14 +293,20 @@ namespace config {
 
     // ── USB device sharing (USB/IP) ────────────────────────────────────────────────────────────
     //
-    // Off by default, and that default is the point. Attaching a device TAKES IT AWAY from the
-    // machine it is plugged into - the exporter's owner loses their keyboard for as long as the
-    // stream runs. That must never be something an upgrade does to someone by accident, so it is
-    // opt-in and it stays opt-in.
+    // On by default, and it is safe to be, because this switch is not the gate. The gate is what
+    // the exporter is sharing: the list this reads is the far machine's offered devices, and a
+    // machine offering nothing lands on ListOutcome::NothingOffered and returns before it attaches
+    // anything. So this decides whether THIS PC reaches for devices already on offer - never whether
+    // a device moves. Off here would be a second click on top of a decision the person already made
+    // on the machine the device is plugged into.
+    //
+    // What it does still matters: an attached device is GONE from the machine it is plugged into for
+    // the length of the stream. Leave input_usbip_busids empty to take everything on offer; name
+    // devices to narrow it.
     //
     // Naming: exporter = the machine the device is plugged into; importer = the machine it arrives
     // on. This build is the importer. Never write bare "host" or "client" here.
-    bool input_usbip_enabled;
+    bool input_usbip_enabled = true;
 
     // Which exporter to attach from. Empty is the NORMAL case, and means "the machine this stream was
     // asked for from" - rtsp_stream::launch_session_t::rtsp_source_address, which is the address the
