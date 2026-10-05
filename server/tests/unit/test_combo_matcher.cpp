@@ -5,7 +5,7 @@
  * The matcher is the part of the Linux trigger that must not be wrong, and the part that can be
  * wrong invisibly: a combo that never fires and a combo that fires at the wrong moment both look
  * like "nothing happened" from the sofa. So the near-misses are tested as carefully as the hit -
- * Ctrl+Alt+O without Shift, the right key with the wrong modifiers, and a release with no press
+ * Ctrl+Alt+Q without Shift, the right key with the wrong modifiers, and a release with no press
  * before it, which is what a device arriving mid-stream looks like.
  */
 #include <gtest/gtest.h>
@@ -127,11 +127,11 @@ namespace {
   }
 }  // namespace
 
-TEST(ComboResolve, TheShippedComboResolvesToTheKeyO) {
+TEST(ComboResolve, TheShippedComboResolvesToTheKeyQ) {
   const auto resolved = quit_hotkey::resolve(quit_hotkey::combo_t{});
 
   ASSERT_TRUE(resolved.has_value());
-  EXPECT_EQ(resolved->key, 24u) << "KEY_O";
+  EXPECT_EQ(resolved->key, 16u) << "KEY_Q; the letters are not sequential in evdev";
   EXPECT_TRUE(resolved->ctrl && resolved->alt && resolved->shift);
 }
 
