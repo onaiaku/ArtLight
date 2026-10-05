@@ -77,6 +77,37 @@ namespace input::usbip {
     static std::shared_ptr<session_holder_t> attach(const session_request_t &request);
 
     /**
+     * @brief A holder that has not been asked for anything yet.
+     *
+     * The slow half of attaching is asking another machine what it is offering and waiting for an
+     * answer, and the stream must not wait on that. So a session is given one of these first,
+     * published while it holds it, and has its answer sent; the devices are moved on afterwards
+     * with take_from(). The session therefore owns its hold from the moment it exists, and every
+     * end path gives back whatever is on it, whichever side of take_from() the end lands on.
+     *
+     * Named for what it is rather than for what it lacks. holding() answers false, which is the
+     * truth, so clients_holding_usbip_devices() does not name this session yet - correct, because
+     * nothing has been taken from anybody and a quit key pressed in that window would have nothing
+     * to resolve.
+     */
+    static std::shared_ptr<session_holder_t> holding_nothing();
+
+    /**
+     * @brief Move the devices onto THIS holder, after a session already owns it.
+     *
+     * The blocking half of attach(), which is now only holding_nothing() followed by this -
+     * the two are the same operation split so a caller can publish the holder in between.
+     *
+     * Safe to call on a holder whose session has ALREADY ended, which is the whole reason it is
+     * a separate method. A session that ended mid-attach has already released; the guard in
+     * release_all() would make the destructor's call a no-op, so the devices taken here are given
+     * straight back rather than left held on a session that no longer exists to give them back.
+     *
+     * Never throws, for the same reason attach() never throws.
+     */
+    void take_from(const session_request_t &request);
+
+    /**
      * @brief Give every device back.
      *
      * This is the promise. It runs on every end path there is, including the ones nobody planned.
@@ -119,6 +150,17 @@ namespace input::usbip {
 
    private:
     session_holder_t() = default;
+
+    /**
+     * @brief Give back everything held, WITHOUT the once-only guard.
+     *
+     * The guard exists so a caller who releases explicitly and then lets the destructor run does
+     * not detach the same port twice - and by the second call that port number may well belong to
+     * something else. There is exactly one caller that must get past it: take_from(), when the
+     * session released while the devices were still moving, so the release that has already been
+     * recorded did not include them.
+     */
+    void give_back_everything();
 
     /// Give back one device by port. Returns false if the detach did not take.
     bool release(const held_device_t &device);

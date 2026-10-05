@@ -77,23 +77,46 @@ namespace input::usbip {
     }
   }  // namespace
 
-  std::shared_ptr<session_holder_t> session_holder_t::attach(const session_request_t &request) {
+  std::shared_ptr<session_holder_t> session_holder_t::holding_nothing() {
     // A shared_ptr to a private constructor: this is the only way to make one, so nobody can
-    // construct a holder that skipped the attaching and still believes it owns nothing.
-    auto holder = std::shared_ptr<session_holder_t>(new session_holder_t {});
+    // construct a holder by a path that skipped what this file exists to do.
+    return std::shared_ptr<session_holder_t>(new session_holder_t {});
+  }
+
+  std::shared_ptr<session_holder_t> session_holder_t::attach(const session_request_t &request) {
+    // The one-shot form: make the holder and fill it before handing it back.
+    //
+    // A caller that needs the stream to ANSWER before the devices move - which is the streaming
+    // path, because a client that is kept waiting on a USB probe gives up on the whole handshake -
+    // uses holding_nothing() and take_from() separately, so the session owns its hold across the
+    // whole of the slow part. That is why the two are no longer one function: there is nothing
+    // wrong with this form, it just cannot publish a holder in the middle of itself.
+    auto holder = holding_nothing();
+    holder->take_from(request);
+    return holder;
+  }
+
+  void session_holder_t::take_from(const session_request_t &request) {
+    if (m_Released) {
+      // The session let go of this holder before anything was asked of it. There is nothing to
+      // give back - and nothing may be taken either: release_all() will not run a second time, so
+      // a device put on this holder now would never be given back at all.
+      m_Report = "the stream ended before any device was asked for";
+      return;
+    }
 
     if (!request.enabled) {
       // The default. Said out loud rather than returning silently, because "sharing is off" and
       // "sharing is on and found nothing" look identical from the outside otherwise.
-      holder->m_Report = "USB device sharing is switched off for this stream";
-      return holder;
+      m_Report = "USB device sharing is switched off for this stream";
+      return;
     }
 
     if (request.exporter.empty()) {
-      holder->m_Report =
+      m_Report =
         "no exporter address to attach from - the stream's source address was not known and no "
         "override is configured";
-      return holder;
+      return;
     }
 
     // The exporter address is the most dangerous input in this feature - it decides which machine
@@ -103,8 +126,8 @@ namespace input::usbip {
     // happens to come first. The policy validates it again when it builds the argv; this is the
     // gate that keeps it out of the feature entirely.
     if (!is_usable_exporter(request.exporter)) {
-      holder->m_Report = "refusing an unusable exporter address: '" + request.exporter + "'";
-      return holder;
+      m_Report = "refusing an unusable exporter address: '" + request.exporter + "'";
+      return;
     }
 
     // Ask whether this machine could take a device before asking for one. A refusal here is the
@@ -112,8 +135,8 @@ namespace input::usbip {
     // alternative is an attach that fails with a tool error they cannot act on.
     const auto availability = client_available();
     if (!availability.ok) {
-      holder->m_Report = std::string {"this PC cannot take USB devices yet: "} + describe(availability.state);
-      return holder;
+      m_Report = std::string {"this PC cannot take USB devices yet: "} + describe(availability.state);
+      return;
     }
 
     // What is the exporter offering?
@@ -121,16 +144,16 @@ namespace input::usbip {
     if (offered_run.code != 0) {
       // Both streams are reported, because on this path the reason is on stderr and the exit code
       // only says "no". A reader with only the code cannot tell a wrong address from a busy port.
-      holder->m_Report = "could not ask " + request.exporter + " what it is offering (client exit " +
+      m_Report = "could not ask " + request.exporter + " what it is offering (client exit " +
                          std::to_string(offered_run.code) + "): " +
                          (offered_run.err.empty() ? std::string {"no detail"} : offered_run.err);
-      return holder;
+      return;
     }
 
     const auto offered = parse_device_list(offered_run.out);
     if (offered.outcome != ListOutcome::Devices) {
-      holder->m_Report = "the exporter has nothing to offer: " + describe(offered.outcome);
-      return holder;
+      m_Report = "the exporter has nothing to offer: " + describe(offered.outcome);
+      return;
     }
 
     // Decide. plan_reconcile is the policy's, not this file's, so the decision is the same one the
@@ -165,12 +188,12 @@ namespace input::usbip {
       }
     }
 
-    holder->m_Held = match_ports(took);
+    m_Held = match_ports(took);
 
     // Built once, from what actually happened, so the log line cannot claim more than the holder
     // can give back. This is the audit trail for the promise.
     std::ostringstream report;
-    if (holder->m_Held.empty()) {
+    if (m_Held.empty()) {
       report << "no devices were taken";
       if (!took.empty()) {
         // We were told it attached but could not find a port for it. That is the one genuinely
@@ -181,9 +204,9 @@ namespace input::usbip {
                << join_busids(took) << " with no way to give it back";
       }
     } else {
-      report << "holding " << holder->m_Held.size() << " device(s) from " << request.exporter << ": ";
+      report << "holding " << m_Held.size() << " device(s) from " << request.exporter << ": ";
       bool first = true;
-      for (const auto &device : holder->m_Held) {
+      for (const auto &device : m_Held) {
         if (!first) {
           report << ", ";
         }
@@ -196,8 +219,19 @@ namespace input::usbip {
       report << "; not taken: " << join_busids(refused);
     }
 
-    holder->m_Report = report.str();
-    return holder;
+    m_Report = report.str();
+
+    if (m_Released) {
+      // The session ended WHILE the devices were being moved - they are slow to move, and a stream
+      // can end in the middle of it. That release has already been recorded, and it released a
+      // holder that was still empty, because these were not on it yet. The guard in release_all()
+      // would make the destructor's call a no-op, so give them back HERE, while there is still
+      // something that can. Without this the devices stay on a machine whose stream is gone, which
+      // is the exact state this whole file exists to prevent.
+      m_Report += "; the stream ended while they were being attached, so they were given straight back";
+      give_back_everything();
+      m_Held.clear();  // so holding() tells the truth: nothing is held any more
+    }
   }
 
   bool session_holder_t::release(const held_device_t &device) {
@@ -224,15 +258,19 @@ namespace input::usbip {
     return false;
   }
 
+  void session_holder_t::give_back_everything() {
+    for (const auto &device : m_Held) {
+      release(device);
+    }
+  }
+
   void session_holder_t::release_all() {
     if (m_Released) {
       return;
     }
     m_Released = true;
 
-    for (const auto &device : m_Held) {
-      release(device);
-    }
+    give_back_everything();
   }
 
   session_holder_t::~session_holder_t() {

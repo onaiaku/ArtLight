@@ -2530,20 +2530,40 @@ namespace rtsp_stream {
         }
 
         const bool stream_hdr_enabled = activates_vulkan_hdr_layer_for_stream(config.monitor);
+
+        // This stream's USB hold, and what is to be moved onto it. Declared here and filled in two
+        // halves below, because those halves must sit either side of the stream's answer.
+        std::shared_ptr<input::usbip::session_holder_t> usbip_holder;
+        input::usbip::session_request_t usbip_request;
+
         if (!startup_failed) {
           // Take the USB devices this stream is configured for, and hand them to the session.
           //
-          // Two orderings matter. The stream is already up - we are past a successful start - because
-          // attaching a device TAKES IT AWAY from the machine it is plugged into; attach first and the
-          // seat can go dark while the launch is still completing. And this runs before insert(), so no
-          // concurrent cancellation can find a published session whose devices are still moving.
+          // Three orderings matter, and the third is the one that used to be wrong.
+          //
+          // The stream is already up - we are past a successful start - because attaching a device
+          // TAKES IT AWAY from the machine it is plugged into; attach first and the seat can go dark
+          // while the launch is still completing.
+          //
+          // The session is given its hold BEFORE insert(), so no concurrent cancellation can find a
+          // published session without one. It is handed an EMPTY holder at this point on purpose:
+          // the session owns its hold from the moment it is published, so every end path gives back
+          // whatever ends up on it, whichever side of the move below that end lands on. A session
+          // that ends mid-move leaves the holder to the move, and the move gives back what it took.
+          //
+          // And NOTHING is taken from anybody until the answer has gone out. Asking the exporter
+          // what it is offering is a network round trip to a machine that may be off, asleep or
+          // firewalled, and this used to happen BEFORE the 200 OK was posted. Measured 2026-10-05:
+          // the exporter's port was dark, the probe burned its full 20s timeout, the client never
+          // got its ANNOUNCE answer, never opened its sockets, and the stream died with Initial
+          // Ping Timeout while every log in sight blamed the network. The devices are not wanted
+          // until input starts arriving, which is long after the handshake.
           //
           // From here the session owns the holder, and ~session_t gives the devices back whichever way
           // this session ends - the quit key, a lost network, a deadline timer, an exception. There is
           // no end path that skips a destructor, which is the whole reason this is not a detach() call
           // written at the end of a stop function.
           if (usbip_enabled) {
-            input::usbip::session_request_t usbip_request;
             usbip_request.enabled = true;
 
             // Empty override means "the machine this stream was asked for from", which is where the
@@ -2552,11 +2572,8 @@ namespace rtsp_stream {
                                                             : usbip_exporter;
             usbip_request.busids = usbip_busids;
 
-            auto usbip_holder = input::usbip::session_holder_t::attach(usbip_request);
-            if (usbip_holder) {
-              BOOST_LOG(info) << "USB input: "sv << usbip_holder->report();
-              stream::session::adopt_usbip_holder(*stream_session, std::move(usbip_holder));
-            }
+            usbip_holder = input::usbip::session_holder_t::holding_nothing();
+            stream::session::adopt_usbip_holder(*stream_session, usbip_holder);
           }
 
           // Publish the active session before releasing the lifecycle gate.
@@ -2590,6 +2607,30 @@ namespace rtsp_stream {
 
           server->shutdown_socket(*socket);
         });
+
+        // NOW move the devices, with the answer already queued. This is the slow half and the
+        // stream no longer waits on it: the client is past ANNOUNCE either way, and a probe that
+        // never gets through costs this worker its time and nothing else.
+        //
+        // Deliberately after the lifecycle gate is released as well - taking the devices must not
+        // hold up another session starting or stopping for the length of a network round trip that
+        // has nothing to do with it. It used to, because this ran while holding the gate.
+        //
+        // take_from() is safe on a holder whose session has already ended - that release has been
+        // recorded against an empty holder, so the move gives back whatever it just took rather
+        // than leaving it on a machine whose stream is gone.
+        if (usbip_holder) {
+          usbip_holder->take_from(usbip_request);
+          BOOST_LOG(info) << "USB input: "sv << usbip_holder->report();
+
+          const auto &failure = usbip_holder->release_failure();
+          if (!failure.empty()) {
+            // The one state that needs a person: a device is still away from the machine it is
+            // plugged into. Said here as well as at teardown, because this is the moment it can
+            // still be said while there is a log line to say it in.
+            BOOST_LOG(error) << "USB input: "sv << failure;
+          }
+        }
         }
       );
     } catch (const std::exception &e) {
