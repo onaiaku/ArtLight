@@ -1026,7 +1026,7 @@ export const settingsDefaults: Record<string, unknown> = {
   controller: true,
   // Kept in agreement with config.h's default and the description in en.json. The page shows
   // this when the server sends nothing, so all three must say the same combination.
-  input_quit_hotkey: 'Ctrl+Alt+Shift+O',
+  input_quit_hotkey: 'Ctrl+Alt+Shift+Q',
   // This entry is what makes the settings page agree with the host. The page builds its working
   // copy as { ...settingsDefaults, ...configured }, so any field the server does not send comes
   // from this table - and a boolean with no entry here renders OFF however the host is set.

@@ -49,7 +49,7 @@ namespace quit_hotkey {
   }  // namespace
 
   std::string combo_t::default_value() {
-    return "Ctrl+Alt+Shift+O";
+    return "Ctrl+Alt+Shift+Q";
   }
 
   parse_result_t parse(const std::string &value) {

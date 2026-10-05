@@ -4892,7 +4892,8 @@ Sets the maximum network packet size used for streaming. Set `0` to use the defa
 ### input_quit_hotkey
 
 The combination that ends a stream when its keyboard has been shared over USB, for example
-`Ctrl+Alt+Shift+O`. The default is `Ctrl+Alt+Shift+O`.
+`Ctrl+Alt+Shift+Q`. The default is `Ctrl+Alt+Shift+Q` - the same combination the client uses to
+leave a stream, so the key people already press keeps working once the keyboard has moved.
 
 Sharing a keyboard takes it away from the machine the client is running on, so the client can no
 longer see the combination it normally uses to leave - the stream becomes inescapable. This setting

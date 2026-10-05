@@ -1048,7 +1048,12 @@ namespace config {
 
     // Added last on purpose: this is a positional list, so a new entry anywhere else would
     // silently move every default after it onto the wrong field.
-    "Ctrl+Alt+Shift+O",  // input_quit_hotkey
+    //
+    // Q, not O. Q is the combination the client already uses to leave a stream; O is that same
+    // client's "open stream settings". Watching O would give one keystroke two meanings - a menu
+    // when the keyboard is local, an ended stream when it has been shared - and, worse, would
+    // mean the key people actually reach for to get out does nothing.
+    "Ctrl+Alt+Shift+Q",  // input_quit_hotkey
   };
 
   frame_limiter_t frame_limiter {

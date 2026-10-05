@@ -15,10 +15,13 @@
 using quit_hotkey::parse;
 
 TEST(QuitHotkey, ParsesTheDefaultCombo) {
-  const auto parsed = parse("Ctrl+Alt+Shift+O");
+  // Parsed from the shipped default rather than a copy of it. A hardcoded copy is exactly how a
+  // wrong combination survives a green test suite: the test agreed with whatever had been typed
+  // into it, instead of asking what the server actually ships.
+  const auto parsed = parse(quit_hotkey::combo_t::default_value());
 
   ASSERT_TRUE(parsed.ok) << parsed.error;
-  EXPECT_EQ(parsed.key, 'O');
+  EXPECT_EQ(parsed.key, 'Q') << "the host watches the key the client already leaves a stream with";
   EXPECT_TRUE(parsed.ctrl && parsed.alt && parsed.shift);
 }
 

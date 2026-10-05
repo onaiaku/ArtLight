@@ -9,7 +9,7 @@
  * Two things are worth stating plainly because the tests pin them down. First, the combo
  * completes on the KEY GOING DOWN with every required modifier already held - not on a repeat,
  * and not on a release: a held key repeats many times a second, so firing on repeat would end
- * one stream dozens of times over. Second, the translation from a person's "Ctrl+Alt+Shift+O"
+ * one stream dozens of times over. Second, the translation from a person's "Ctrl+Alt+Shift+Q"
  * to an evdev code happens here and nowhere else, because those numbers are a Linux detail with
  * no business in a config file.
  */

@@ -368,7 +368,7 @@ namespace config {
 
     /**
      * The combination that ends a stream whose keyboard has been taken away from its client,
-     * written the way a person would: "Ctrl+Alt+Shift+O". Shared by both platforms, so the same
+     * written the way a person would: "Ctrl+Alt+Shift+Q". Shared by both platforms, so the same
      * value means the same thing on Windows and Linux. Guaranteed valid by the time anything
      * reads it - config.cpp falls back to the default rather than letting a typo stop the server.
      */
