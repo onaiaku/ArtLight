@@ -388,6 +388,13 @@ sunshine_register_component(NAME test_component_pyrowave_policy TEST_SOURCE unit
 sunshine_register_component(NAME test_component_quit_request_policy TEST_SOURCE unit/test_quit_request_policy.cpp
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/quit_request_policy.cpp")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # The Linux quit combo's matching half. It is pure key-event logic with no kernel header and
+    # no device, which is exactly why it is worth testing: the part of the Linux trigger that
+    # cannot be tried on hardware is the part that must not be wrong.
+    sunshine_register_component(NAME test_component_combo_matcher TEST_SOURCE unit/test_combo_matcher.cpp
+        PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/platform/linux/quit_hotkey_linux.cpp")
+endif()
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # A test component links only GTest plus whatever it declares, so any component
     # that reaches Boost headers must name the Boost target. With system Boost the
     # merged system include path hides that; on the FetchContent fallback (the pinned
