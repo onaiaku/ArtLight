@@ -377,7 +377,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             "${CMAKE_SOURCE_DIR}/src/platform/linux/private_display_mode_client.h"
             "${CMAKE_SOURCE_DIR}/src/platform/linux/private_display_mode_client.cpp"
             "${CMAKE_SOURCE_DIR}/src/platform/linux/private_display_restore_policy.h"
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/private_display.cpp")
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/private_display.cpp"
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/quit_hotkey_linux.h"
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/quit_hotkey_linux.cpp"
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/quit_hotkey_device.h"
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/quit_hotkey_device.cpp")
 endif()
 
 list(APPEND PLATFORM_LIBRARIES

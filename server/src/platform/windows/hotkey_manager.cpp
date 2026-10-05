@@ -9,6 +9,7 @@
   #include "src/platform/windows/misc.h"
   #include "src/platform/windows/virtual_display_cleanup.h"
   #include "src/quit_request.h"
+  #include "src/quit_hotkey.h"
   #include "src/rtsp.h"
 
   #include <atomic>
@@ -122,7 +123,9 @@ namespace {
     //
     // session_count_no_cleanup() rather than session_count(), because this thread is making a
     // scheduling decision of its own and must not enter session teardown in order to make it.
-    const bool hold = g_wanted_quit_vk > 0 && rtsp_stream::session_count_no_cleanup() > 0;
+    // That reasoning now lives in quit_hotkey::should_watch(), which the Linux trigger asks as
+    // well - one answer, so the two cannot drift into disagreeing about when the host may listen.
+    const bool hold = g_wanted_quit_vk > 0 && quit_hotkey::should_watch();
     const int vk_code = hold ? g_wanted_quit_vk : 0;
 
     if (vk_code == g_current_quit_vk && g_wanted_quit_modifiers == g_current_quit_modifiers) {

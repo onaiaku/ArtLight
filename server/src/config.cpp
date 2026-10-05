@@ -37,6 +37,7 @@
 #include "config.h"
 
 #include "src/quit_hotkey_parse.h"
+#include "src/quit_hotkey.h"
 #include "virtual_display_scale.h"
 #include "config_key.h"
 #include "config_playnite.h"
@@ -2394,6 +2395,12 @@ namespace config {
       video.dd.snapshot_restore_hotkey_modifiers
     );
 #endif
+
+    // The quit combination, handed to whichever trigger this platform has. Deliberately NOT
+    // inside the _WIN32 block above: both platforms need it, and the entire point of the call is
+    // that it is the same call on both. The trigger decides for itself whether to act on it yet -
+    // it holds nothing until a session is live.
+    quit_hotkey::apply_config(input.input_quit_hotkey);
 
     if (sunshine.min_log_level <= 3) {
       for (auto &[var, _] : vars) {

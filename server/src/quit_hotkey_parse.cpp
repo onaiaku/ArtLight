@@ -124,4 +124,14 @@ namespace quit_hotkey {
     result.ok = true;
     return result;
   }
+
+  combo_t to_combo(const parse_result_t &parsed) {
+    combo_t combo;
+    combo.key = parsed.key;
+    combo.function_key = parsed.function_key;
+    combo.ctrl = parsed.ctrl;
+    combo.alt = parsed.alt;
+    combo.shift = parsed.shift;
+    return combo;
+  }
 }  // namespace quit_hotkey

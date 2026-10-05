@@ -67,4 +67,14 @@ namespace quit_hotkey {
    * which is a worse outcome than refusing to use that setting.
    */
   parse_result_t parse(const std::string &value);
+
+  /**
+   * @brief The combination a successful parse produced.
+   *
+   * Only meaningful when `ok` is true. This exists because the two types answer different
+   * questions: parse_result_t says whether a value was understood and, if not, why; combo_t is
+   * the combination itself, which is what each platform's resolve() takes. Keeping them apart
+   * means the error text cannot be mistaken for part of the combination.
+   */
+  combo_t to_combo(const parse_result_t &parsed);
 }  // namespace quit_hotkey
