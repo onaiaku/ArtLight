@@ -1324,7 +1324,15 @@ namespace rtsp_stream {
 
       for (auto &slot : to_cleanup) {
         stream::session::mark_client_disconnected(*slot);
-        stream::session::stop(*slot);
+        // Graceful, because this function is a *disconnect*, not a terminate. A plain stop()
+        // raises the shutdown event and cuts the transport, so the client is never told and the
+        // stream is closed out from under it - from the far end that reads as "the stream
+        // suddenly died", not as "I was disconnected". graceful_stop() does the same teardown
+        // *and* sends the termination packet to the control peer, so the client disconnects
+        // itself and lands back on its own screen. Matches the user-facing disconnect path,
+        // which already asks for graceful. The hard stop still exists where it belongs:
+        // terminate_sessions() is the "stop everything now" path and keeps using stop().
+        stream::session::graceful_stop(*slot);
         stream::session::join(*slot);
       }
 
