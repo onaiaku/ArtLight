@@ -397,6 +397,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # cannot be tried on hardware is the part that must not be wrong.
     sunshine_register_component(NAME test_component_combo_matcher TEST_SOURCE unit/test_combo_matcher.cpp
         PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/platform/linux/quit_hotkey_linux.cpp")
+    # Which devices are ours. The whole feature rests on one claim - that a keyboard shared in over
+    # USB/IP can be told apart from the ones built into the machine - and that claim is asserted
+    # here against sysfs paths read off a real machine rather than invented ones. It needs no
+    # hardware and no privileges, so there is no reason for it ever to be skipped.
+    sunshine_register_component(NAME test_component_quit_hotkey_device TEST_SOURCE unit/test_quit_hotkey_device.cpp
+        PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/platform/linux/quit_hotkey_device.cpp"
+                        "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/platform/linux/quit_hotkey_linux.cpp")
 endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # A test component links only GTest plus whatever it declares, so any component
