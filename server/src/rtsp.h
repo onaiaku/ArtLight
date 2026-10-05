@@ -384,6 +384,15 @@ namespace rtsp_stream {
   std::list<std::string> get_all_session_client_uuids();
 
   /**
+   * @brief The client of every live session that is holding imported USB devices.
+   *
+   * The quit combo uses this to work out whose stream to end: the client whose keyboard was
+   * taken away is the one somebody is sitting at. Empty means nothing is shared with this host,
+   * which is the ordinary case when the combo is handled on the client.
+   */
+  std::list<std::string> clients_holding_usbip_devices();
+
+  /**
    * @brief Stop any active sessions for a given client UUID.
    * @return True if one or more sessions were stopped.
    */

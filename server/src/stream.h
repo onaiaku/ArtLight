@@ -136,6 +136,16 @@ namespace stream {
      */
     void adopt_usbip_holder(session_t &session, std::shared_ptr<input::usbip::session_holder_t> holder);
 
+    /**
+     * @brief Whether this session is holding imported USB devices right now.
+     *
+     * The holder is owned by the session and destroyed with it, so this is the session's own
+     * answer to "is a keyboard away from the machine it belongs to because of me". That is the
+     * fact the quit combo needs: a client whose devices are being held is the client somebody is
+     * sitting at, and therefore the one that pressed the combo.
+     */
+    bool holding_usbip_devices(const session_t &session);
+
     std::shared_ptr<session_t> alloc(config_t &config, rtsp_stream::launch_session_t &launch_session);
     std::string uuid(const session_t &session);
     bool uuid_match(const session_t &session, const std::string_view &uuid);

@@ -3377,6 +3377,14 @@ namespace stream {
       session.usbip_holder = std::move(holder);
     }
 
+    bool holding_usbip_devices(const session_t &session) {
+      // Two conditions, and both are needed: a session that never attached anything has no
+      // holder at all, and a session whose attach came back empty has a holder that is holding
+      // nothing. Neither of those is "a device is away from its machine", and answering yes for
+      // either would end a stream the person did not ask to end.
+      return session.usbip_holder && session.usbip_holder->holding();
+    }
+
     std::string uuid(const session_t &session) {
       return session.device_uuid;
     }

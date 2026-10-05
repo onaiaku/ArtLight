@@ -1251,6 +1251,34 @@ namespace rtsp_stream {
       return out;
     }
 
+    /**
+     * @brief The client of every live session that is holding imported USB devices.
+     *
+     * Returns CLIENTS, not sessions or devices. One client holding a keyboard and a mouse is one
+     * entry, because the question the caller is asking is "whose stream is this" and a person is
+     * one person however many devices they brought with them.
+     *
+     * Empty is a normal answer, not a failure: it means nothing is shared with this host, so the
+     * quit combo never reached us and the client is handling it locally.
+     */
+    std::list<std::string> clients_holding_usbip_devices() {
+      std::list<std::string> out;
+      auto lg = _session_state.lock();
+      for (const auto &session : _session_state->sessions) {
+        if (!session || !stream::session::holding_usbip_devices(*session)) {
+          continue;
+        }
+        const auto it = _session_state->client_uuids.find(session.get());
+        if (it == _session_state->client_uuids.end() || it->second.empty()) {
+          continue;
+        }
+        if (std::find(out.begin(), out.end(), it->second) == out.end()) {
+          out.push_back(it->second);
+        }
+      }
+      return out;
+    }
+
     client_disconnect_result_t disconnect_client(const std::string &client_uuid) {
       if (client_uuid.empty()) {
         return {};
@@ -1802,6 +1830,11 @@ namespace rtsp_stream {
   std::list<std::string> get_all_session_client_uuids() {
     server.clear(false);
     return server.get_all_client_uuids();
+  }
+
+  std::list<std::string> clients_holding_usbip_devices() {
+    server.clear(false);
+    return server.clients_holding_usbip_devices();
   }
 
   bool disconnect_client_sessions(const std::string &client_uuid) {

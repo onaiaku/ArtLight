@@ -385,6 +385,8 @@ sunshine_register_component(NAME test_component_rtsp_pending_policy TEST_SOURCE 
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/rtsp_pending_policy.cpp")
 sunshine_register_component(NAME test_component_pyrowave_policy TEST_SOURCE unit/test_pyrowave_policy.cpp
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/pyrowave_policy.cpp")
+sunshine_register_component(NAME test_component_quit_request_policy TEST_SOURCE unit/test_quit_request_policy.cpp
+    PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/quit_request_policy.cpp")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # A test component links only GTest plus whatever it declares, so any component
     # that reaches Boost headers must name the Boost target. With system Boost the
