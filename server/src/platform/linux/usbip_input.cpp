@@ -235,7 +235,22 @@ namespace input::usbip {
 
   run_result_t run_list_remote(const std::string_view exporter) {
     try {
-      const auto argv = build_list_remote_argv(exporter);  // the policy validates the address first
+      // Element 0 of the policy's argv is the bare name `usbip`, and that is a placeholder, not a
+      // program. It has to be replaced here: this runs inside the host's service, whose PATH need
+      // not carry the client's directory, and run_process execs rather than searches. Left in
+      // place it fails as `could not run usbip: No such file or directory` with exit 127 on a
+      // machine where usbip is installed, executable, and runs fine as this very user - measured
+      // on the z13, where it had failed on every attempt. Resolved the way `run_list_attached`
+      // below already does it, so the two callers agree rather than drifting apart.
+      auto argv = build_list_remote_argv(exporter);  // the policy validates the address first
+      const auto path = client_path();
+      if (path.empty()) {
+        run_result_t missing;
+        missing.code = -1;
+        missing.err = "the USB/IP client is not installed on this PC";
+        return missing;
+      }
+      argv.front() = path;
       return run_process(argv);
     } catch (const std::exception &error) {
       run_result_t refused;
