@@ -20,7 +20,10 @@
  */
 #pragma once
 
+#include <optional>
 #include <string>
+
+#include "src/quit_hotkey_parse.h"
 
 namespace quit_hotkey {
   /// The evdev codes this matcher knows about. Source of truth: <linux/input-event-codes.h>.
@@ -42,18 +45,27 @@ namespace quit_hotkey {
   };
 
   /**
-   * @brief Which combination ends the stream.
+   * @brief A combination resolved into something a device can be asked about.
    *
-   * Defaults to the shipped combo. A combination is expressed as "this key, with these
-   * modifiers held", which is exactly how RegisterHotKey expresses it on Windows - so one
-   * configuration value means the same thing on both platforms.
+   * The shared combo_t is how a person writes it; this is the same combination as evdev codes.
+   * The two are kept apart because the evdev codes are a Linux detail and a config file must
+   * never contain them: `resolve()` is the only place the conversation happens.
    */
-  struct combo_t {
-    unsigned int key = key::o;  ///< The key that ends the stream when the modifiers are held.
+  struct resolved_combo_t {
+    unsigned int key = key::o;  ///< The evdev code that ends the stream.
     bool ctrl = true;           ///< Whether either Ctrl must be held.
     bool alt = true;            ///< Whether either Alt must be held.
     bool shift = true;          ///< Whether either Shift must be held.
   };
+
+  /**
+   * @brief Turn a configuration value's combination into evdev codes.
+   *
+   * @return The resolved combination, or std::nullopt if the key has no evdev code here. The
+   *         caller reports that and keeps the old setting, rather than silently watching for
+   *         a key nobody can press.
+   */
+  std::optional<resolved_combo_t> resolve(const combo_t &combo);
 
   /**
    * @brief Tracks modifier state and reports the moment the combo is completed.
@@ -64,7 +76,7 @@ namespace quit_hotkey {
    */
   class matcher_t {
   public:
-    explicit matcher_t(combo_t combo = {});
+    explicit matcher_t(resolved_combo_t combo = {});
 
     /**
      * @brief Offer one key event.
@@ -86,7 +98,7 @@ namespace quit_hotkey {
     std::string state() const;
 
   private:
-    combo_t combo_;
+    resolved_combo_t combo_;
     bool ctrl_ = false;
     bool alt_ = false;
     bool shift_ = false;

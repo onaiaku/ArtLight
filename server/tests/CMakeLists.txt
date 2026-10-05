@@ -387,6 +387,10 @@ sunshine_register_component(NAME test_component_pyrowave_policy TEST_SOURCE unit
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/pyrowave_policy.cpp")
 sunshine_register_component(NAME test_component_quit_request_policy TEST_SOURCE unit/test_quit_request_policy.cpp
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/quit_request_policy.cpp")
+# The quit combo's parser is shared: Windows and Linux read the same config value, so the same
+# value has to mean the same thing on both. Pure string in, decision out.
+sunshine_register_component(NAME test_component_quit_hotkey_parse TEST_SOURCE unit/test_quit_hotkey_parse.cpp
+    PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/quit_hotkey_parse.cpp")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # The Linux quit combo's matching half. It is pure key-event logic with no kernel header and
     # no device, which is exactly why it is worth testing: the part of the Linux trigger that

@@ -102,3 +102,61 @@ TEST(ComboMatcher, StateNamesWhatIsHeldForTheLog) {
 
   EXPECT_EQ(m.state(), "ctrl shift held");
 }
+
+// --- The translation from a person's combo to evdev codes -------------------------------------
+//
+// Also pure, and also worth pinning down: the letters' evdev codes are not in alphabetical
+// order and the function keys are split into three runs across the range, so a mistake here
+// would be a combo that quietly never matches - the exact failure that costs an afternoon.
+
+namespace {
+  quit_hotkey::combo_t bare(char key, int function_key = 0) {
+    quit_hotkey::combo_t combo;
+    combo.key = key;
+    combo.function_key = function_key;
+    combo.ctrl = false;
+    combo.alt = false;
+    combo.shift = false;
+    return combo;
+  }
+
+  unsigned int resolved_key(const quit_hotkey::combo_t &combo) {
+    const auto resolved = quit_hotkey::resolve(combo);
+    EXPECT_TRUE(resolved.has_value());
+    return resolved.has_value() ? resolved->key : 0u;
+  }
+}  // namespace
+
+TEST(ComboResolve, TheShippedComboResolvesToTheKeyO) {
+  const auto resolved = quit_hotkey::resolve(quit_hotkey::combo_t{});
+
+  ASSERT_TRUE(resolved.has_value());
+  EXPECT_EQ(resolved->key, 24u) << "KEY_O";
+  EXPECT_TRUE(resolved->ctrl && resolved->alt && resolved->shift);
+}
+
+TEST(ComboResolve, LettersUseTheKernelsCodesNotArithmetic) {
+  EXPECT_EQ(resolved_key(bare('A')), 30u) << "KEY_A";
+  EXPECT_EQ(resolved_key(bare('Z')), 44u) << "KEY_Z";
+  EXPECT_EQ(resolved_key(bare('Q')), 16u) << "KEY_Q; the letters are not sequential in evdev";
+}
+
+TEST(ComboResolve, ZeroIsTheLastDigitKeyNotTheFirst) {
+  EXPECT_EQ(resolved_key(bare('1')), 2u) << "KEY_1";
+  EXPECT_EQ(resolved_key(bare('7')), 8u) << "KEY_7";
+  EXPECT_EQ(resolved_key(bare('0')), 11u) << "KEY_0 sits after KEY_9";
+}
+
+TEST(ComboResolve, FunctionKeysCoverAllThreeKernelRuns) {
+  EXPECT_EQ(resolved_key(bare('O', 1)), 59u) << "KEY_F1";
+  EXPECT_EQ(resolved_key(bare('O', 10)), 68u) << "KEY_F10, the last of the first run";
+  EXPECT_EQ(resolved_key(bare('O', 11)), 87u) << "KEY_F11, a gap then the second run";
+  EXPECT_EQ(resolved_key(bare('O', 12)), 88u) << "KEY_F12";
+  EXPECT_EQ(resolved_key(bare('O', 13)), 183u) << "KEY_F13, a long gap then the third run";
+  EXPECT_EQ(resolved_key(bare('O', 24)), 194u) << "KEY_F24, the last one";
+}
+
+TEST(ComboResolve, AKeyWithNoEvdevCodeResolvesToNothing) {
+  EXPECT_FALSE(quit_hotkey::resolve(bare('!')).has_value())
+      << "the caller must keep its old setting rather than watch for an impossible key";
+}
