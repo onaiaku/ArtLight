@@ -15,19 +15,23 @@
  *
  * On Linux the watcher is driven by a thread that polls that one answer and opens or closes the
  * shared keyboards accordingly, so the host holds nothing open while it has nothing to do. That
- * thread is started the first time a combination is applied rather than at some startup point a
- * caller has to remember, because a startup point a caller has to remember is a startup point
+ * thread OWNS its watcher rather than reaching for a shared one, and that is not a style choice:
+ * a namespace-scope thread is destroyed after the function-local statics it would call into, so a
+ * shared watcher here would be joined back into an object that had already been destroyed. Owning
+ * it means the watcher is destroyed inside the thread, before the thread finishes, and there is no
+ * destruction order left to get wrong.
+ *
+ * The thread is started the first time a combination is applied rather than at some startup point
+ * a caller has to remember, because a startup point a caller has to remember is a startup point
  * somebody eventually forgets.
  */
 #include "src/quit_hotkey.h"
 
-#include <atomic>
 #include <chrono>
 #include <mutex>
 #include <thread>
 
-#include <boost/log/trivial.hpp>
-
+#include "src/logging.h"
 #include "src/quit_hotkey_parse.h"
 #include "src/rtsp.h"
 
@@ -112,10 +116,11 @@ namespace quit_hotkey {
     constexpr int kGatePollMs = 500;
     constexpr int kGateSliceMs = 50;
 
+    // Declared before g_gate deliberately: namespace-scope objects are destroyed in reverse order
+    // of construction, so this outlives the thread that locks it.
     std::mutex g_mutex;
     resolved_combo_t g_resolved{};
     bool g_have_combo = false;
-    bool g_watching = false;
     std::jthread g_gate;
 
     /// The action, shared with the Windows trigger. Written once so neither platform can end
@@ -126,41 +131,48 @@ namespace quit_hotkey {
       }
     }
 
-    watcher_t &watcher() {
-      static watcher_t instance{&on_combo};
-      return instance;
+    /// The combination to watch for, if one has been understood yet. Copied out under the lock so
+    /// the gate never holds the mutex while it is doing anything slow.
+    bool current_combo(resolved_combo_t &out) {
+      std::lock_guard lock{g_mutex};
+      if (!g_have_combo) {
+        return false;
+      }
+      out = g_resolved;
+      return true;
     }
 
     void gate_main(std::stop_token stop) {
-      // Only said once per state, so a session with nothing shared in does not fill the log with
-      // the same sentence twice a second.
+      // Owned by this thread, not shared - see the file header. A shared watcher would be
+      // destroyed before this thread is joined back into it.
+      watcher_t watcher{&on_combo};
+
+      bool watching = false;
+      // Said once per state, so a session with nothing shared in does not fill the log with the
+      // same sentence twice a second.
       bool said_waiting = false;
 
       while (!stop.stop_requested()) {
-        const bool live = should_watch();
+        resolved_combo_t combo{};
 
-        {
-          std::lock_guard lock{g_mutex};
+        if (!watching && current_combo(combo) && should_watch()) {
+          const auto opened = watcher.start(combo);
+          watching = opened > 0;
 
-          if (live && !g_watching && g_have_combo) {
-            const auto opened = watcher().start(g_resolved);
-            g_watching = opened > 0;
-
-            if (opened == 0) {
-              if (!said_waiting) {
-                BOOST_LOG(info) << "Quit combo: a session is live but no keyboard has been shared in yet; waiting for one.";
-                said_waiting = true;
-              }
-            } else {
-              said_waiting = false;
-              BOOST_LOG(info) << "Quit combo: watching " << opened << " shared keyboard(s).";
+          if (opened == 0) {
+            if (!said_waiting) {
+              BOOST_LOG(info) << "Quit combo: a session is live but no keyboard has been shared in yet; waiting for one.";
+              said_waiting = true;
             }
-          } else if (!live && g_watching) {
-            watcher().stop();
-            g_watching = false;
+          } else {
             said_waiting = false;
-            BOOST_LOG(info) << "Quit combo: no session is live; stopped reading the shared keyboard.";
+            BOOST_LOG(info) << "Quit combo: watching " << opened << " shared keyboard(s).";
           }
+        } else if (watching && !should_watch()) {
+          watcher.stop();
+          watching = false;
+          said_waiting = false;
+          BOOST_LOG(info) << "Quit combo: no session is live; stopped reading the shared keyboard.";
         }
 
         for (int waited = 0; waited < kGatePollMs && !stop.stop_requested(); waited += kGateSliceMs) {
@@ -168,7 +180,7 @@ namespace quit_hotkey {
         }
       }
 
-      watcher().stop();
+      watcher.stop();
     }
   }  // namespace
 
