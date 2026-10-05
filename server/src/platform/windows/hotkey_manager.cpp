@@ -31,6 +31,9 @@ namespace {
   // The quit hotkey is held only while something is streaming, so this thread asks the server
   // once a second whether that is still true. A timer keeps the answer inside this thread
   // rather than requiring session start and stop to know that hotkeys exist.
+  //
+  // This is the REQUESTED id only. SetTimer is free to hand back a different one - with a null
+  // hWnd it always does - so the tick is matched against g_session_watch_timer_id, never this.
   constexpr UINT_PTR kSessionWatchTimerId = 1;
   constexpr UINT kSessionWatchIntervalMs = 1000;
 
@@ -57,6 +60,12 @@ namespace {
   UINT g_current_quit_modifiers = 0;
   int g_wanted_quit_vk = 0;
   UINT g_wanted_quit_modifiers = 0;
+
+  // The id SetTimer actually handed back, which is not the id that was asked for. Measured on
+  // Windows: SetTimer(nullptr, 1, 1000, nullptr) returns 32766, and the WM_TIMER that follows
+  // carries 32766. Matching the requested constant instead drops every tick in silence - which
+  // is precisely what it did, and why the quit combo looked like it had never been wired up.
+  UINT_PTR g_session_watch_timer_id = 0;
 
   std::atomic<bool> g_warned_system {false};
 
@@ -171,7 +180,11 @@ namespace {
 
     SetEvent(ready_event);
 
-    SetTimer(nullptr, kSessionWatchTimerId, kSessionWatchIntervalMs, nullptr);
+    g_session_watch_timer_id = SetTimer(nullptr, kSessionWatchTimerId, kSessionWatchIntervalMs, nullptr);
+    if (g_session_watch_timer_id == 0) {
+      BOOST_LOG(warning) << "Failed to start the session watch timer; the quit combo will not be held for any session. Error: "sv
+                         << GetLastError();
+    }
 
     while (GetMessage(&msg, nullptr, 0, 0) > 0) {
       if (msg.message == WM_HOTKEY && msg.wParam == kRestoreHotkeyId) {
@@ -202,7 +215,7 @@ namespace {
         continue;
       }
 
-      if (msg.message == WM_TIMER && msg.wParam == kSessionWatchTimerId) {
+      if (msg.message == WM_TIMER && g_session_watch_timer_id != 0 && msg.wParam == g_session_watch_timer_id) {
         std::lock_guard<std::mutex> lock(hotkey_mutex());
         update_quit_registration_locked();
         continue;
@@ -213,7 +226,10 @@ namespace {
       }
     }
 
-    KillTimer(nullptr, kSessionWatchTimerId);
+    if (g_session_watch_timer_id != 0) {
+      KillTimer(nullptr, g_session_watch_timer_id);
+      g_session_watch_timer_id = 0;
+    }
 
     std::lock_guard<std::mutex> lock(hotkey_mutex());
     if (g_hotkey_registered) {
