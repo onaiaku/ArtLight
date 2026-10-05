@@ -4,3 +4,25 @@
 KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="artlight-uinput", MODE="0660", OPTIONS+="static_node=uinput", TAG+="uaccess"
 KERNEL=="uhid", SUBSYSTEM=="misc", GROUP="artlight-uinput", MODE="0660", OPTIONS+="static_node=uhid", TAG+="uaccess"
 KERNEL=="vibeshine-ds5", SUBSYSTEM=="misc", GROUP="artlight-uinput", MODE="0660", TAG+="uaccess"
+
+# A keyboard shared into this machine over USB/IP, so the host can watch for the
+# combination that ends a stream. Same group and the same reasoning as the three
+# above: the devices that arrived over the virtual host controller, and never the
+# keyboards built into the machine.
+#
+# A device attached this way is enumerated below vhci_hcd.N, so its sysfs path
+# contains that component and a built-in keyboard's does not. Measured on a real
+# machine: /devices/platform/vhci_hcd.0, while its own keyboards sit on
+# /devices/pci0000:00/.../input0 and /devices/platform/PNP0C0E:00/input/input1 -
+# none of them match. Proved with udevadm test before this line was written, and
+# the machine's own keyboards are still root:input after it is installed.
+#
+# The digit is required because that is the only name the kernel creates. The
+# reader in src/platform/linux/quit_hotkey_device.cpp carries the identical test
+# and the two must stay in step: a reader stricter than this rule is handed a
+# device it then refuses to open, so the feature does nothing and the log says
+# nothing.
+#
+# 70- on purpose: 50-udev-default.rules sets GROUP="input" on input nodes, and a
+# later file wins, so this takes effect over it.
+SUBSYSTEM=="input", KERNEL=="event*", DEVPATH=="*/vhci_hcd.[0-9]*", GROUP="artlight-uinput", MODE="0660"
