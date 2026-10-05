@@ -4889,6 +4889,25 @@ Sets the maximum bitrate, in Kbps, considered by the network pacing policy. Set 
 
 Sets the maximum network packet size used for streaming. Set `0` to use the default behavior.
 
+### input_quit_hotkey
+
+The combination that ends a stream when its keyboard has been shared over USB, for example
+`Ctrl+Alt+Shift+O`. The default is `Ctrl+Alt+Shift+O`.
+
+Sharing a keyboard takes it away from the machine the client is running on, so the client can no
+longer see the combination it normally uses to leave - the stream becomes inescapable. This setting
+is read from the shared keyboard instead, so it works from wherever that keyboard now is, including
+the machine it was taken from. Only the client the combination was pressed on leaves; anyone else
+watching the same stream keeps watching.
+
+Letters `A`-`Z`, digits `0`-`9` and function keys `F1`-`F24` are accepted, with `Ctrl`, `Alt` and
+`Shift` in any order and in any letter case. A value that cannot be understood is ignored, the
+default is used, and the reason is written to the log - a typo here does not stop the server.
+
+@note{On Windows the combination is reserved by the operating system, so it does not reach anything
+else running on that machine. On Linux the key press also carries on to whatever is running there.
+That is a real difference between the platforms rather than an oversight.}
+
 ### input_usbip_enabled
 
 Moves the USB devices shared by the machine you are streaming from onto the machine you are streaming

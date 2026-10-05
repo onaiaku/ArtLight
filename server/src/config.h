@@ -365,6 +365,14 @@ namespace config {
 
     bool enable_input_only_mode;
     bool forward_rumble;
+
+    /**
+     * The combination that ends a stream whose keyboard has been taken away from its client,
+     * written the way a person would: "Ctrl+Alt+Shift+O". Shared by both platforms, so the same
+     * value means the same thing on Windows and Linux. Guaranteed valid by the time anything
+     * reads it - config.cpp falls back to the default rather than letting a typo stop the server.
+     */
+    std::string input_quit_hotkey;
   };
 
   struct frame_limiter_t {

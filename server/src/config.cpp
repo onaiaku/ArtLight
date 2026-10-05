@@ -35,6 +35,8 @@
 // local includes
 #include "amf/amf_lifecycle.h"
 #include "config.h"
+
+#include "src/quit_hotkey_parse.h"
 #include "virtual_display_scale.h"
 #include "config_key.h"
 #include "config_playnite.h"
@@ -1042,6 +1044,10 @@ namespace config {
     true,  // native pen/touch support
     false,  // enable input only mode
     true,  // forward_rumble
+
+    // Added last on purpose: this is a positional list, so a new entry anywhere else would
+    // silently move every default after it onto the wrong field.
+    "Ctrl+Alt+Shift+O",  // input_quit_hotkey
   };
 
   frame_limiter_t frame_limiter {
@@ -2232,6 +2238,19 @@ namespace config {
     bool_f(vars, "notify_pre_releases", sunshine.notify_pre_releases);
     bool_f(vars, "legacy_ordering", sunshine.legacy_ordering);
     bool_f(vars, "forward_rumble", input.forward_rumble);
+
+    // The quit combo, stored the way a person writes it. Validated here so everything
+    // downstream can trust it: a bad value is a typo, not a reason for a stream host to refuse
+    // to start, so the default is used and the reason is logged.
+    string_f(vars, "input_quit_hotkey", input.input_quit_hotkey);
+    {
+      const auto parsed = quit_hotkey::parse(input.input_quit_hotkey);
+      if (!parsed.ok) {
+        BOOST_LOG(warning) << "config: input_quit_hotkey " << parsed.error << " - using '"
+                           << quit_hotkey::combo_t::default_value() << "' instead.";
+        input.input_quit_hotkey = quit_hotkey::combo_t::default_value();
+      }
+    }
 
     int port = sunshine.port;
     int_between_f(vars, "port"s, port, {1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT});
