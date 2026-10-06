@@ -91,8 +91,12 @@ namespace input::usbip {
    *
    * This is the ONLY way to learn a held device's port, and the port is the only thing `detach`
    * accepts - so a session that attaches and does not read this back cannot give the device up.
-   * Read-only and unprivileged on both platforms, proven: on Linux `usbip port` printed a full
-   * port table to an unprivileged user on the reference box.
+   *
+   * Read-only on both platforms. It is NOT reliably unprivileged on Linux, and an earlier version of
+   * this comment claimed it was, "proven" on the reference box. That proof held only where the host
+   * happened to run as root: the remote busid lives in /var/run/vhci_hcd, which is 0700 root, so a
+   * host running as an ordinary user is shown the port table and never which device is on it. On
+   * Linux this therefore goes through the privileged helper, which reads those records as root.
    */
   run_result_t run_list_attached();
 

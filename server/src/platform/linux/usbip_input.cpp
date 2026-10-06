@@ -391,10 +391,41 @@ namespace input::usbip {
   }
 
   run_result_t run_list_attached() {
-    // Unprivileged on purpose. Reading the port table is a query; `usbip port` printed a complete
-    // table to an ordinary user on the reference box while a device was attached. Routing this
-    // through pkexec would raise a prompt for a read, and the sweep runs at startup where nobody
-    // is looking at the screen to answer it.
+    // ASK THE HELPER FIRST, and the reason for that is measured rather than theoretical.
+    //
+    // This used to run the client here, unprivileged, on a belief written into this file as fact:
+    // that "`usbip port` printed a complete table to an ordinary user on the reference box". That
+    // belief is FALSE on any machine where the host does not run as root - and on Linux the host
+    // runs as `artlight`:
+    //
+    //     $ ls -ld /var/run/vhci_hcd/            drwx------ root root      (0700)
+    //     $ sudo -u artlight usbip port
+    //     libusbip: error: fopen
+    //     libusbip: error: read_record
+    //     Port 08: <Port in Use> at Super Speed(5000Mbps)
+    //            6-1 -> unknown host, remote port and remote busid   <- never names the device
+    //
+    // The remote busid lives in /var/run/vhci_hcd/port<N>, which only root may read. So the
+    // unprivileged lookup can see WHICH PORTS are in use and never WHICH DEVICE is on them - and a
+    // device that cannot be named cannot be given back. Measured on the z13, 2026-10-06: a stream
+    // took a drive from the exporter, ended, and left it attached here, because the give-back looked
+    // 42 times over 20s for a name this process could never read. The drive stayed off the machine
+    // that owns it until it was detached by hand.
+    //
+    // The helper already answers this as root - the `status` verb runs `usbip port` on the far side
+    // of the privilege line, reading the very records that are unreadable here. It is read-only, it
+    // takes no caller input, and it is reached over the systemd socket rather than pkexec, so there
+    // is no prompt to raise. That prompt was the whole of the old objection to doing this, and it
+    // died with pkexec.
+    //
+    // If the helper is absent or silent, this falls back to running the client here. That is the
+    // blind lookup above, so it is a worse answer - but it is the answer this platform gave before,
+    // and it keeps a machine without the helper behaving exactly as it did.
+    const auto via_helper = run_privileged({"status"});
+    if (via_helper.code == 0 && !via_helper.out.empty()) {
+      return via_helper;
+    }
+
     const auto path = client_path();
     if (path.empty()) {
       run_result_t missing;
