@@ -20,20 +20,8 @@
 # These devices belong to the SERVICE, not to whoever happens to be logged in at the
 # seat, which is exactly why the dedicated group exists. uaccess hands them to the
 # human and takes them away from the service.
-# OWNER is the belt, and it is here on purpose.
-#
-# Another package on the machine can put the uaccess tag back whatever this file says
-# (Steam's and KDE Connect's rules both tag /dev/uinput), and udev has no way to veto
-# them from here - a tag cannot be unset by simply not setting it. So the group grant
-# above is one tag away from being dead.
-#
-# Ownership cannot be taken away that way. The ACL entry for "the owner" always applies
-# to whoever owns the node, whichever order udev and logind do things in, so making the
-# host the owner guarantees it can open the device no matter what anybody else's tag
-# does. Nothing is lost by it: the seat user's own ACL entry is separate and still
-# issued, so KDE Connect and Steam Input keep working exactly as before.
-KERNEL=="uinput", SUBSYSTEM=="misc", OWNER="artlight", GROUP="artlight-uinput", MODE="0660", OPTIONS+="static_node=uinput"
-KERNEL=="uhid", SUBSYSTEM=="misc", OWNER="artlight", GROUP="artlight-uinput", MODE="0660", OPTIONS+="static_node=uhid"
+KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="artlight-uinput", MODE="0660", OPTIONS+="static_node=uinput"
+KERNEL=="uhid", SUBSYSTEM=="misc", GROUP="artlight-uinput", MODE="0660", OPTIONS+="static_node=uhid"
 
 # uaccess stays on this one, for now and deliberately. It is the same trap as the two
 # above, and the group grant here is probably just as dead - but nothing in the host's
