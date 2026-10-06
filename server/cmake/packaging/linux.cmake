@@ -201,6 +201,15 @@ else()
         # The action is the whole permission. Without it pkexec refuses and the helper is inert.
         install(FILES "${CMAKE_SOURCE_DIR}/../service/org.artlight.input-service.policy"
                 DESTINATION "${CMAKE_INSTALL_DATADIR}/polkit-1/actions")
+        # The action alone is NOT enough, and this is the half that was missing. The action is
+        # written allow_any=no / allow_inactive=no / allow_active=yes, which fits a helper called
+        # from a GUI in the user's active session (the ArtMoon shape). The ArtLight server is a
+        # systemd SYSTEM unit: no session, so neither "active" nor "inactive", so the action
+        # refuses the one caller it was built for. Measured on the z13 as
+        # "Error executing command as another user: Not authorized". This rule admits only the
+        # account the server runs as and leaves every other subject refused.
+        install(FILES "${CMAKE_SOURCE_DIR}/../service/49-artlight-input-service.rules"
+                DESTINATION "${CMAKE_INSTALL_DATADIR}/polkit-1/rules.d")
         install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/70-artlight-usbip.conf"
                 DESTINATION "${VIBESHINE_MODULES_LOAD_INSTALL_DIR}")
         install(TARGETS artlight_session_broker
@@ -340,6 +349,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-steam-launch"
             "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-kwin-session-environment"
             "%attr(0750,root,artlight) %caps(cap_sys_admin,cap_sys_nice+p) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-host"
+            # A polkit rule that grants root execution is a privileged surface even though it
+            # carries no capabilities: a group- or world-writable copy of it would let any local
+            # user authorise their own program as root. Pinned here so package metadata cannot
+            # hand it wider permissions than the install gives it.
+            "%attr(0644,root,root) ${CMAKE_INSTALL_DATADIR}/polkit-1/rules.d/49-artlight-input-service.rules"
     )
 endif()
 

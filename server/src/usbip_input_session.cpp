@@ -184,7 +184,18 @@ namespace input::usbip {
         // "NOTHING MOVED" cases are collected as well as failures, because a device left behind is
         // the thing the user will ring about, and the sentence that says why is the difference
         // between a two-minute answer and an afternoon.
-        refused.push_back(action.busid + " (" + describe(result.outcome) + ")");
+        //
+        // So keep the sentence. The classification alone says which bucket it landed in and
+        // throws away the reason the tool actually gave - and a bucket name is not an answer.
+        // The failure that cost a night proves it: a polkit refusal classified as Failed printed
+        // as "the attach failed" while the real reason, already captured in detail, was dropped
+        // here. detail is a line written by the tool, never composed by us.
+        std::string why = describe(result.outcome);
+        if (!result.detail.empty()) {
+          why += ": ";
+          why += result.detail;
+        }
+        refused.push_back(action.busid + " (" + why + ")");
       }
     }
 

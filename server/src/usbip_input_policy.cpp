@@ -1010,8 +1010,17 @@ namespace input::usbip {
     // Privilege or policy said no. The Linux form was measured on the z13: an unprivileged attach
     // dies with this and exit 1, because /sys/devices/platform/vhci_hcd.0/attach is a root-only
     // write. On Linux this is also the shape a missing helper or a declined polkit prompt takes.
+    //
+    // The pkexec form was measured on the z13 as well, and it is why this list had to grow: when
+    // the caller is not permitted to reach the helper, the failure happens BEFORE the helper runs
+    // and reads "Error executing command as another user: Not authorized" with exit 127. Not one
+    // of the original four needles occurs in that sentence, so a refusal caused by policy was
+    // filed as a bare "the attach failed" with the reason captured and then discarded - which is
+    // exactly how a one-line permission problem cost a night. "authoriz" spans
+    // authorized/authorization/authorize in a single stem.
     for (const std::string_view needle :
-         {"import device", "permission denied", "operation not permitted", "access denied"}) {
+         {"import device", "permission denied", "operation not permitted", "access denied",
+          "not authorized", "authoriz", "authentication is required", "no authentication agent"}) {
       const auto line = line_containing(err, needle);
       if (!line.empty()) {
         result.outcome = AttachOutcome::Refused;
