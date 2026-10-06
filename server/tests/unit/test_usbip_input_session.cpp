@@ -24,6 +24,7 @@
 #include <deque>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #include <src/usbip_input.h>
@@ -58,6 +59,18 @@ namespace {
     // answers would otherwise cost 20 seconds per test, and a timing suite that slow stops being
     // run - which is how the defect this file pins down survived four builds.
     input::usbip::set_port_table_patience(std::chrono::milliseconds {0});
+    // And the straggler is OFF unless a test asks for it. It runs on a thread that keeps reading the
+    // port table this file stubs, so a test that left one running would have a thread reading a
+    // table that the NEXT test owns - which is a failure somewhere else, later, in a different test.
+    input::usbip::set_straggler_window(std::chrono::milliseconds {0});
+  }
+
+  /// Wait for every look-for thread to finish, bounded so a straggler that never gives up fails the
+  /// test that started it rather than hanging the suite.
+  void wait_for_stragglers() {
+    for (int waited = 0; waited < 1000 && input::usbip::stragglers_looking() > 0; ++waited) {
+      std::this_thread::sleep_for(std::chrono::milliseconds {5});
+    }
   }
 
   input::usbip::session_request_t request_for_mouse() {
@@ -284,4 +297,62 @@ TEST(UsbipSessionReturn, NeverLeavesWithoutSayingWhenTheTableStillWillNotNameThe
   EXPECT_NE(holder->release_failure().find("9-1"), std::string::npos) << holder->release_failure();
   EXPECT_NE(holder->release_failure().find("not given back"), std::string::npos)
     << holder->release_failure();
+}
+
+// ── the straggler: the wait outlives the stream ─────────────────────────────────────────────
+
+TEST(UsbipSessionReturn, ReleasesTheDeviceWhenTheTableOnlyNamesItAfterTheStreamHasEnded) {
+  // The z13 on 2026-10-06, at the scale it really happens: the session waits twenty seconds, and the
+  // record the table reads a device's identity from arrived about FIFTEEN MINUTES after the stream
+  // had ended. Nothing inside the session can wait that long, so the session hands the device to the
+  // straggler - which keeps asking the same named question until it can be answered, and detaches
+  // the moment it can. This is the case that left a drive attached to a machine whose stream was
+  // long gone, and the one the person holding the drive had to fix by hand.
+  reset(usbip_fixtures::kPortLinuxAttached);  // the table WILL name it - just never in time
+  input::usbip::set_straggler_window(std::chrono::milliseconds {2000});
+  input::usbip::set_straggler_pause(std::chrono::milliseconds {10});
+  // Every look taken while the session is alive comes back empty. The straggler's looks are the ones
+  // that fall through to the "after" text, which is where the device finally is.
+  for (int look = 0; look < 4; ++look) {
+    g_port_outputs.push_back(std::string {usbip_fixtures::kPortLinuxEmpty});
+  }
+
+  auto holder = input::usbip::session_holder_t::holding_nothing();
+  holder->take_from(request_for_mouse());
+  EXPECT_FALSE(holder->holding()) << holder->report();
+
+  holder->release_all();
+  // It names WHICH device, and it says the wait has not ended with the stream: that sentence is the
+  // difference between "go and unplug it by hand" and "it is still being looked for".
+  EXPECT_NE(holder->release_failure().find("9-1"), std::string::npos) << holder->release_failure();
+  EXPECT_NE(holder->release_failure().find("still being looked for"), std::string::npos)
+    << holder->release_failure();
+
+  // Nothing in the session is left to notice the table settling, which is the entire point.
+  wait_for_stragglers();
+  EXPECT_EQ(input::usbip::stragglers_looking(), 0) << "the look-for thread never finished";
+  // Port 0 is the fixture's real port, and detaching it is the drive coming home.
+  EXPECT_EQ(g_detached, (std::vector<int> {0}))
+    << "the drive stayed attached after the table could finally name it: " << holder->release_failure();
+}
+
+TEST(UsbipSessionReturn, TheStragglerNeverDetachesAPortItCannotName) {
+  // The invariant this whole file exists to hold, now that something looks again AFTER the session:
+  // a port is detached because the table NAMED the device, never because it was the only port going.
+  // A straggler that guessed would one day take a keyboard off the bus in some other session's name,
+  // and it would look exactly like a device that "mysteriously" came home.
+  reset(usbip_fixtures::kPortLinuxUnknownRemote);  // a port is occupied, and it names nothing at all
+  input::usbip::set_straggler_window(std::chrono::milliseconds {300});
+  input::usbip::set_straggler_pause(std::chrono::milliseconds {10});
+
+  auto holder = input::usbip::session_holder_t::holding_nothing();
+  holder->take_from(request_for_mouse());
+  EXPECT_FALSE(holder->holding()) << holder->report();
+
+  holder->release_all();
+  wait_for_stragglers();
+
+  EXPECT_EQ(input::usbip::stragglers_looking(), 0) << "the look-for thread never finished";
+  EXPECT_TRUE(g_detached.empty())
+    << "a port was detached that the table never named: " << holder->release_failure();
 }

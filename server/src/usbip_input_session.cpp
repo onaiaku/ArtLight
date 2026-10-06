@@ -163,9 +163,86 @@ namespace input::usbip {
   }  // namespace
 
   namespace {
+    /// See straggler_window(). The window is deliberately the WORST lag ever measured rather than a
+    /// round number: on the z13 (2026-10-06) the port table did not name an attached device until
+    /// about a quarter of an hour after the stream that attached it had ended. A window shorter than
+    /// the real number gives up while the record is still on its way, which is the defect itself.
+    /// Milliseconds for all three, so the back-off below is a plain std::min and not a type puzzle.
+    constexpr auto kStragglerWindow = std::chrono::milliseconds {15 * 60 * 1000};
+    constexpr auto kStragglerPause = std::chrono::milliseconds {500};
+    constexpr auto kStragglerMaxPause = std::chrono::milliseconds {5000};
+
     /// See port_table_patience(). One value for every holder, so a test can shorten the wait without
     /// having to find every object that might look.
     std::chrono::milliseconds g_port_table_patience {kPortLookupCeiling};
+
+    /// See straggler_window(). One value for every stranded device, so a test can close the window
+    /// without having to find a thread. ZERO means no thread is started at all, and that is what the
+    /// tests that are not about this set it to: a test must never leave a thread reading a stubbed
+    /// table after the test that owns that table has finished.
+    std::chrono::milliseconds g_straggler_window {kStragglerWindow};
+    std::chrono::milliseconds g_straggler_pause {kStragglerPause};
+
+    /// How many look-for threads are running, so a test can wait for the work to be done rather than
+    /// sleep and hope.
+    std::atomic<int> g_stragglers_looking {0};
+
+    /**
+     * Keep asking the port table for a device the session had to leave behind, until it names it.
+     *
+     * Measured on the z13, 2026-10-06: a stream attached a drive from the mini PC, `usbip attach`
+     * exited 0 and printed NOTHING, and the port table did not name that device until roughly
+     * FIFTEEN MINUTES after the stream had ended. The wait inside the session is twenty seconds, so
+     * the record arrives long after the session that needed it has gone - which is the whole reason
+     * this runs on its own thread, holding two strings and nothing else.
+     *
+     * What it may NOT do is guess. It detaches only a port the table has just named as this very
+     * busid, which is the same test the session itself applies. It never falls back to "the one port
+     * nobody claims": that rule would one day take somebody's keyboard off the bus, and
+     * tests/unit/test_usbip_input_session.cpp pins the "no port was guessed at and no blind detach
+     * was issued" invariant down for exactly that reason.
+     *
+     * It gives up quietly. A device still named by nothing when the window closes is still attached,
+     * and the honest place to say so is the next stream's report - not a thread nobody is reading.
+     */
+    void look_for_until_named(const std::string busid) {
+      const auto deadline = std::chrono::steady_clock::now() + g_straggler_window;
+      auto pause = g_straggler_pause;
+
+      while (std::chrono::steady_clock::now() < deadline) {
+        const auto listed = run_list_attached();
+        if (listed.code == 0) {
+          const auto parsed = parse_attached(listed.out);
+          const auto named =
+            std::find_if(parsed.devices.begin(), parsed.devices.end(),
+                         [&busid](const Attached &device) { return device.busid == busid; });
+          if (named != parsed.devices.end()) {
+            run_detach(named->port);
+            return;
+          }
+        }
+
+        std::this_thread::sleep_for(pause);
+        // Back off towards the ceiling. The record being waited for has been measured arriving
+        // minutes late, so every interesting look happens long after the attach; there is no reason
+        // to ask twice a second for a quarter of an hour.
+        pause = std::min(pause * 2, kStragglerMaxPause);
+      }
+    }
+
+    /// Start one look-for thread for a device the session could not give back. Detached on purpose:
+    /// the caller is a stream teardown, and a teardown that waits fifteen minutes for a record file
+    /// has stopped being a teardown.
+    void keep_looking_for(const std::string &busid) {
+      if (g_straggler_window <= std::chrono::milliseconds::zero()) {
+        return;
+      }
+      g_stragglers_looking.fetch_add(1);
+      std::thread([busid]() {
+        look_for_until_named(busid);
+        g_stragglers_looking.fetch_sub(1);
+      }).detach();
+    }
   }  // namespace
 
   std::chrono::milliseconds port_table_patience() {
@@ -174,6 +251,22 @@ namespace input::usbip {
 
   void set_port_table_patience(const std::chrono::milliseconds patience) {
     g_port_table_patience = patience;
+  }
+
+  std::chrono::milliseconds straggler_window() {
+    return g_straggler_window;
+  }
+
+  void set_straggler_window(const std::chrono::milliseconds window) {
+    g_straggler_window = window;
+  }
+
+  void set_straggler_pause(const std::chrono::milliseconds pause) {
+    g_straggler_pause = pause;
+  }
+
+  int stragglers_looking() {
+    return g_stragglers_looking.load();
   }
 
   std::shared_ptr<session_holder_t> session_holder_t::holding_nothing() {
@@ -494,13 +587,22 @@ namespace input::usbip {
     // Still ours, and the table would not name it. Say so, with WHICH nothing we found: a device away
     // from the machine it belongs to is the one state a person has to be told about, and it must not
     // be lost to a read that came back empty.
+    //
+    // And then hand it to the straggler rather than leaving it. The sentence above is the truth at
+    // the moment the stream ended - and it is also, on the measurements, the truth for the next
+    // quarter of an hour, because the record the table reads a device's identity from arrives
+    // minutes late. Nothing in the session can wait that long; nothing here may guess a port either.
+    // So the wait outlives the session, on its own thread, asking the same named question until it
+    // can be answered. See look_for_until_named().
     for (const auto &busid : still_held) {
       record_give_back_failure(
         busid,
         (last_reason.empty() ? std::string {"the port table never named it"} : last_reason) +
           " (after " + std::to_string(looks) + " look(s) over " +
-          std::to_string(port_table_patience().count() / 1000) + "s)",
+          std::to_string(port_table_patience().count() / 1000) +
+          "s) - it is still being looked for, and will be released as soon as the table names it",
         0);
+      keep_looking_for(busid);
     }
   }
 
