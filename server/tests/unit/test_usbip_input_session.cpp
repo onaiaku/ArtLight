@@ -38,6 +38,9 @@ namespace {
   std::string g_port_output_after;
   int g_port_read_code = 0;
   std::string g_port_read_err;
+  /// What the attach itself says. Empty by default, which is the Windows shape and the shape a
+  /// tool that names no port gives - the tests that need the port line set it explicitly.
+  std::string g_attach_err;
   std::string g_offered;
   std::vector<int> g_detached;
 
@@ -46,6 +49,7 @@ namespace {
     g_port_output_after = std::string {after};
     g_port_read_code = 0;
     g_port_read_err.clear();
+    g_attach_err.clear();
     g_offered = std::string {usbip_fixtures::kListRemoteWin2};
     g_detached.clear();
   }
@@ -79,6 +83,8 @@ namespace input::usbip {
 
   run_result_t run_attach(std::string_view, std::string_view) {
     run_result_t result;  // exit 0: classify_attach reads that as Attached
+    // The attach's own output, which is where the real tool names the port it used.
+    result.err = g_attach_err;
     return result;
   }
 
@@ -172,4 +178,46 @@ TEST(UsbipSessionReturn, SaysTheReadFailedRatherThanReportingAnEmptyMachine) {
   EXPECT_NE(holder->release_failure().find("9-1"), std::string::npos) << holder->release_failure();
   // Nothing was invented: no port was guessed at and no blind detach was issued.
   EXPECT_TRUE(g_detached.empty());
+}
+
+// ── the attach names its own port: no table, no waiting, no stranded drive ───────────────
+
+TEST(UsbipSessionReturn, TakesThePortFromTheAttachAndNeverWaitsOnATableThatStaysEmpty) {
+  // The 2026-10-06 shape, second time. The attach SUCCEEDS and says which port it used; `usbip
+  // port` then shows nothing for the whole session AND nothing at teardown either - on the real
+  // machine the table only caught up fifteen minutes after the stream had ended. A session that
+  // waits for the table to name the port cannot give the device back at all, so the only thing
+  // that can save the drive is reading the port out of the attach itself.
+  reset(usbip_fixtures::kPortLinuxEmpty);  // the table NEVER shows it: before, during, or after
+  g_attach_err = usbip_fixtures::kAttachLinuxUsesPort8;
+
+  auto holder = input::usbip::session_holder_t::holding_nothing();
+  holder->take_from(request_for_mouse());
+
+  // Held straight away, with the port the tool named - and no lookups were needed to get there.
+  EXPECT_TRUE(holder->holding()) << holder->report();
+  EXPECT_NE(holder->report().find("port 8"), std::string::npos) << holder->report();
+
+  holder->release_all();
+  EXPECT_EQ(g_detached, (std::vector<int> {8}))
+    << "the attach's own port line is the only thing that can free this drive: " << holder->release_failure();
+}
+
+// ── and a tool that names no port still gets the table's help ────────────────────────────
+
+TEST(UsbipSessionReturn, FallsBackToThePortTableWhenTheAttachNamesNoPort) {
+  // Windows' usbip.exe 0.9.8.1 names no port, so this half has to keep working: an attach with
+  // nothing useful on stderr must still end up owning the device through the table.
+  reset(usbip_fixtures::kPortLinuxEmpty);
+  g_port_outputs.push_back(std::string {usbip_fixtures::kPortLinuxEmpty});     // the pre-attach read
+  g_port_outputs.push_back(std::string {usbip_fixtures::kPortLinuxEmpty});     // look 1: too early
+  g_port_outputs.push_back(std::string {usbip_fixtures::kPortLinuxAttached});  // look 2: there
+  // g_attach_err stays empty - the tool named nothing.
+
+  auto holder = input::usbip::session_holder_t::holding_nothing();
+  holder->take_from(request_for_mouse());
+
+  EXPECT_TRUE(holder->holding()) << holder->report();
+  holder->release_all();
+  EXPECT_EQ(g_detached, (std::vector<int> {0})) << holder->release_failure();
 }

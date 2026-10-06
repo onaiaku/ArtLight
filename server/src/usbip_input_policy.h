@@ -399,6 +399,10 @@ namespace input::usbip {
   struct AttachResult {
     AttachOutcome outcome = AttachOutcome::Failed;
     std::string detail;  ///< The line that decided it, kept VERBATIM. Never paraphrased.
+    /// The port the attach itself named, when it named one. -1 means it did not, and the port
+    /// table is then the only thing left that can supply it. Read from the attach's own output
+    /// because that output is immediate and the table is not: see port_from_attach_output.
+    int port = -1;
   };
 
   /**

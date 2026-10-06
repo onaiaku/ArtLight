@@ -23,12 +23,29 @@
  *   kPortLinuxEmpty  usbip port                       (usbip-utils 2.0, z13, vhci_hcd, nothing held)
  *   kPortLinuxAttached  usbip port                    (usbip-utils 2.0, z13, mouse attached)
  *                    captured 2026-10-03 evening, then detached
+ *   kAttachLinuxUses*  usbip attach -r <exporter> -b <busid>   (usbip-utils 2.0, z13)
+ *                    PROVENANCE, stated exactly: the FORMAT was measured on 2026-10-06 by reading
+ *                    the installed tool itself - /usr/bin/usbip on the z13 carries the string
+ *                    `using port %d (` - but the rendered lines below have NOT yet been seen in a
+ *                    real capture. They are that format string with its port filled in. The next
+ *                    take on real hardware is what turns this from "derived from the binary" into
+ *                    "captured"; until then the tests assert the PARSE, never the provenance.
  */
 #pragma once
 
 #include <string_view>
 
 namespace usbip_fixtures {
+  /// What a successful Linux attach says about the port it used. This is the whole reason a device
+  /// can be given back without waiting on the port table - see port_from_attach_output.
+  inline constexpr std::string_view kAttachLinuxUsesPort8 = R"USBIPFIXTURE(usbip: info: using port 8 (vhci_hcd.0)
+)USBIPFIXTURE";
+
+  /// The same line for the FIRST port on a Linux machine. Ports are numbered from 0 here, unlike
+  /// usbip-win2 which starts at 1, so this is a real port and must never read as "not found".
+  inline constexpr std::string_view kAttachLinuxUsesPort0 = R"USBIPFIXTURE(usbip: info: using port 0 (vhci_hcd.0)
+)USBIPFIXTURE";
+
   /// An exporter that IS offering devices, as a Windows importer sees them.
   inline constexpr std::string_view kListRemoteWin2 = R"USBIPFIXTURE(Exportable USB devices
 ======================

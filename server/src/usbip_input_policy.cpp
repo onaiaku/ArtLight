@@ -973,6 +973,62 @@ namespace input::usbip {
       }
       return {};
     }
+
+    /// The port an attach named, read out of the tool's own line.
+    ///
+    /// Measured on the z13 on 2026-10-06: the installed `/usr/bin/usbip` carries the format
+    /// string `using port %d (` and a successful attach prints
+    ///
+    ///   usbip: info: using port 8 (vhci_hcd.0)
+    ///
+    /// The port table lags that by MINUTES. In the session that found this, the attach printed
+    /// its port at 17:40:38 while `usbip port` reported an EMPTY table at 17:40:40 (six looks)
+    /// and again at teardown at 17:41:05 - and the device only appeared in the table when it was
+    /// read at 17:56, fifteen minutes after that session had ended. So a session that waits for
+    /// the table before it can name a port ends up holding a device it cannot detach, which is
+    /// the exact state this feature exists to prevent.
+    ///
+    /// Read from stderr first - every `usbip: info:` line goes there - then stdout, so the two
+    /// platforms are covered whichever stream their tool chooses. ONLY called for a successful
+    /// attach: a port named by a failed one would belong to some other attach, and detaching it
+    /// would give back a device this session never took.
+    ///
+    /// Ports are numbered FROM 0 on Linux, unlike usbip-win2 which starts at 1, so 0 is a real
+    /// port and must never read as "not found". Hence -1 as the absent value.
+    int port_from_attach_output(const std::string_view err, const std::string_view out) {
+      for (const auto &stream : {err, out}) {
+        const auto line = line_containing(stream, "using port");
+        if (line.empty()) {
+          continue;
+        }
+
+        static constexpr std::string_view kMarker {"using port"};
+        const auto marker = line.find(kMarker);
+        if (marker == std::string::npos) {
+          continue;
+        }
+
+        std::size_t at = marker + kMarker.size();
+        while (at < line.size() && (line[at] == ' ' || line[at] == '\t')) {
+          ++at;
+        }
+
+        int port = 0;
+        std::size_t digits = 0;
+        while (at < line.size() && line[at] >= '0' && line[at] <= '9') {
+          port = (port * 10) + (line[at] - '0');
+          ++at;
+          ++digits;
+        }
+
+        // No digits at all means this was not the line we are looking for, whatever it said.
+        if (digits == 0 || port < 0 || port > 255) {
+          continue;
+        }
+        return port;
+      }
+      return -1;
+    }
   }  // namespace
 
   AttachResult classify_attach(const int exit_code, const std::string_view out, const std::string_view err) {
@@ -980,6 +1036,9 @@ namespace input::usbip {
 
     if (exit_code == 0) {
       result.outcome = AttachOutcome::Attached;
+      // Ask the attach what port it used, before anything else. This is the one thing that makes
+      // the device releasable without depending on the port table's timing at all.
+      result.port = port_from_attach_output(err, out);
       return result;
     }
 

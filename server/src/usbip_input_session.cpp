@@ -231,6 +231,9 @@ namespace input::usbip {
 
     std::vector<std::string> took;
     std::vector<std::string> refused;
+    // Devices the attach itself named a port for. Authoritative and immediate - see the comment
+    // on the capture below - so these never have to wait on the port table at all.
+    std::vector<held_device_t> named;
     for (const auto &action : plan.actions) {
       if (action.action != Action::Attach) {
         // This holder does not release what it did not take. A device found already attached was
@@ -245,6 +248,16 @@ namespace input::usbip {
       const auto result = input::usbip::attach(request.exporter, action.busid);
       if (result.outcome == AttachOutcome::Attached) {
         took.push_back(action.busid);
+
+        // The tool named its port. Take it, rather than making the port table prove it - the table
+        // is exactly what failed on 2026-10-06: a successful attach printed
+        // `usbip: info: using port 8 (vhci_hcd.0)` while `usbip port` showed NOTHING at every look
+        // for the whole session, and only listed the device minutes after the session had ended.
+        // So the session ended holding a device it could not name - and a device that cannot be
+        // named cannot be detached.
+        if (result.port >= 0) {
+          named.push_back(held_device_t {action.busid, result.port});
+        }
       } else {
         // "NOTHING MOVED" cases are collected as well as failures, because a device left behind is
         // the thing the user will ring about, and the sentence that says why is the difference
@@ -264,8 +277,21 @@ namespace input::usbip {
       }
     }
 
-    const auto lookup = match_ports(took);
-    m_Held = lookup.held;
+    // What the tool named is authoritative and immediate, so the table is asked ONLY about the
+    // devices the tool did NOT name. On a machine whose attach reports its port this costs no
+    // lookups and no waiting at all - and a device the tool named can never end up unnamed.
+    std::vector<std::string> unnamed;
+    for (const auto &busid : took) {
+      const auto known = std::find_if(named.begin(), named.end(),
+                                      [&busid](const held_device_t &device) { return device.busid == busid; });
+      if (known == named.end()) {
+        unnamed.push_back(busid);
+      }
+    }
+
+    const auto lookup = match_ports(unnamed);
+    m_Held = named;
+    m_Held.insert(m_Held.end(), lookup.held.begin(), lookup.held.end());
 
     // Anything we attached and could not find a port for is STILL OURS TO GIVE BACK. Recorded here
     // so the release path looks again, when the table has settled - a device we moved must not
@@ -291,7 +317,7 @@ namespace input::usbip {
         // and reading our shrug.
         report << ", but " << took.size() << " device(s) reported attached and ";
         if (lookup.unreadable.empty()) {
-          report << "did not appear in the port table after " << kPortLookups
+          report << "neither the attach nor the port table named one after " << kPortLookups
                  << " looks, so no port could be found for ";
         } else {
           report << "the port table could not be read (" << lookup.unreadable

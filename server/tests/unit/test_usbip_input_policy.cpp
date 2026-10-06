@@ -994,3 +994,52 @@ TEST(UsbipAttachOutcome, TheFourNothingMovedStatesShareNoSentence) {
     }
   }
 }
+
+// ── the port the attach itself named ─────────────────────────────────────────────────────
+//
+// The port table lags a successful attach by MINUTES on Linux - measured on 2026-10-06: empty at
+// every look for the whole of a session, and still empty at teardown, while the device turned up
+// in it fifteen minutes later. The attach's own output has the port immediately, and reading it
+// there is what makes a taken device releasable at all.
+
+TEST(UsbipAttachOutcome, TheAttachNamesThePortItUsed) {
+  using input::usbip::AttachOutcome;
+  const auto result = input::usbip::classify_attach(0, "", usbip_fixtures::kAttachLinuxUsesPort8);
+  EXPECT_EQ(result.outcome, AttachOutcome::Attached);
+  EXPECT_EQ(result.port, 8) << "the attach's own line is the only thing that frees the device";
+}
+
+TEST(UsbipAttachOutcome, PortZeroIsARealPortAndNeverTheAbsentValue) {
+  using input::usbip::AttachOutcome;
+  // Linux numbers ports from 0, unlike usbip-win2, which starts at 1. If 0 were read as "no port",
+  // the first port on every Linux machine could never be released.
+  const auto result = input::usbip::classify_attach(0, "", usbip_fixtures::kAttachLinuxUsesPort0);
+  EXPECT_EQ(result.outcome, AttachOutcome::Attached);
+  EXPECT_EQ(result.port, 0);
+}
+
+TEST(UsbipAttachOutcome, AnAttachThatNamesNoPortSaysSoRatherThanGuessing) {
+  using input::usbip::AttachOutcome;
+  // The Windows tool's shape, and any future format change. No port line means no port - which has
+  // to read as ABSENT (-1) and never as 0, or the release path would detach a port it does not own.
+  const auto result = input::usbip::classify_attach(0, "", "");
+  EXPECT_EQ(result.outcome, AttachOutcome::Attached);
+  EXPECT_EQ(result.port, -1);
+}
+
+TEST(UsbipAttachOutcome, ThePortIsFoundWhicheverStreamCarriesIt) {
+  using input::usbip::AttachOutcome;
+  const auto result = input::usbip::classify_attach(0, usbip_fixtures::kAttachLinuxUsesPort8, "");
+  EXPECT_EQ(result.outcome, AttachOutcome::Attached);
+  EXPECT_EQ(result.port, 8) << "some builds put it on stdout; both streams have to be read";
+}
+
+TEST(UsbipAttachOutcome, AFailedAttachNeverYieldsAPortEvenWhenItsTextNamesOne) {
+  using input::usbip::AttachOutcome;
+  // Only a SUCCESSFUL attach may name a port. A failed one mentioning a port is talking about some
+  // other attach's port, and detaching that would give back a device this session never took.
+  const auto result =
+    input::usbip::classify_attach(1, "", std::string {usbip_fixtures::kAttachLinuxUsesPort8});
+  EXPECT_NE(result.outcome, AttachOutcome::Attached);
+  EXPECT_EQ(result.port, -1) << "a failure must never hand the release path a port to detach";
+}
