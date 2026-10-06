@@ -1,0 +1,28 @@
+[Unit]
+Description=ArtLight USB/IP privileged helper socket
+Documentation=https://github.com/onaiaku/ArtLight
+# The host is the only caller, and it lives in artlight.service. Take the socket
+# down with the host so a verb cannot outlive the session that asked for it.
+Before=artlight.service
+
+[Socket]
+ListenSequentialPacket=/run/artlight/usbip-helper.sock
+SocketMode=0660
+SocketUser=root
+SocketGroup=artlight
+DirectoryMode=0755
+Accept=yes
+RemoveOnStop=yes
+Backlog=16
+MaxConnections=8
+MaxConnectionsPerSource=4
+# The helper returns the tool's own stdout AND stderr inside ONE framed packet.
+# A usbip refusal is a paragraph, not a line, and a packet the buffer cannot
+# hold would be handed back as a truncated reason - which is the failure this
+# whole path was rebuilt to stop producing.
+ReceiveBuffer=1M
+
+# Deliberately NO [Install] section, and so deliberately static: artlight.service
+# Requires= this socket, which means it follows the host's lifetime and can never
+# be found enabled while the host it belongs to is not. The exec broker beside it
+# is built the same way for the same reason.
