@@ -195,21 +195,22 @@ else()
                 artlight_provider_scan artlight_steam_launch artlight_display_power
                 RUNTIME DESTINATION "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}")
         # 0755 root:root, deliberately NOT setuid and with no file capabilities. It is not
-        # privileged by what it is, only by what pkexec grants it for the length of one call.
+        # privileged by what it is: systemd starts it as root for the length of one accepted
+        # connection on artlight-input-service.socket, and only the account the server runs as can
+        # reach that socket.
+        #
+        # It used to be launched by pkexec under a polkit action, and that could never have worked
+        # for this caller. The ArtLight server IS the privileged machine host: it sets
+        # NoNewPrivileges in its first statement, which permanently prevents a setuid transition in
+        # it and in anything it spawns, so pkexec found geteuid() != 0 and refused with
+        # "pkexec must be setuid root". Measured on the z13 on 2026-10-06.
+        #
+        # The action and rule that used to authorise that call are removed here rather than left
+        # behind. An action carrying org.freedesktop.policykit.exec.path is a LIVE grant of root
+        # execution to the active session; leaving one in place while nothing uses it would be a
+        # standing privilege nobody could account for.
         install(TARGETS artlight_input_service
                 RUNTIME DESTINATION "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}")
-        # The action is the whole permission. Without it pkexec refuses and the helper is inert.
-        install(FILES "${CMAKE_SOURCE_DIR}/../service/org.artlight.input-service.policy"
-                DESTINATION "${CMAKE_INSTALL_DATADIR}/polkit-1/actions")
-        # The action alone is NOT enough, and this is the half that was missing. The action is
-        # written allow_any=no / allow_inactive=no / allow_active=yes, which fits a helper called
-        # from a GUI in the user's active session (the ArtMoon shape). The ArtLight server is a
-        # systemd SYSTEM unit: no session, so neither "active" nor "inactive", so the action
-        # refuses the one caller it was built for. Measured on the z13 as
-        # "Error executing command as another user: Not authorized". This rule admits only the
-        # account the server runs as and leaves every other subject refused.
-        install(FILES "${CMAKE_SOURCE_DIR}/../service/49-artlight-input-service.rules"
-                DESTINATION "${CMAKE_INSTALL_DATADIR}/polkit-1/rules.d")
         install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/70-artlight-usbip.conf"
                 DESTINATION "${VIBESHINE_MODULES_LOAD_INSTALL_DIR}")
         install(TARGETS artlight_session_broker
@@ -294,6 +295,8 @@ else()
                     "${CMAKE_CURRENT_BINARY_DIR}/vibeshine-vkms-control@.service"
                     "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-session-exec.socket"
                     "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-session-exec@.service"
+                    "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-input-service.socket"
+                    "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-input-service@.service"
                     "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-session-controller.service"
                     "${CMAKE_SOURCE_DIR}/packaging/linux/artlight.service"
                     DESTINATION "${VIBESHINE_SYSTEM_UNIT_INSTALL_DIR}")
@@ -349,11 +352,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-steam-launch"
             "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-kwin-session-environment"
             "%attr(0750,root,artlight) %caps(cap_sys_admin,cap_sys_nice+p) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-host"
-            # A polkit rule that grants root execution is a privileged surface even though it
-            # carries no capabilities: a group- or world-writable copy of it would let any local
-            # user authorise their own program as root. Pinned here so package metadata cannot
-            # hand it wider permissions than the install gives it.
-            "%attr(0644,root,root) ${CMAKE_INSTALL_DATADIR}/polkit-1/rules.d/49-artlight-input-service.rules"
+            # Listed explicitly for the same reason as the other capability-free helpers: so stale
+            # package metadata from the pkexec era cannot silently reattach capabilities to the one
+            # binary systemd runs as root. It needs none, and it has none.
+            "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-input-service"
     )
 endif()
 

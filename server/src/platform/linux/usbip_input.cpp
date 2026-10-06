@@ -17,7 +17,10 @@
  *    must not be smoothed over by giving Windows a daemon it provably does not need.
  */
 #include "src/usbip_input.h"
+#include "src/usbip_helper_protocol.h"
 
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -27,6 +30,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -34,12 +38,12 @@ namespace input::usbip {
   namespace {
     namespace fs = std::filesystem;
 
-    /// The privileged helper attach needs on this platform, and the polkit action that authorises
-    /// it. Both must be present: a helper with no action cannot be invoked, and an action with no
-    /// helper authorises nothing. Named to match the exporter's existing pair so the two halves of
-    /// this feature are recognisably the same shape.
+    /// The privileged helper systemd runs as root on request, and the socket it accepts on. Both
+    /// must be present: a helper with no socket can never be reached, and a socket with no helper
+    /// has nothing behind it. Named to match the exporter's existing pair so the two halves of this
+    /// feature are recognisably the same shape.
     constexpr auto kHelperPath = "/usr/libexec/vibeshine/artlight-input-service";
-    constexpr auto kPolicyPath = "/usr/share/polkit-1/actions/org.artlight.input-service.policy";
+    constexpr auto kHelperSocket = "/run/artlight/usbip-helper.sock";
 
     /// The client's usual homes. Checked before PATH because a package that installs elsewhere
     /// still installs to one of these, and an absolute path cannot be shadowed.
@@ -92,9 +96,30 @@ namespace input::usbip {
   }  // namespace
 
   namespace {
-    /// pkexec, by absolute path. It is the only supported way for an unprivileged process to hand
-    /// this program privilege, and it is what the polkit action beside the helper binds to.
-    constexpr auto kPkexec = "/usr/bin/pkexec";
+    /**
+     * The socket systemd owns for the privileged half, and the only way this process can reach it.
+     *
+     * It used to be pkexec, by absolute path, and that could never have worked here. This process
+     * is the privileged machine host: it calls sanitize_startup_capabilities() before configuration
+     * or logging is parsed, and that ends in prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0).
+     * NoNewPrivileges is inherited across fork and exec and cannot be unset, so the kernel refuses
+     * to honour pkexec's setuid bit for this process or for anything it spawns. pkexec then finds
+     * geteuid() != 0 and dies with `pkexec must be setuid root`.
+     *
+     * Measured on the z13 on 2026-10-06, not reasoned about: /proc/<host>/status read NoNewPrivs: 1
+     * while /usr/bin/pkexec on disk was 4755 root and ran perfectly from an ordinary shell. The
+     * polkit action beside the helper was right about authorisation and blind to capability, and no
+     * amount of fixing the authorisation makes a setuid transition happen inside a process that has
+     * permanently refused new privileges.
+     *
+     * The privilege therefore comes from outside this process, which is the only place it can come
+     * from now: systemd listens on the socket below (mode 0660 root:artlight) and starts exactly one
+     * copy of the helper as root per accepted connection. The account this server runs as is the
+     * only account that can reach it.
+     */
+    auto helper_socket_path() {
+      return kHelperSocket;
+    }
 
     /**
      * Run a command and bring back BOTH streams separately.
@@ -172,31 +197,136 @@ namespace input::usbip {
       return result;
     }
 
-    /// Whether the privileged half is actually present. Both files, because a helper with no action
-    /// cannot be invoked and an action with no helper authorises nothing - and a missing pair is a
-    /// setup step, not a silent failure.
+    /// Whether the privileged half is actually installed. Both parts, because a helper with no
+    /// socket can never be reached and a socket with no helper has nothing behind it - and a
+    /// missing pair is a setup step, not a silent failure.
+    ///
+    /// This answers "is it installed". It deliberately does NOT answer "will a call work", because
+    /// the only honest way to answer that is to make one; see the live probe in probe_client().
     bool helper_installed() {
       if (!is_executable(kHelperPath)) {
         return false;
       }
-      std::error_code ec;
-      return std::filesystem::exists(kPolicyPath, ec);
+      return ::access(kHelperSocket, F_OK) == 0;
     }
+
+    /// Whether the privileged half is installed AND actually answering. The socket being present is
+    /// not the same as the service behind it being up, and the caller that conflates the two asks
+    /// an exporter for a device it then cannot take - which on this platform is not a no-op, because
+    /// the exporter has bound the device by then. One connect() costs nothing and answers the real
+    /// question. socket activation starts the helper for the connection; it reads EOF, finds no
+    /// request, and exits, so the cost of a probe is one short-lived unit and nothing else.
+    bool helper_reachable() {
+      if (!helper_installed()) {
+        return false;
+      }
+      const std::string socket_path = helper_socket_path();
+      if (socket_path.size() >= sizeof(sockaddr_un::sun_path)) {
+        return false;
+      }
+      const int connection = ::socket(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0);
+      if (connection < 0) {
+        return false;
+      }
+      sockaddr_un address {};
+      address.sun_family = AF_UNIX;
+      std::memcpy(address.sun_path, socket_path.c_str(), socket_path.size() + 1);
+      const bool reachable =
+        ::connect(connection, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) == 0;
+      ::close(connection);
+      return reachable;
+    }
+
+    // The reply's framing lives in ONE place, shared with the helper that produces it:
+    // src/usbip_helper_protocol.h. A wire format defined at both ends is a wire format that drifts,
+    // and this particular drift would land on the half that runs as root.
 
     /// Every attach and detach on Linux goes through the helper, never directly. `attach` writes to
     /// /sys/devices/platform/vhci_hcd.0/attach, which is root-only, so a direct call would fail with
     /// `usbip: error: import device` - measured on the z13.
+    ///
+    /// One request packet out, one reply packet back. The socket is SOCK_SEQPACKET, matching the
+    /// socket unit's ListenSequentialPacket, so both directions are all-or-nothing and neither side
+    /// has to guess where a message ended.
     run_result_t run_privileged(const std::vector<std::string> &args) {
+      run_result_t result;
+
       if (!helper_installed()) {
-        run_result_t missing;
-        missing.code = -1;
-        missing.err = std::string("the USB/IP helper is not installed on this PC (") + kHelperPath +
-                      " and " + kPolicyPath + ") - USB device sharing needs it";
-        return missing;
+        result.code = -1;
+        result.err = std::string("the USB/IP helper is not installed on this PC (") + kHelperPath +
+                     " and " + kHelperSocket + ") - USB device sharing needs it";
+        return result;
       }
-      std::vector<std::string> argv = {kPkexec, kHelperPath};
-      argv.insert(argv.end(), args.begin(), args.end());
-      return run_process(argv);
+
+      const std::string socket_path = helper_socket_path();
+      if (socket_path.size() >= sizeof(sockaddr_un::sun_path)) {
+        result.code = -1;
+        result.err = "the USB/IP helper socket path is longer than a UNIX socket can carry";
+        return result;
+      }
+
+      const int connection = ::socket(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0);
+      if (connection < 0) {
+        result.code = -1;
+        result.err = std::string("could not open a UNIX socket: ") + std::strerror(errno);
+        return result;
+      }
+
+      sockaddr_un address {};
+      address.sun_family = AF_UNIX;
+      std::memcpy(address.sun_path, socket_path.c_str(), socket_path.size() + 1);
+
+      if (::connect(connection, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) != 0) {
+        // The service not being up is its own sentence. It is the difference between "install the
+        // package" and "the package is installed and its service is not running", and those are
+        // different phone calls.
+        result.code = -1;
+        result.err = std::string("the USB/IP helper service is not running on this PC (") +
+                     socket_path + ": " + std::strerror(errno) +
+                     ") - the artlight-input-service socket is not up";
+        ::close(connection);
+        return result;
+      }
+
+      // One request, one packet. The encoding is shared with the helper - see
+      // src/usbip_helper_protocol.h - so the two ends cannot disagree about what it looks like.
+      if (args.empty()) {
+        result.code = -1;
+        result.err = "no verb to ask the USB/IP helper for";
+        ::close(connection);
+        return result;
+      }
+      const std::string request = helper_protocol::encode_request(
+        args.front(), std::vector<std::string> {args.begin() + 1, args.end()});
+
+      const ssize_t sent = ::write(connection, request.data(), request.size());
+      if (sent != static_cast<ssize_t>(request.size())) {
+        result.code = -1;
+        result.err = std::string("could not send the request to the USB/IP helper: ") +
+                     std::strerror(errno);
+        ::close(connection);
+        return result;
+      }
+
+      // Sized from the protocol's own cap, not from a number copied in here: the reply carries both
+      // captured streams inside one packet, and a SEQPACKET read that does not fit discards the
+      // remainder - which would be a reason we would never get to read.
+      std::vector<char> packet(helper_protocol::kMaxReplyPacket);
+      const ssize_t received = ::read(connection, packet.data(), packet.size());
+      ::close(connection);
+
+      if (received <= 0) {
+        result.code = -1;
+        result.err = "the USB/IP helper closed the connection without answering";
+        return result;
+      }
+
+      if (!helper_protocol::decode_reply(packet.data(), static_cast<std::size_t>(received),
+                                         result.code, result.out, result.err)) {
+        result.code = -1;
+        result.err = "the USB/IP helper sent a reply this process could not read";
+      }
+      return result;
     }
   }  // namespace
 
@@ -320,7 +450,16 @@ namespace input::usbip {
     }
 
     probe.privilege_required = true;
-    probe.helper_present = is_executable(kHelperPath) && fs::exists(kPolicyPath, ec);
+    // Installed AND answering. The difference matters more here than anywhere else in this file:
+    // this machine cannot take a device without root, and by the time an attach is attempted the
+    // exporter has ALREADY bound the device - so a helper that is present but dead does not merely
+    // fail to take it, it takes the device off the exporting machine and leaves it on neither.
+    //
+    // Measured on the z13 on 2026-10-06: the exporter had bound 5-1 and 5-2, the attach died inside
+    // pkexec, and the keyboard and mouse were gone from both machines until they were unbound by
+    // hand. The probe is asked before anything is requested, which is the only moment this can be
+    // prevented from, so it has to answer the real question rather than the installed one.
+    probe.helper_present = helper_reachable();
 
     return probe;
   }

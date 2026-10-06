@@ -1748,6 +1748,8 @@ fi
 %{_unitdir}/vibeshine-vkms.service
 %{_unitdir}/artlight-session-exec.socket
 %{_unitdir}/artlight-session-exec@.service
+%{_unitdir}/artlight-input-service.socket
+%{_unitdir}/artlight-input-service@.service
 %{_unitdir}/artlight-session-controller.service
 %{_unitdir}/artlight.service
 
@@ -1760,8 +1762,11 @@ fi
 %{_sysconfdir}/ufw/applications.d/artlight
 %{_datadir}/pipewire/pipewire.conf.d/50-artlight-audio.conf
 
-# The polkit action that authorises the USB input service, and only at its exact installed path
-%{_datadir}/polkit-1/actions/org.artlight.input-service.policy
+# The USB input service is reached over a socket systemd serves, NOT through pkexec. The polkit
+# action that used to authorise that call is deliberately gone: it could never have worked for this
+# caller (the server is the privileged machine host and refuses setuid transitions for itself and
+# everything it spawns) and it was a standing grant of root execution to the local active session
+# while nothing used it.
 
 # Modules-load configuration
 %{_modulesloaddir}/*-sunshine.conf

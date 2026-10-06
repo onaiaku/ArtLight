@@ -328,7 +328,7 @@ namespace input::usbip {
     bool driver_present = false;    ///< usbip2_ude present (Windows) / vhci_hcd loaded (Linux).
     bool driver_loadable = false;   ///< Linux only: the module exists but is not loaded yet.
     bool privilege_required = false;///< Linux only: attach writes a root-only sysfs node.
-    bool helper_present = false;    ///< Linux only: the helper binary AND its polkit policy.
+    bool helper_present = false;    ///< Linux only: the helper binary AND the socket systemd serves it on.
   };
 
   /**

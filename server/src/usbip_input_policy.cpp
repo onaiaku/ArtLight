@@ -1009,18 +1009,23 @@ namespace input::usbip {
 
     // Privilege or policy said no. The Linux form was measured on the z13: an unprivileged attach
     // dies with this and exit 1, because /sys/devices/platform/vhci_hcd.0/attach is a root-only
-    // write. On Linux this is also the shape a missing helper or a declined polkit prompt takes.
+    // write. On Linux this is also the shape a missing helper, or a helper that never answered,
+    // takes.
     //
-    // The pkexec form was measured on the z13 as well, and it is why this list had to grow: when
-    // the caller is not permitted to reach the helper, the failure happens BEFORE the helper runs
-    // and reads "Error executing command as another user: Not authorized" with exit 127. Not one
-    // of the original four needles occurs in that sentence, so a refusal caused by policy was
-    // filed as a bare "the attach failed" with the reason captured and then discarded - which is
-    // exactly how a one-line permission problem cost a night. "authoriz" spans
-    // authorized/authorization/authorize in a single stem.
+    // The polkit needles are kept on purpose even though this build no longer produces them. The
+    // helper is reached over a socket now, not through pkexec, but a machine still carrying the old
+    // polkit action will produce them - and the sentence that cost a night must never be anonymous
+    // again: "Error executing command as another user: Not authorized", exit 127, matching none of
+    // the original four needles and therefore filed as a bare "the attach failed" with the reason
+    // captured and then discarded. "authoriz" spans authorized/authorization/authorize in one stem.
+    //
+    // The last two needles are the socket path's own refusals, and each one is a different call to
+    // make: the helper is not installed, the service behind the socket is not up, or the reply
+    // could not be read. A bucket name is not an answer, so each has to survive as a sentence.
     for (const std::string_view needle :
          {"import device", "permission denied", "operation not permitted", "access denied",
-          "not authorized", "authoriz", "authentication is required", "no authentication agent"}) {
+          "not authorized", "authoriz", "authentication is required", "no authentication agent",
+          "usb/ip helper", "unix socket"}) {
       const auto line = line_containing(err, needle);
       if (!line.empty()) {
         result.outcome = AttachOutcome::Refused;

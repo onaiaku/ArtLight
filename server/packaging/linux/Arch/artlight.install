@@ -1010,9 +1010,37 @@ pre_upgrade() {
   artlight_quiesce_or_abort
 }
 
+do_retire_pkexec_era_files() {
+  # The USB input service used to be launched by pkexec under a polkit action, and that could never
+  # have worked for the caller it had. The ArtLight server IS the privileged machine host: it sets
+  # NoNewPrivileges in its first statement, which permanently refuses a setuid transition in it and
+  # in everything it spawns, so pkexec found geteuid() != 0 and died with "pkexec must be setuid
+  # root". Measured on the z13 on 2026-10-06. The helper is reached over a socket systemd serves
+  # now - see artlight-input-service.socket - and the server is the only account that can reach it.
+  #
+  # pacman does not remove a file that merely disappears from a package, so both files are still on
+  # disk on any machine that installed a build from the pkexec era, and they are NOT inert: an action
+  # carrying org.freedesktop.policykit.exec.path is a live grant of root execution to the local
+  # active session, kept alive by a package that no longer uses it. Retire them here, and only these
+  # two exact paths.
+  local stale=(
+    /usr/share/polkit-1/actions/org.artlight.input-service.policy
+    /usr/share/polkit-1/rules.d/49-artlight-input-service.rules
+  )
+  local path
+  for path in "${stale[@]}"; do
+    if [[ -e "$path" ]]; then
+      rm -f -- "$path" &&
+        echo "==> Retired the obsolete pkexec-era polkit file: $path" ||
+        echo "warning: could not retire $path; it grants root execution to nothing now, but remove it by hand." >&2
+    fi
+  done
+}
+
 post_install() {
   artlight_quiesce_or_abort || return 1
   do_secure_executables || return 1
+  do_retire_pkexec_era_files
   do_udev_reload
   do_restore_kwin_capability
   do_install_vibeshine_drm
@@ -1024,6 +1052,7 @@ post_install() {
 post_upgrade() {
   artlight_quiesce_or_abort || return 1
   do_secure_executables || return 1
+  do_retire_pkexec_era_files
   do_udev_reload
   do_restore_kwin_capability
   do_install_vibeshine_drm

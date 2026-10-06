@@ -4,9 +4,9 @@ Documentation=https://github.com/onaiaku/ArtLight
 # The controller owns ordered cleanup through ExecStopPost. Binding this unit
 # directly to the controller would queue a concurrent stop and bypass that
 # close-admission, drain-host, drain-broker sequence.
-Requires=artlight-session-exec.socket
+Requires=artlight-session-exec.socket artlight-input-service.socket
 Wants=vibeshine-vkms.service
-After=artlight-session-controller.service artlight-session-exec.socket vibeshine-vkms.service
+After=artlight-session-controller.service artlight-session-exec.socket artlight-input-service.socket vibeshine-vkms.service
 ConditionPathExists=/run/artlight/session.env
 StartLimitIntervalSec=0
 
