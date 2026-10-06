@@ -8,7 +8,9 @@
 #include "src/usbip_input_session.h"
 
 #include <algorithm>
+#include <chrono>
 #include <sstream>
+#include <thread>
 #include <unordered_set>
 #include <utility>
 
@@ -41,28 +43,91 @@ namespace input::usbip {
       return wanted;
     }
 
+    /// How hard we look for a port before believing there is not one.
+    ///
+    /// `usbip attach` succeeding does NOT mean the port exists yet: the driver assigns it, and a
+    /// read taken in the same breath as the tool that moved the device can come back before the
+    /// port appears. On 2026-10-06 exactly that happened - the attach reported success, the read
+    /// found nothing, and a drive stayed off the machine it belongs to until it was detached by
+    /// hand. A budget, not a guess: six looks 250ms apart is 1.25s of patience at the end of an
+    /// operation that has already crossed a network.
+    constexpr int kPortLookups = 6;
+    constexpr std::chrono::milliseconds kPortLookupPause {250};
+
+    /**
+     * What a port lookup found - and, when it found nothing, WHICH nothing.
+     *
+     * "This machine holds nothing" and "I could not read what this machine holds" are different
+     * answers and must never collapse into one. The first is a fact; the second is an admission
+     * with a device possibly sitting attached behind it. The policy layer keeps them apart on
+     * purpose - see the PortOutcome note about refusing to answer "your hands are empty" - and this
+     * carries that distinction out to the caller that has to act on it.
+     */
+    struct port_lookup_t {
+      std::vector<held_device_t> held;
+      /// Non-empty when the read itself failed, in the tool's own words. Never composed by us.
+      std::string unreadable;
+    };
+
     /**
      * Learn which port each of our busids landed on.
      *
      * `usbip attach` does not hand back a port - the port is assigned by the driver and the only
      * way to read it is to ask what this machine now holds. So after attaching we re-read the port
      * table and match entries to the busids we asked for. A busid that does not appear is NOT
-     * recorded: we did not get a port for it, so we cannot claim to hold it, and inventing one
-     * would mean detaching whatever ends up on that number later.
+     * recorded as held: we did not get a port for it, and inventing one would mean detaching
+     * whatever ends up on that number later. It IS recorded as unported, because a device we
+     * attached is ours to give back whether or not we can name its port yet.
      */
-    std::vector<held_device_t> match_ports(const std::vector<std::string> &attached_busids) {
-      const auto listed = run_list_attached();
-      const auto parsed = parse_attached(listed.out);
+    port_lookup_t match_ports(const std::vector<std::string> &attached_busids) {
+      port_lookup_t lookup;
+      if (attached_busids.empty()) {
+        return lookup;
+      }
 
-      std::vector<held_device_t> held;
-      for (const auto &want : attached_busids) {
-        const auto found = std::find_if(parsed.devices.begin(), parsed.devices.end(),
-                                        [&want](const Attached &device) { return device.busid == want; });
-        if (found != parsed.devices.end()) {
-          held.push_back(held_device_t {found->busid, found->port});
+      for (int attempt = 0; attempt < kPortLookups; ++attempt) {
+        const auto listed = run_list_attached();
+
+        if (listed.code != 0) {
+          // The read failed. That is an admission, not an empty table - and the tool's own words
+          // are the detail, not a bucket name.
+          lookup.unreadable = listed.err.empty()
+                                ? ("the port table could not be read (client exit " +
+                                   std::to_string(listed.code) + ")")
+                                : listed.err;
+        } else {
+          const auto parsed = parse_attached(listed.out);
+          if (parsed.outcome == PortOutcome::Devices ||
+              parsed.outcome == PortOutcome::NothingAttached) {
+            lookup.unreadable.clear();
+            lookup.held.clear();
+            for (const auto &want : attached_busids) {
+              const auto found =
+                std::find_if(parsed.devices.begin(), parsed.devices.end(),
+                             [&want](const Attached &device) { return device.busid == want; });
+              if (found != parsed.devices.end()) {
+                lookup.held.push_back(held_device_t {found->busid, found->port});
+              }
+            }
+            if (lookup.held.size() == attached_busids.size()) {
+              return lookup;
+            }
+          } else {
+            // The tool refused, or said something we could not place. Carry its sentence.
+            lookup.unreadable = describe(parsed.outcome);
+            if (!parsed.detail.empty()) {
+              lookup.unreadable += ": ";
+              lookup.unreadable += parsed.detail;
+            }
+          }
+        }
+
+        if (attempt + 1 < kPortLookups) {
+          std::this_thread::sleep_for(kPortLookupPause);
         }
       }
-      return held;
+
+      return lookup;
     }
 
     std::string join_busids(const std::vector<std::string> &busids) {
@@ -199,7 +264,20 @@ namespace input::usbip {
       }
     }
 
-    m_Held = match_ports(took);
+    const auto lookup = match_ports(took);
+    m_Held = lookup.held;
+
+    // Anything we attached and could not find a port for is STILL OURS TO GIVE BACK. Recorded here
+    // so the release path looks again, when the table has settled - a device we moved must not
+    // become a device nobody owns just because one read came back empty.
+    m_Unported.clear();
+    for (const auto &busid : took) {
+      const auto held = std::find_if(m_Held.begin(), m_Held.end(),
+                                     [&busid](const held_device_t &device) { return device.busid == busid; });
+      if (held == m_Held.end()) {
+        m_Unported.push_back(busid);
+      }
+    }
 
     // Built once, from what actually happened, so the log line cannot claim more than the holder
     // can give back. This is the audit trail for the promise.
@@ -208,11 +286,20 @@ namespace input::usbip {
       report << "no devices were taken";
       if (!took.empty()) {
         // We were told it attached but could not find a port for it. That is the one genuinely
-        // alarming state in this file: a device may be held that we have no way to release.
-        report << ", but " << took.size()
-               << " device(s) reported attached and no port could be found for them - this machine "
-                  "may be holding "
-               << join_busids(took) << " with no way to give it back";
+        // alarming state in this file: a device may be held that we have no way to release - and
+        // saying WHICH nothing we found is the difference between reading the tool's own sentence
+        // and reading our shrug.
+        report << ", but " << took.size() << " device(s) reported attached and ";
+        if (lookup.unreadable.empty()) {
+          report << "did not appear in the port table after " << kPortLookups
+                 << " looks, so no port could be found for ";
+        } else {
+          report << "the port table could not be read (" << lookup.unreadable
+                 << "), so no port could be found for ";
+        }
+        report << join_busids(took)
+               << " - this machine may be holding them, and they will be looked for again when the "
+                  "stream ends";
       }
     } else {
       report << "holding " << m_Held.size() << " device(s) from " << request.exporter << ": ";
@@ -273,6 +360,69 @@ namespace input::usbip {
     for (const auto &device : m_Held) {
       release(device);
     }
+
+    // The last look, and the read that was MISSING on 2026-10-06.
+    //
+    // A device we attached but could not find a port for at the time gets one more read here, on
+    // the way out, when the port table has had time to settle. Without this, an attach whose port
+    // was not visible yet became a device attached to a machine whose stream had ended, with the
+    // machine it belongs to missing it and nothing left that would ever look again - the only way
+    // back was for a person to run `usbip detach` by hand.
+    //
+    // Deliberately ONE look with no waiting: this runs on every teardown path, including a
+    // destructor, and a teardown must never be slow. One read is all that is needed, because by now
+    // the thing that was too early has long since happened.
+    if (m_Unported.empty()) {
+      return;
+    }
+
+    const auto busids = m_Unported;
+    m_Unported.clear();
+
+    const auto listed = run_list_attached();
+    const auto note_unreadable = [this, &listed, &busids](const std::string &reason) {
+      for (const auto &busid : busids) {
+        record_give_back_failure(busid, reason, listed.code);
+      }
+    };
+
+    if (listed.code != 0) {
+      note_unreadable(listed.err.empty() ? std::string {"no detail"} : listed.err);
+      return;
+    }
+
+    const auto parsed = parse_attached(listed.out);
+    if (parsed.outcome != PortOutcome::Devices && parsed.outcome != PortOutcome::NothingAttached) {
+      std::string reason = describe(parsed.outcome);
+      if (!parsed.detail.empty()) {
+        reason += ": ";
+        reason += parsed.detail;
+      }
+      note_unreadable(reason);
+      return;
+    }
+
+    for (const auto &busid : busids) {
+      const auto found = std::find_if(parsed.devices.begin(), parsed.devices.end(),
+                                      [&busid](const Attached &device) { return device.busid == busid; });
+      if (found == parsed.devices.end()) {
+        // It is not on this machine. Either the attach never really landed, or something else
+        // already gave it back. Both are ordinary, and neither needs a human.
+        continue;
+      }
+      release(held_device_t {found->busid, found->port});
+    }
+  }
+
+  void session_holder_t::record_give_back_failure(const std::string &busid, const std::string &reason,
+                                                  const int code) {
+    if (!m_ReleaseFailure.empty()) {
+      m_ReleaseFailure += "; ";
+    }
+    m_ReleaseFailure += "the device on " + busid + " was not given back" +
+                        (code == 0 ? std::string {}
+                                   : (" (client exit " + std::to_string(code) + ")")) +
+                        ": " + reason;
   }
 
   void session_holder_t::release_all() {

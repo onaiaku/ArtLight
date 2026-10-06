@@ -529,6 +529,13 @@ sunshine_register_component(NAME test_component_mouse_policy TEST_SOURCE unit/te
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/mouse_input.cpp")
 sunshine_register_component(NAME test_component_usbip_input_policy TEST_SOURCE unit/test_usbip_input_policy.cpp
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/usbip_input_policy.cpp")
+# The session's return path - the half that decides whether a device actually goes home. It needs
+# the policy too, because the port matching is the policy's and the join between them is the thing
+# that failed on real hardware on 2026-10-06. The platform edge is stood in for inside the test, on
+# purpose: the timing of when a port appears is the variable, and it is the one thing a machine
+# cannot be made to reproduce on demand.
+sunshine_register_component(NAME test_component_usbip_input_session TEST_SOURCE unit/test_usbip_input_session.cpp
+    PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/usbip_input_session.cpp;${SUNSHINE_TEST_REPOSITORY_ROOT}/src/usbip_input_policy.cpp")
 sunshine_register_component(NAME test_component_platform_common TEST_SOURCE unit/platform/test_common.cpp
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/platform/common_services.cpp")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

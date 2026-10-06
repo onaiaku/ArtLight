@@ -165,7 +165,16 @@ namespace input::usbip {
     /// Give back one device by port. Returns false if the detach did not take.
     bool release(const held_device_t &device);
 
+    /// Record a device we could not give back when there was no port to name it by. Same sentence
+    /// shape as release(), because the caller logs both through the same channel.
+    void record_give_back_failure(const std::string &busid, const std::string &reason, int code);
+
     std::vector<held_device_t> m_Held;
+
+    /// Devices this session attached but could NOT find a port for. They are still ours to give
+    /// back, and they are the reason this is a list rather than nothing: the release path looks for
+    /// them a second time, on the way out, when the port table has settled.
+    std::vector<std::string> m_Unported;
 
     /// Set by release_all() so a second call is a no-op. See the note on that method.
     bool m_Released = false;
