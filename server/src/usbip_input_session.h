@@ -219,21 +219,4 @@ namespace input::usbip {
    */
   std::string sweep_leftovers();
 
-  /// @brief How long a device the session could not give back is still looked for, after the session
-  ///        has ended. See the note on set_straggler_window().
-  std::chrono::milliseconds straggler_window();
-
-  /// Shorten or close the straggler window. A test seam: the production value is the worst lag ever
-  /// measured (fifteen minutes), which no test can afford to wait out. ZERO starts no thread at all,
-  /// and every test that is not about the straggler sets it to ZERO - a thread left reading a
-  /// stubbed table after the test that owns it has finished is a test that fails somewhere else.
-  void set_straggler_window(std::chrono::milliseconds window);
-
-  /// How long the straggler waits between looks, before backing off towards its ceiling.
-  void set_straggler_pause(std::chrono::milliseconds pause);
-
-  /// How many look-for threads are running. A test seam, so a test can wait for the work rather than
-  /// sleep and hope.
-  int stragglers_looking();
-
 }  // namespace input::usbip
