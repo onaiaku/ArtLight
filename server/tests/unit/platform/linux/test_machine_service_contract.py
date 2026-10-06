@@ -278,11 +278,39 @@ require(host, '"$profile/sunshine_state.json"', "legacy pairing state discovery"
 require(controller, 'desktop_service_supported() { [[ "$1" =~ ^(plasmalogin|plasmalogin-autologin|sddm|sddm-autologin)$ ]]; }',
         "SDDM and Plasma Login Manager desktop sessions")
 uinput_rules = (linux / "70-artlight-uinput.rules").read_text()
-for rule in (
-    'KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="artlight-uinput", MODE="0660"',
-    'KERNEL=="uhid", SUBSYSTEM=="misc", GROUP="artlight-uinput", MODE="0660"',
-):
-    require(uinput_rules, rule, "dedicated virtual input device group")
+
+
+def rules_for_node(text: str, node: str, source: str) -> str:
+    """The one rule line for a device node, matched by node rather than by one exact substring.
+
+    Matching a substring pins the ORDER the attributes are written in, which is not a contract
+    anyone meant to make: adding OWNER="artlight" to the uinput rule stopped this check matching
+    even though the rule was right, and the red build was read as the rule being wrong. The
+    attributes are what matter, so the attributes are what is asserted.
+    """
+    lines = [line for line in text.splitlines() if line.startswith(f'KERNEL=="{node}"')]
+    if len(lines) != 1:
+        raise AssertionError(f"expected exactly one {node} rule line in {source}, found {len(lines)}")
+    return lines[0]
+
+
+for node in ("uinput", "uhid"):
+    node_rule = rules_for_node(uinput_rules, node, "70-artlight-uinput.rules")
+    # The group and mode are the grant the host unit relies on. OWNER is the lever that survives
+    # another package tagging the node - Steam's and KDE Connect's rules both tag /dev/uinput,
+    # and a tag cannot be vetoed from here.
+    for attribute in ('OWNER="artlight"', 'GROUP="artlight-uinput"', 'MODE="0660"'):
+        require(node_rule, attribute, f"{node} device rule")
+    # uaccess is what made the real mode 0600 on a machine with either of those packages
+    # installed: logind's ACL leaves the group class empty. It must not come back on these two.
+    forbid(node_rule, "uaccess", f"{node} device rule")
+
+# The same two rules ship a second time, in upstream Sunshine's file, and udev applies both.
+# Fixing only ours would have shipped a no-op, so both are held to the same line.
+sunshine_rules = (root / "src_assets/linux/misc/60-sunshine.rules").read_text()
+for node in ("uinput", "uhid"):
+    forbid(rules_for_node(sunshine_rules, node, "60-sunshine.rules"), "uaccess",
+           f"{node} sunshine device rule")
 for native_asset in (
     "%{_udevrulesdir}/70-artlight-uinput.rules",
     "%{_prefix}/lib/firewalld/services/artlight.xml",
