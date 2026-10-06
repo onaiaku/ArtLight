@@ -52,6 +52,12 @@ namespace {
     g_attach_err.clear();
     g_offered = std::string {usbip_fixtures::kListRemoteWin2};
     g_detached.clear();
+    // The patience is TIME, and time is the thing these tests stage - so every test starts at
+    // "the table gets exactly one look" and a test that needs it to answer LATER says so itself.
+    // It must be set here rather than left at the production period: a case whose table never
+    // answers would otherwise cost 20 seconds per test, and a timing suite that slow stops being
+    // run - which is how the defect this file pins down survived four builds.
+    input::usbip::set_port_table_patience(std::chrono::milliseconds {0});
   }
 
   input::usbip::session_request_t request_for_mouse() {
@@ -117,6 +123,9 @@ namespace input::usbip {
 
 TEST(UsbipSessionReturn, OwnsTheDeviceWhenThePortAppearsOnALaterLook) {
   reset(usbip_fixtures::kPortLinuxEmpty);
+  // This test needs the wait to outlast an empty read: reset() leaves it at one look, the table
+  // answers on the second.
+  input::usbip::set_port_table_patience(std::chrono::milliseconds {1000});
   g_port_outputs.push_back(std::string {usbip_fixtures::kPortLinuxEmpty});   // the pre-attach read
   g_port_outputs.push_back(std::string {usbip_fixtures::kPortLinuxEmpty});   // look 1: too early
   g_port_outputs.push_back(std::string {usbip_fixtures::kPortLinuxAttached});  // look 2: there
@@ -139,10 +148,13 @@ TEST(UsbipSessionReturn, GivesTheDeviceBackOnTheWayOutWhenThePortWasNeverVisible
   // The 2026-10-06 shape exactly: every look during the session is empty, and by the time the
   // session ends the device is there. Nothing used to look again.
   reset(usbip_fixtures::kPortLinuxAttached);
-  g_port_outputs.push_back(std::string {usbip_fixtures::kPortLinuxEmpty});
-  for (int i = 0; i < 6; ++i) {
-    g_port_outputs.push_back(std::string {usbip_fixtures::kPortLinuxEmpty});
-  }
+  // reset() leaves the patience at a single look, so the take path reads the table exactly once:
+  // one staged empty for the pre-attach read, one for that look. Everything after it reads the
+  // "after" text, which is where the device finally is. That is the 2026-10-06 shape - nothing
+  // in-session can name it, and the look on the way out is the one that saves the drive - with the
+  // timing shortened from the production period so the case can be written down at all.
+  g_port_outputs.push_back(std::string {usbip_fixtures::kPortLinuxEmpty});  // the pre-attach read
+  g_port_outputs.push_back(std::string {usbip_fixtures::kPortLinuxEmpty});  // the one look the take gets
 
   auto holder = input::usbip::session_holder_t::holding_nothing();
   holder->take_from(request_for_mouse());
@@ -209,6 +221,7 @@ TEST(UsbipSessionReturn, FallsBackToThePortTableWhenTheAttachNamesNoPort) {
   // Windows' usbip.exe 0.9.8.1 names no port, so this half has to keep working: an attach with
   // nothing useful on stderr must still end up owning the device through the table.
   reset(usbip_fixtures::kPortLinuxEmpty);
+  input::usbip::set_port_table_patience(std::chrono::milliseconds {1000});
   g_port_outputs.push_back(std::string {usbip_fixtures::kPortLinuxEmpty});     // the pre-attach read
   g_port_outputs.push_back(std::string {usbip_fixtures::kPortLinuxEmpty});     // look 1: too early
   g_port_outputs.push_back(std::string {usbip_fixtures::kPortLinuxAttached});  // look 2: there
@@ -220,4 +233,55 @@ TEST(UsbipSessionReturn, FallsBackToThePortTableWhenTheAttachNamesNoPort) {
   EXPECT_TRUE(holder->holding()) << holder->report();
   holder->release_all();
   EXPECT_EQ(g_detached, (std::vector<int> {0})) << holder->release_failure();
+}
+
+// ── and the case that cost tonight: the table answers LATE, past the old budget ─────────────
+
+TEST(UsbipSessionReturn, WaitsOutATableThatAnswersLongAfterTheOldBudgetWouldHaveGivenUp) {
+  // Measured on the z13 on 2026-10-06, with the drive really moving: `usbip attach` exits 0 and
+  // prints NOTHING on stdout or stderr (the "using port" line is in the binary and is not emitted),
+  // while `usbip port` reports an EMPTY table at t+0 and only names the device at about t+3s.
+  //
+  // The budget this replaced was six looks 250ms apart - 1.25s - so it expired inside that window
+  // on every single attach, and a drive with no port cannot be detached. Eight empty reads at
+  // 400ms is 3.2s: past the old budget, comfortably inside the new ceiling.
+  reset(usbip_fixtures::kPortLinuxAttached);
+  input::usbip::set_port_table_patience(std::chrono::milliseconds {10000});
+  g_port_outputs.push_back(std::string {usbip_fixtures::kPortLinuxEmpty});  // the pre-attach read
+  for (int i = 0; i < 8; ++i) {
+    g_port_outputs.push_back(std::string {usbip_fixtures::kPortLinuxEmpty});  // too early, over and over
+  }
+  // g_attach_err stays empty: this tool names no port, which is what the real one does.
+
+  auto holder = input::usbip::session_holder_t::holding_nothing();
+  holder->take_from(request_for_mouse());
+
+  EXPECT_TRUE(holder->holding()) << holder->report();
+  EXPECT_NE(holder->report().find("9-1 on port 0"), std::string::npos) << holder->report();
+
+  holder->release_all();
+  EXPECT_EQ(g_detached, (std::vector<int> {0})) << holder->release_failure();
+}
+
+// ── and it may never leave quietly ──────────────────────────────────────────────────────────
+
+TEST(UsbipSessionReturn, NeverLeavesWithoutSayingWhenTheTableStillWillNotNameTheDevice) {
+  // The failure that stranded a drive tonight, in the one form it must never take again: the table
+  // reads FINE, never names the device, and the session ends anyway. The release path used to judge
+  // "not in the table" to mean "not ours, and ordinary" and said nothing at all - so a drive sat
+  // attached to a machine whose stream was gone and the only clue was one line, eight seconds after
+  // the stream had started.
+  reset(usbip_fixtures::kPortLinuxEmpty);  // readable every time, and empty every time
+
+  auto holder = input::usbip::session_holder_t::holding_nothing();
+  holder->take_from(request_for_mouse());
+  EXPECT_FALSE(holder->holding()) << holder->report();
+
+  holder->release_all();
+  // Nothing was guessed at: a port nobody named is not a port to detach blindly.
+  EXPECT_TRUE(g_detached.empty());
+  // And it is SAID, naming the device, so the next person has something to act on.
+  EXPECT_NE(holder->release_failure().find("9-1"), std::string::npos) << holder->release_failure();
+  EXPECT_NE(holder->release_failure().find("not given back"), std::string::npos)
+    << holder->release_failure();
 }

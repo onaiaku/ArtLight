@@ -20,6 +20,7 @@
  */
 #pragma once
 
+#include <chrono>
 #include <memory>
 #include <string>
 
@@ -52,6 +53,18 @@ namespace input::usbip {
     std::string busid;  ///< As reported by the exporter. May be empty (see Attached::busid).
     int port = 0;       ///< The only thing detach accepts. 0 is a VALID port on Linux.
   };
+
+  /// How long this module waits for the port table to name a device it has just attached, before it
+  /// stops waiting and records that device as unported.
+  ///
+  /// A live parameter rather than a constant, because the variable under test here IS time: the
+  /// defect this file exists to pin down is a port table that answers seconds after the attach, and
+  /// the suite drives this module against a stood-in platform edge where the timing is staged. A
+  /// suite that can only express "the table never answers" by paying the production period is a
+  /// suite that takes minutes and then gets switched off - so tests shorten it, and production
+  /// leaves it alone.
+  std::chrono::milliseconds port_table_patience();
+  void set_port_table_patience(std::chrono::milliseconds patience);
 
   /**
    * @brief Owns the devices one stream is holding. Destroying it gives them back.

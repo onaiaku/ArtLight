@@ -46,13 +46,22 @@ namespace input::usbip {
     /// How hard we look for a port before believing there is not one.
     ///
     /// `usbip attach` succeeding does NOT mean the port exists yet: the driver assigns it, and a
-    /// read taken in the same breath as the tool that moved the device can come back before the
-    /// port appears. On 2026-10-06 exactly that happened - the attach reported success, the read
-    /// found nothing, and a drive stayed off the machine it belongs to until it was detached by
-    /// hand. A budget, not a guess: six looks 250ms apart is 1.25s of patience at the end of an
-    /// operation that has already crossed a network.
-    constexpr int kPortLookups = 6;
-    constexpr std::chrono::milliseconds kPortLookupPause {250};
+    /// read taken in the same breath as the tool that moved the device comes back before the port
+    /// is recorded. Measured on the z13 on 2026-10-06: the attach printed NOTHING on either stream
+    /// (the `using port` format string is in the binary and is not emitted on success), and
+    /// `usbip port` reported an EMPTY table at t+0 and only named the device at t+3s.
+    ///
+    /// The budget this replaced - six looks 250ms apart, 1.25s in total - sat entirely INSIDE that
+    /// window, so it expired before the table could answer, on every attach, and the device went
+    /// unported. A device nobody can name cannot be detached, which is the one failure this file
+    /// exists to prevent.
+    ///
+    /// So wait the lag out instead of guessing at it: a ceiling, not a doorman. The loop returns the
+    /// moment the table names the device (about 3s on the machine that measured it), and only spends
+    /// the ceiling when the answer is genuinely not coming. This runs off the request path, after
+    /// the stream's answer has gone out, so the patience is not paid for by the client.
+    constexpr std::chrono::milliseconds kPortLookupCeiling {20000};
+    constexpr std::chrono::milliseconds kPortLookupPause {400};
 
     /**
      * What a port lookup found - and, when it found nothing, WHICH nothing.
@@ -67,6 +76,9 @@ namespace input::usbip {
       std::vector<held_device_t> held;
       /// Non-empty when the read itself failed, in the tool's own words. Never composed by us.
       std::string unreadable;
+      /// How many times the table was actually read. Carried out to the report so the sentence says
+      /// how hard we looked rather than quoting a constant that no longer bounds the search.
+      int looks = 0;
     };
 
     /**
@@ -85,7 +97,9 @@ namespace input::usbip {
         return lookup;
       }
 
-      for (int attempt = 0; attempt < kPortLookups; ++attempt) {
+      const auto ceiling = std::chrono::steady_clock::now() + port_table_patience();
+      while (true) {
+        ++lookup.looks;
         const auto listed = run_list_attached();
 
         if (listed.code != 0) {
@@ -95,6 +109,9 @@ namespace input::usbip {
                                 ? ("the port table could not be read (client exit " +
                                    std::to_string(listed.code) + ")")
                                 : listed.err;
+          // A tool that will not run is not a table that has not answered yet. Waiting cannot fix it,
+          // so a failing read ends the wait here instead of spending the whole period on it.
+          break;
         } else {
           const auto parsed = parse_attached(listed.out);
           if (parsed.outcome == PortOutcome::Devices ||
@@ -122,9 +139,12 @@ namespace input::usbip {
           }
         }
 
-        if (attempt + 1 < kPortLookups) {
-          std::this_thread::sleep_for(kPortLookupPause);
+        // The ceiling is checked AFTER the read, so the first look is always immediate and the last
+        // one always counts - a table that answers on the very edge of the window is still read.
+        if (std::chrono::steady_clock::now() >= ceiling) {
+          break;
         }
+        std::this_thread::sleep_for(kPortLookupPause);
       }
 
       return lookup;
@@ -141,6 +161,20 @@ namespace input::usbip {
       return joined;
     }
   }  // namespace
+
+  namespace {
+    /// See port_table_patience(). One value for every holder, so a test can shorten the wait without
+    /// having to find every object that might look.
+    std::chrono::milliseconds g_port_table_patience {kPortLookupCeiling};
+  }  // namespace
+
+  std::chrono::milliseconds port_table_patience() {
+    return g_port_table_patience;
+  }
+
+  void set_port_table_patience(const std::chrono::milliseconds patience) {
+    g_port_table_patience = patience;
+  }
 
   std::shared_ptr<session_holder_t> session_holder_t::holding_nothing() {
     // A shared_ptr to a private constructor: this is the only way to make one, so nobody can
@@ -317,8 +351,8 @@ namespace input::usbip {
         // and reading our shrug.
         report << ", but " << took.size() << " device(s) reported attached and ";
         if (lookup.unreadable.empty()) {
-          report << "neither the attach nor the port table named one after " << kPortLookups
-                 << " looks, so no port could be found for ";
+          report << "neither the attach nor the port table named one after " << lookup.looks
+                 << " look(s), so no port could be found for ";
         } else {
           report << "the port table could not be read (" << lookup.unreadable
                  << "), so no port could be found for ";
@@ -387,56 +421,86 @@ namespace input::usbip {
       release(device);
     }
 
-    // The last look, and the read that was MISSING on 2026-10-06.
+    // The last look, and it is a PATIENT one.
     //
-    // A device we attached but could not find a port for at the time gets one more read here, on
-    // the way out, when the port table has had time to settle. Without this, an attach whose port
-    // was not visible yet became a device attached to a machine whose stream had ended, with the
-    // machine it belongs to missing it and nothing left that would ever look again - the only way
-    // back was for a person to run `usbip detach` by hand.
+    // A device we attached but could not find a port for at the time is read again here, on the way
+    // out. This used to be a single read with no waiting, on the reasoning that a teardown must never
+    // be slow and that "by now the thing that was too early has long since happened".
     //
-    // Deliberately ONE look with no waiting: this runs on every teardown path, including a
-    // destructor, and a teardown must never be slow. One read is all that is needed, because by now
-    // the thing that was too early has long since happened.
+    // That reasoning is wrong for the case it was written for. Measured on 2026-10-06: attach at
+    // 20:18:22, stream gone at 20:18:30 - eight seconds - and the port table did not name the device
+    // inside that window. The single read came back empty, and an empty read is indistinguishable
+    // from "this machine holds nothing", so the device was judged not to be ours after all and a
+    // drive sat attached until a person detached it by hand. Eight seconds is not a long stream; it
+    // is one that was ended the moment somebody saw something was wrong.
+    //
+    // So wait the table out the same way the take path does, and NEVER leave without a sentence. The
+    // cost is bounded, and it is only paid when a device is genuinely unported - which the take
+    // path's own ceiling now makes rare. The alternative is somebody's drive going missing with
+    // nothing in the log that says so.
     if (m_Unported.empty()) {
       return;
     }
 
-    const auto busids = m_Unported;
+    std::vector<std::string> still_held = m_Unported;
     m_Unported.clear();
 
-    const auto listed = run_list_attached();
-    const auto note_unreadable = [this, &listed, &busids](const std::string &reason) {
-      for (const auto &busid : busids) {
-        record_give_back_failure(busid, reason, listed.code);
-      }
-    };
+    std::string last_reason;
+    int looks = 0;
+    const auto ceiling = std::chrono::steady_clock::now() + port_table_patience();
 
-    if (listed.code != 0) {
-      note_unreadable(listed.err.empty() ? std::string {"no detail"} : listed.err);
-      return;
+    while (true) {
+      ++looks;
+      const auto listed = run_list_attached();
+
+      if (listed.code != 0) {
+        last_reason = listed.err.empty() ? std::string {"no detail"} : listed.err;
+        // Same reasoning as the take path: a tool that will not run is not a table that is slow.
+        break;
+      } else {
+        const auto parsed = parse_attached(listed.out);
+        if (parsed.outcome == PortOutcome::Devices ||
+            parsed.outcome == PortOutcome::NothingAttached) {
+          last_reason.clear();
+          std::vector<std::string> not_found;
+          for (const auto &busid : still_held) {
+            const auto found = std::find_if(parsed.devices.begin(), parsed.devices.end(),
+                                            [&busid](const Attached &device) { return device.busid == busid; });
+            if (found == parsed.devices.end()) {
+              not_found.push_back(busid);
+              continue;
+            }
+            release(held_device_t {found->busid, found->port});
+          }
+          still_held = not_found;
+          if (still_held.empty()) {
+            return;
+          }
+        } else {
+          last_reason = describe(parsed.outcome);
+          if (!parsed.detail.empty()) {
+            last_reason += ": ";
+            last_reason += parsed.detail;
+          }
+        }
+      }
+
+      if (std::chrono::steady_clock::now() >= ceiling) {
+        break;
+      }
+      std::this_thread::sleep_for(kPortLookupPause);
     }
 
-    const auto parsed = parse_attached(listed.out);
-    if (parsed.outcome != PortOutcome::Devices && parsed.outcome != PortOutcome::NothingAttached) {
-      std::string reason = describe(parsed.outcome);
-      if (!parsed.detail.empty()) {
-        reason += ": ";
-        reason += parsed.detail;
-      }
-      note_unreadable(reason);
-      return;
-    }
-
-    for (const auto &busid : busids) {
-      const auto found = std::find_if(parsed.devices.begin(), parsed.devices.end(),
-                                      [&busid](const Attached &device) { return device.busid == busid; });
-      if (found == parsed.devices.end()) {
-        // It is not on this machine. Either the attach never really landed, or something else
-        // already gave it back. Both are ordinary, and neither needs a human.
-        continue;
-      }
-      release(held_device_t {found->busid, found->port});
+    // Still ours, and the table would not name it. Say so, with WHICH nothing we found: a device away
+    // from the machine it belongs to is the one state a person has to be told about, and it must not
+    // be lost to a read that came back empty.
+    for (const auto &busid : still_held) {
+      record_give_back_failure(
+        busid,
+        (last_reason.empty() ? std::string {"the port table never named it"} : last_reason) +
+          " (after " + std::to_string(looks) + " look(s) over " +
+          std::to_string(port_table_patience().count() / 1000) + "s)",
+        0);
     }
   }
 
