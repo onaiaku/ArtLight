@@ -1814,6 +1814,18 @@ namespace stream {
                 server->_peer_to_session->erase(session->control.peer);
               }
 
+              // A graceful_stop() queues its termination packet with enet_peer_send() and nothing
+              // else on that path flushes the host, so at this point the goodbye is still sitting
+              // in the peer's outgoing queue. enet_peer_disconnect_now() calls
+              // enet_peer_reset_queues(), which destroys it unsent, and the client is left watching
+              // the control stream simply drop - moonlight-common-c reports that as error -1
+              // ("unexpected disconnect", ControlStream.c) and puts up "Stream Error / Connection
+              // terminated" instead of the clean landing the packet buys. Flush before the reset:
+              // this is the thread that services the control host, so whatever is queued for this
+              // client goes out on the wire first. Dropping this line is invisible - the host log
+              // cannot tell "sent" from "socket died" - so it is not a line to tidy away.
+              server->flush();
+
               enet_peer_disconnect_now(session->control.peer, 0);
             }
 
