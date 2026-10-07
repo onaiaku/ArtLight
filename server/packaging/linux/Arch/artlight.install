@@ -847,6 +847,14 @@ do_udev_reload() {
   udevadm control --reload-rules
   udevadm trigger --property-match=DEVNAME=/dev/uinput
   udevadm trigger --property-match=DEVNAME=/dev/uhid
+  # Input devices as well, and by subsystem rather than by name. A shared keyboard has no
+  # fixed DEVNAME and no node at all until something is sharing it, so it cannot be named
+  # here even in principle. Omitting this is silent rather than loud: a keyboard that was
+  # already shared in when this ran keeps root:input, and the host runs as artlight, which is
+  # not in the input group - so it opens no keyboard at all and the quit combination never
+  # fires, with nothing in the log but "no keyboard has been shared in yet". Re-reading the
+  # rules for input devices is idempotent: the machine's own keyboards end up as they were.
+  udevadm trigger --subsystem-match=input
   modprobe uinput || true
   modprobe uhid || true
 }

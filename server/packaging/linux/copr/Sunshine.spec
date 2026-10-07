@@ -1404,13 +1404,17 @@ if [ ! -x "$(command -v rpm-ostree)" ]; then
     fi
   done
 
-  # Trigger udev rule reload for /dev/uinput and /dev/uhid
+  # Trigger udev rule reload for /dev/uinput, /dev/uhid and input devices
   path_to_udevadm=$(command -v udevadm 2>/dev/null || true)
   if [ -x "$path_to_udevadm" ]; then
     echo "Reloading udev rules."
     $path_to_udevadm control --reload-rules
     $path_to_udevadm trigger --property-match=DEVNAME=/dev/uinput
     $path_to_udevadm trigger --property-match=DEVNAME=/dev/uhid
+    # Input devices are matched by subsystem: a shared keyboard has no fixed DEVNAME, and no
+    # node at all until something is sharing it. Without this line one already present when
+    # the rules changed keeps root:input, and the host cannot open it.
+    $path_to_udevadm trigger --subsystem-match=input
     echo "Udev rules reloaded successfully."
   else
     echo "error: udevadm not found or not executable."
