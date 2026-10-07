@@ -72,6 +72,31 @@ TEST(InputValidation, RejectsUnknownMagic) {
   EXPECT_FALSE(input::validation::validate_packet(bytes));
 }
 
+TEST(InputValidation, AcceptsHapticsEnableButNotTheControllerPacketSharingItsMagic) {
+  // The client sends ENABLE_HAPTICS_MAGIC once per stream to announce haptics support. It is a
+  // capability announcement, so it is accepted and acted on by nothing.
+  NV_HAPTICS_PACKET haptics {};
+  auto haptics_bytes = packet_bytes(haptics);
+  write_u32_be(haptics_bytes, 0, sizeof(NV_HAPTICS_PACKET) - sizeof(haptics.header.size));
+  write_u32_le(haptics_bytes, sizeof(haptics.header.size), ENABLE_HAPTICS_MAGIC);
+
+  const auto haptics_result = input::validation::validate_packet(haptics_bytes);
+  ASSERT_TRUE(haptics_result);
+  EXPECT_EQ(haptics_result.magic, static_cast<std::uint32_t>(ENABLE_HAPTICS_MAGIC));
+  EXPECT_EQ(haptics_result.total_size, sizeof(NV_HAPTICS_PACKET));
+
+  // 0x0D is ALSO MULTI_CONTROLLER_MAGIC. Same number, more than three times the size, and the size is
+  // the only thing that separates them - so a legacy controller report must be refused, never read as haptics.
+  NV_MULTI_CONTROLLER_PACKET controller {};
+  auto controller_bytes = packet_bytes(controller);
+  write_u32_be(controller_bytes, 0, sizeof(NV_MULTI_CONTROLLER_PACKET) - sizeof(controller.header.size));
+  write_u32_le(controller_bytes, sizeof(controller.header.size), ENABLE_HAPTICS_MAGIC);
+
+  const auto controller_result = input::validation::validate_packet(controller_bytes);
+  EXPECT_FALSE(controller_result);
+  EXPECT_EQ(controller_result.error, input::validation::packet_validation_error_e::invalid_size);
+}
+
 TEST(InputTouchMapping, NormalizesUsingPlatformOffsetContract) {
   input::validation::touch_port_t touch_port {
     1920,

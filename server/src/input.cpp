@@ -274,6 +274,13 @@ namespace input {
         return packet_size_bounds_t {sizeof(NV_INPUT_HEADER), sizeof(NV_UNICODE_PACKET)};
       case MULTI_CONTROLLER_MAGIC_GEN5:
         return packet_size_bounds_t {sizeof(NV_MULTI_CONTROLLER_PACKET), sizeof(NV_MULTI_CONTROLLER_PACKET)};
+      case ENABLE_HAPTICS_MAGIC:
+        // 0x0D, bounded to the haptics packet exactly - see the note on the same case in
+        // src/input_validation_policy.cpp. The magic is shared with MULTI_CONTROLLER_MAGIC and only
+        // the size tells them apart, so a legacy controller report is rejected here rather than
+        // misread as this. The packet is the client announcing haptics support once per stream and
+        // needs no action: whether haptics are sent is the negotiated ML_FF_HAPTICS_PCM flag's job.
+        return packet_size_bounds_t {sizeof(NV_HAPTICS_PACKET), sizeof(NV_HAPTICS_PACKET)};
       case SS_TOUCH_MAGIC:
         return packet_size_bounds_t {sizeof(SS_TOUCH_PACKET), sizeof(SS_TOUCH_PACKET)};
       case SS_PEN_MAGIC:
