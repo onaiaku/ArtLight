@@ -1753,6 +1753,20 @@ namespace stream {
       }
     };
 
+    // A peer whose termination packet is on the wire but whose reset has to wait for it to be
+    // read. See the STOPPING branch below for why the reset cannot follow the goodbye at once.
+    struct pending_peer_reset_t {
+      ENetPeer *peer;
+      std::chrono::steady_clock::time_point deadline;
+    };
+
+    // Long enough for the client's control loop to service the socket, dispatch the termination
+    // and act on it - that loop runs at frame rate, so this is tens of times the margin - and
+    // short enough that a peer is never left hanging.
+    constexpr auto kTerminationResetGrace = std::chrono::milliseconds(400);
+
+    std::vector<pending_peer_reset_t> pending_peer_resets;
+
     while (!shutdown_event->peek() && !broadcast_shutdown_event->peek()) {
       // running() performs synchronous process cleanup when it observes an
       // exited app. current_app_id() then gives the logical lifetime without
@@ -1763,6 +1777,23 @@ namespace stream {
       bool has_processless_live_session = false;
       bool haptics_client = false;
       bool has_game_session_pending_or_draining = false;
+
+      // Reap peers whose goodbye has had its window. A peer the client has already ended is
+      // dropped without touching it: ENet reset it when it dispatched the client's own
+      // disconnect, and the client sends that disconnect as soon as it reads the termination.
+      {
+        const auto reset_now = std::chrono::steady_clock::now();
+        for (auto it = pending_peer_resets.begin(); it != pending_peer_resets.end();) {
+          if (it->peer->state == ENET_PEER_STATE_DISCONNECTED) {
+            it = pending_peer_resets.erase(it);
+          } else if (reset_now >= it->deadline) {
+            enet_peer_disconnect_now(it->peer, 0);
+            it = pending_peer_resets.erase(it);
+          } else {
+            ++it;
+          }
+        }
+      }
 
       {
         auto lg = server->_sessions.lock();
@@ -1816,17 +1847,24 @@ namespace stream {
 
               // A graceful_stop() queues its termination packet with enet_peer_send() and nothing
               // else on that path flushes the host, so at this point the goodbye is still sitting
-              // in the peer's outgoing queue. enet_peer_disconnect_now() calls
-              // enet_peer_reset_queues(), which destroys it unsent, and the client is left watching
-              // the control stream simply drop - moonlight-common-c reports that as error -1
-              // ("unexpected disconnect", ControlStream.c) and puts up "Stream Error / Connection
-              // terminated" instead of the clean landing the packet buys. Flush before the reset:
-              // this is the thread that services the control host, so whatever is queued for this
-              // client goes out on the wire first. Dropping this line is invisible - the host log
-              // cannot tell "sent" from "socket died" - so it is not a line to tidy away.
+              // in the peer's outgoing queue. Flush it: this is the thread that services the
+              // control host, so whatever is queued for this client goes out on the wire first.
               server->flush();
 
-              enet_peer_disconnect_now(session->control.peer, 0);
+              // ...and then do not reset the peer here. The client's ENet destroys a
+              // received-but-not-yet-dispatched packet the moment it handles a DISCONNECT command
+              // (enet_protocol_handle_disconnect -> enet_peer_reset_queues), and ControlStream
+              // dispatches one event per service call, so a disconnect sent behind the goodbye
+              // wipes the goodbye before it is ever read - the client sees only the control stream
+              // drop and reports error -1 ("unexpected disconnect", ControlStream.c) instead of
+              // landing cleanly. Measured on the wire 2026-10-07: goodbye out at 24.739899,
+              // disconnect at 24.739953, 54us apart, and the client logged "unexpected disconnect"
+              // with no termination reason; an earlier disconnect that had room behind it was read
+              // as "Server notified termination reason: 0x80030023" and landed as error 0.
+              // Deferring the reset gives the goodbye its window, and the client ends its own side
+              // the moment it processes it, which is why the reap above drops a peer that is
+              // already disconnected without touching it.
+              pending_peer_resets.push_back({session->control.peer, std::chrono::steady_clock::now() + kTerminationResetGrace});
             }
 
             session->controlEnd.raise(true);
