@@ -343,6 +343,11 @@ require(host_unit, "CapabilityBoundingSet=CAP_SYS_ADMIN CAP_SYS_NICE", "machine 
 require(host_unit, "AmbientCapabilities=", "machine host unit")
 require(host_unit, "NoNewPrivileges=no", "machine host unit")
 require(host_unit, "DevicePolicy=closed", "machine host unit")
+# The quit combo reads the imported keyboard, and DevicePolicy=closed refuses anything the
+# allow list does not name. The refusal is EPERM, so nothing else on the machine can notice it:
+# ownership checks pass and a root shell opens the same nodes. Dropping this line is a silently
+# dead feature, which is exactly what it was before it was added.
+require(host_unit, "DeviceAllow=char-input r", "quit combo imported-keyboard read access")
 require(host_unit, "ProtectSystem=strict", "machine host unit")
 require(host_unit, "ProtectHome=yes", "machine host unit")
 require(host_unit, "PrivateTmp=yes", "machine host unit")
