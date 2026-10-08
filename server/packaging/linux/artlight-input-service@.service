@@ -1,7 +1,20 @@
 [Unit]
 Description=ArtLight USB/IP privileged helper connection
 Documentation=https://github.com/onaiaku/ArtLight
-After=artlight-session-controller.service
+# DefaultDependencies would hand an instance both Conflicts=shutdown.target and
+# Before=shutdown.target. The second one is fatal for this unit. The only helper
+# verb that has any reason to run during a shutdown is giving a shared device
+# back, and starting a unit that Conflicts with a shutdown.target that is
+# already being activated is a contradictory transaction, which systemd refuses
+# outright - so the instance is never run and the caller reads an empty
+# connection.
+#
+# The dependencies are therefore declared here instead. sysinit is all the
+# default set would have contributed on a machine late enough in its life to be
+# streaming, and the ordering around the host it serves is the part that
+# actually matters.
+DefaultDependencies=no
+After=sysinit.target artlight-session-controller.service
 Before=artlight.service
 # One accepted connection is one finished verb, not live work for the next
 # session handoff. Retaining them as failed units would exhaust the bounded

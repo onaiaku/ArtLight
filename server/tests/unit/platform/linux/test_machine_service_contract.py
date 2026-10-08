@@ -348,6 +348,49 @@ require(host_unit, "DevicePolicy=closed", "machine host unit")
 # ownership checks pass and a root shell opens the same nodes. Dropping this line is a silently
 # dead feature, which is exactly what it was before it was added.
 require(host_unit, "DeviceAllow=char-input r", "quit combo imported-keyboard read access")
+
+# The USB/IP helper is the one privileged path that has to work while the host is
+# ALREADY stopping: giving a shared device back is the last thing a session does, and
+# it is one more helper verb, so it needs an instance and an instance needs its slice.
+#
+# Two separate things were wrong, and both produced the same silent symptom - the
+# device was never detached and the caller read an empty connection ("the USB/IP
+# helper closed the connection without answering"):
+#
+#   1. The instances run in a slice systemd creates on demand from their Slice=
+#      default, and an auto-created slice carries nothing against artlight.service.
+#      At shutdown it was swept in parallel with the host and removed before the
+#      host was even asked to stop. Measured on a z13, 2026-10-08: slice removed
+#      13:28:45.114144, host stop issued 13:28:45.121558, hand-back failed
+#      13:28:45.266. Hence the explicit slice unit, ordered like the socket.
+#   2. DefaultDependencies would give an instance Conflicts=shutdown.target, and
+#      starting a unit that conflicts with a shutdown.target already being activated
+#      is a contradictory transaction that systemd refuses. So the instance is never
+#      run at all. DefaultDependencies=no is what removes that conflict.
+input_socket_unit = (linux / "artlight-input-service.socket").read_text()
+input_connection_unit = (linux / "artlight-input-service@.service").read_text()
+input_slice_unit = (linux / "system-artlight-input-service.slice").read_text()
+require(input_socket_unit, "Before=artlight.service", "USB/IP helper socket shutdown drain ordering")
+require(input_connection_unit, "Before=artlight.service", "USB/IP helper hand-back shutdown ordering")
+require(input_slice_unit, "Before=artlight.service", "USB/IP helper slice shutdown drain ordering")
+# Comments in these units name the directive they exist to explain, so the checks below have
+# to read what systemd will actually apply, not the prose.
+input_connection_unit_section = "\n".join(
+    line
+    for line in input_connection_unit.split("[Service]", 1)[0].splitlines()
+    if not line.lstrip().startswith("#")
+)
+require(input_connection_unit_section, "DefaultDependencies=no",
+        "USB/IP helper startable inside the shutdown transaction")
+forbid(input_connection_unit_section, "Conflicts=",
+       "USB/IP helper unit with a redundant conflict")
+# The slice is a package file, not something left to systemd to invent: an auto-created
+# one has the wrong ordering, and the ordering is the whole fix.
+for manifest, label in (
+    (packaging, "CMake install manifest"),
+    (rpm, "RPM unit manifest"),
+):
+    require(manifest, "system-artlight-input-service.slice", f"{label} carries the helper slice")
 require(host_unit, "ProtectSystem=strict", "machine host unit")
 require(host_unit, "ProtectHome=yes", "machine host unit")
 require(host_unit, "PrivateTmp=yes", "machine host unit")

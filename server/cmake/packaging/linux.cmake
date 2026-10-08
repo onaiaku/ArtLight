@@ -297,6 +297,7 @@ else()
                     "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-session-exec@.service"
                     "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-input-service.socket"
                     "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-input-service@.service"
+                    "${CMAKE_SOURCE_DIR}/packaging/linux/system-artlight-input-service.slice"
                     "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-session-controller.service"
                     "${CMAKE_SOURCE_DIR}/packaging/linux/artlight.service"
                     DESTINATION "${VIBESHINE_SYSTEM_UNIT_INSTALL_DIR}")

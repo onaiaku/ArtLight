@@ -1754,6 +1754,7 @@ fi
 %{_unitdir}/artlight-session-exec@.service
 %{_unitdir}/artlight-input-service.socket
 %{_unitdir}/artlight-input-service@.service
+%{_unitdir}/system-artlight-input-service.slice
 %{_unitdir}/artlight-session-controller.service
 %{_unitdir}/artlight.service
 

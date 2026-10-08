@@ -1,0 +1,23 @@
+[Unit]
+Description=ArtLight USB/IP privileged helper slice
+Documentation=https://github.com/onaiaku/ArtLight
+# systemd creates this slice on demand, from the Slice= its instances default
+# to, and an auto-created slice carries only Before=shutdown.target - nothing
+# against artlight.service. At shutdown it was therefore swept in parallel with
+# the host, and removed before the host had even been asked to stop.
+#
+# That breaks exactly one thing, and it is the last thing a session does: giving
+# a shared device back. The hand-back is one more helper verb, so it needs an
+# instance, and an instance needs this slice. With the slice already gone,
+# systemd could not start the instance, the accepted connection was dropped, and
+# every shutdown ended with "the USB/IP helper closed the connection without
+# answering" while ArtLight never detached the device.
+#
+# Measured on a z13, 2026-10-08: slice removed 13:28:45.114144, host stop issued
+# 13:28:45.121558, hand-back failed 13:28:45.266. artlight-input-service.socket,
+# which carries this same ordering, correctly outlived the host throughout.
+#
+# Same reasoning as the socket beside it: a verb must not outlive the session
+# that asked for it, but the last verb of a session arrives while the session is
+# still going away.
+Before=artlight.service
