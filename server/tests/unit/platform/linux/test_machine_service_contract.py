@@ -370,20 +370,36 @@ require(host_unit, "DeviceAllow=char-input r", "quit combo imported-keyboard rea
 input_socket_unit = (linux / "artlight-input-service.socket").read_text()
 input_connection_unit = (linux / "artlight-input-service@.service").read_text()
 input_slice_unit = (linux / "system-artlight-input-service.slice").read_text()
-require(input_socket_unit, "Before=artlight.service", "USB/IP helper socket shutdown drain ordering")
-require(input_connection_unit, "Before=artlight.service", "USB/IP helper hand-back shutdown ordering")
-require(input_slice_unit, "Before=artlight.service", "USB/IP helper slice shutdown drain ordering")
-# Comments in these units name the directive they exist to explain, so the checks below have
-# to read what systemd will actually apply, not the prose.
-input_connection_unit_section = "\n".join(
-    line
-    for line in input_connection_unit.split("[Service]", 1)[0].splitlines()
-    if not line.lstrip().startswith("#")
-)
-require(input_connection_unit_section, "DefaultDependencies=no",
-        "USB/IP helper startable inside the shutdown transaction")
-forbid(input_connection_unit_section, "Conflicts=",
-       "USB/IP helper unit with a redundant conflict")
+
+# All three have to stay out of the shutdown transaction, and each one fails independently:
+# a stopping socket still accepts a connect() and then resets it, an instance that has to be
+# created cannot be, and the slice an instance needs cannot be created either. Any one alone
+# breaks the hand-back, and every one of them breaks it SILENTLY - the caller reads an empty
+# connection rather than an error it could name, and systemd logs nothing at all.
+# Comments in these units name the directives they exist to explain, so every check below
+# reads what systemd will actually apply, not the prose.
+for unit, label, unit_section in (
+    (input_socket_unit, "USB/IP helper socket", None),
+    (input_connection_unit, "USB/IP helper connection", "[Service]"),
+    (input_slice_unit, "USB/IP helper slice", None),
+):
+    effective = "\n".join(
+        line
+        for line in (unit if unit_section is None else unit.split(unit_section, 1)[0]).splitlines()
+        if not line.lstrip().startswith("#")
+    )
+    # Read the ordering the way systemd does - one set of names, however many Before= lines
+    # they are spread over - instead of demanding one exact spelling of the directive.
+    ordered_before = {
+        name
+        for line in effective.splitlines()
+        if line.strip().startswith("Before=")
+        for name in line.strip()[len("Before="):].split()
+    }
+    if "artlight.service" not in ordered_before:
+        raise AssertionError(f"{label} is not ordered to drain after artlight.service")
+    require(effective, "DefaultDependencies=no", f"{label} outside the shutdown transaction")
+    forbid(effective, "Conflicts=", f"{label} with a redundant conflict")
 # The slice is a package file, not something left to systemd to invent: an auto-created
 # one has the wrong ordering, and the ordering is the whole fix.
 for manifest, label in (

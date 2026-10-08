@@ -313,11 +313,24 @@ namespace input::usbip {
       // remainder - which would be a reason we would never get to read.
       std::vector<char> packet(helper_protocol::kMaxReplyPacket);
       const ssize_t received = ::read(connection, packet.data(), packet.size());
+      // Captured before close(), which is free to clobber errno - and errno is the whole
+      // diagnosis here, so it must not be lost to a syscall that comes after it.
+      const int read_errno = errno;
       ::close(connection);
 
       if (received <= 0) {
         result.code = -1;
-        result.err = "the USB/IP helper closed the connection without answering";
+        // A clean close and a reset read back IDENTICALLY otherwise, and that difference is
+        // the entire answer: a reset means something took the connection and then dropped it,
+        // which is what a socket unit in its stopping state does to every caller. Collapsing
+        // the two into one sentence cost days on 2026-10-08 - the reply said "closed the
+        // connection without answering" while the real story was ECONNRESET after the helper
+        // socket had been taken into its shutdown state.
+        result.err = received == 0
+                       ? std::string {"the USB/IP helper closed the connection without answering"}
+                       : std::string {"the USB/IP helper connection failed after the request was "
+                                      "sent: "} +
+                           std::strerror(read_errno);
         return result;
       }
 
