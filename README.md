@@ -76,11 +76,12 @@ Both are designed to be set up once and forgotten: install, pair your client, pl
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/onaiaku/ArtLight/main/server/scripts/linux_install.sh
-less linux_install.sh            # optional: read what it does
 sudo bash linux_install.sh
 ```
 
 It checks the requirements, installs the headers your running kernel needs, installs the package, opens the firewall if one is active, and tells you whether a reboot is needed. Re-running it is safe.
+
+To read the script before running it, use `less linux_install.sh` — press `q` to exit, then run the `sudo` line. Run those two separately: `less` holds the terminal until you quit.
 
 Manual installation, verification and troubleshooting are in the [**Linux install guide**](server/docs/linux/install.md).
 

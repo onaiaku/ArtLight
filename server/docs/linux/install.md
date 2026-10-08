@@ -27,9 +27,11 @@ installs the package, opens the firewall if one is active, and tells you whether
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/onaiaku/ArtLight/main/server/scripts/linux_install.sh
-less linux_install.sh            # optional: read what it does
 sudo bash linux_install.sh
 ```
+
+To read the script before running it, use `less linux_install.sh` — press `q` to exit, then run the
+`sudo` line. Run those two separately: `less` holds the terminal until you quit.
 
 The script prefers the signed onaiaku pacman repository. When the repository is not reachable it
 downloads the newest release package from GitHub and installs it with `pacman -U`. Useful options:
