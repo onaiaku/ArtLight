@@ -41,7 +41,7 @@ Both are designed to be set up once and forgotten: install, pair your client, pl
 - **Hardware encoding** — NVENC and friends, frame pacing tuned for real gameplay
 - **Smoother VRR capture** — capture timing follows game presentation more closely, including uneven callbacks
 - **Live telemetry** — Control's dashboard tracks every session as it happens, no more blank stats
-- **USB Sharing** - Usuing [ArtMoon](https://github.com/onaiaku/ArtMoon) and Artlight together allows for sharing USB's over the network, as if they were plugged into the host machine
+- **USB Sharing** - Using [ArtMoon](https://github.com/onaiaku/ArtMoon) and Artlight together allows for sharing USB's over the network, as if they were plugged into the host machine
 - **Remote power** — sleep, hibernate or restart the host from the dashboard, without walking to it
 - **Shared clipboard** — copy on one side, paste on the other while you stream, off until you switch it on
 - **Game library sync** — Playnite integration so your library is stream-ready
