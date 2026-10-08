@@ -12,10 +12,11 @@ ArtLight Server 1.5.0 brings USB device sharing in.
 A keyboard, mouse or controller plugged into the PC you are streaming
 from can be moved onto this PC for the length of a session, and given
 back when the session ends. The machine you stream from decides which
-devices it offers; this side decides whether to take them. Off by
-default, and deliberately so: a device moved this way is taken away
-from the machine it is plugged into, so whoever is sitting there loses
-it while the stream runs.
+devices it offers; this side decides whether to take them. On by
+default. Nothing moves unless that machine is offering a device, and
+it can only offer one at the moment somebody there chooses to share
+it, so this decides whether you take what is offered rather than
+whether a device is taken from anyone.
 
 On Windows the client is bundled in this installer behind a tick box,
 and it is removed again when ArtLight is uninstalled. On Linux the
