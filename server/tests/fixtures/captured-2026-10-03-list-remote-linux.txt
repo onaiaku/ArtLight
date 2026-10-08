@@ -1,0 +1,10 @@
+Exportable USB devices
+======================
+ - 192.168.50.35
+        9-1: Razer USA, Ltd : RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)] (1532:007b)
+           : USB\VID_1532&PID_007B\7&3A2774D3&0&1
+           : (Defined at Interface level) (00/00/00)
+           :  0 - Human Interface Device / Boot Interface Subclass / Mouse (03/01/02)
+           :  1 - Human Interface Device / No Subclass / Keyboard (03/00/01)
+           :  2 - Human Interface Device / No Subclass / Keyboard (03/00/01)
+

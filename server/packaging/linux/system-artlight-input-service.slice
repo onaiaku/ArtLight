@@ -1,0 +1,33 @@
+[Unit]
+Description=ArtLight USB/IP privileged helper slice
+Documentation=https://github.com/onaiaku/ArtLight
+# This slice is created on demand, from the Slice= its instances default to, and
+# the last verb a session sends - giving a shared device back - arrives while the
+# host that asked for it is already going away. So the slice has to be creatable
+# DURING that shutdown. Two defaults each independently stopped that:
+#
+#   1. DefaultDependencies gives a slice Conflicts=shutdown.target and
+#      Before=shutdown.target. Starting a unit that conflicts with a
+#      shutdown.target that is already being activated is a contradictory
+#      transaction, which systemd refuses outright - so the slice could not be
+#      created for the hand-back instance, systemd dropped the accepted
+#      connection instead of spawning, and the caller read back "the USB/IP
+#      helper closed the connection without answering".
+#   2. An auto-created slice carries nothing against the host it serves. Swept in
+#      parallel with artlight.service, it was already gone by the time the host
+#      was asked to stop.
+#
+# Measured on a z13, 2026-10-08. First test: slice removed 13:28:45.114144, host
+# stop issued 13:28:45.121558, hand-back failed 13:28:45.266. Second test, after
+# the instance template was made shutdown-startable but this slice was not: slice
+# removed 13:48:10.860578, host stop issued 13:48:10.863744, no instance was ever
+# created, and the hand-back failed at 13:48:10.964608 - connect() SUCCEEDED
+# first, so the socket was up and it was the slice systemd would not create. The
+# socket beside it, which carries this same ordering, correctly outlived the host
+# in both runs.
+#
+# Same reasoning as the socket: a verb must not outlive the session that asked for
+# it, but the last verb of a session arrives while the session is still going away.
+DefaultDependencies=no
+After=sysinit.target
+Before=artlight.service

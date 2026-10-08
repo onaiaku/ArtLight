@@ -1,0 +1,78 @@
+[Unit]
+Description=ArtLight USB/IP privileged helper connection
+Documentation=https://github.com/onaiaku/ArtLight
+# DefaultDependencies would hand an instance both Conflicts=shutdown.target and
+# Before=shutdown.target. The second one is fatal for this unit. The only helper
+# verb that has any reason to run during a shutdown is giving a shared device
+# back, and starting a unit that Conflicts with a shutdown.target that is
+# already being activated is a contradictory transaction, which systemd refuses
+# outright - so the instance is never run and the caller reads an empty
+# connection.
+#
+# The dependencies are therefore declared here instead. sysinit is all the
+# default set would have contributed on a machine late enough in its life to be
+# streaming, and the ordering around the host it serves is the part that
+# actually matters.
+DefaultDependencies=no
+After=sysinit.target artlight-session-controller.service
+Before=artlight.service
+# One accepted connection is one finished verb, not live work for the next
+# session handoff. Retaining them as failed units would exhaust the bounded
+# inventory the controller keeps, exactly as it would for the exec broker.
+CollectMode=inactive-or-failed
+
+[Service]
+Type=exec
+User=root
+ExecStart=/usr/libexec/vibeshine/artlight-input-service --stdin
+StandardInput=socket
+# The reply is a framed packet with exact byte counts. Diagnostics mixed into it
+# would corrupt the frame, so stderr goes to the journal and never to the caller.
+StandardOutput=socket
+StandardError=journal
+UMask=0077
+KillMode=control-group
+TimeoutStopSec=15s
+MemoryMax=64M
+TasksMax=16
+
+# Root, for the length of one verb, and nothing past what a verb needs:
+#
+#   usbip attach writes /sys/devices/platform/vhci_hcd.0/attach, which is mode
+#   0600 owned by root, so it needs the sysfs write it is there to perform.
+#
+#   modprobe may have to load vhci-hcd before a device can arrive at all. The
+#   package's modules-load.d entry normally does this at boot; the modprobe here
+#   is the fallback for a machine where it did not, which is the whole reason
+#   CAP_SYS_MODULE is listed.
+CapabilityBoundingSet=CAP_SYS_MODULE CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_SYS_ADMIN
+AmbientCapabilities=
+# The helper is already root and never escalates. It hands NNP to usbip and
+# modprobe, neither of which needs to gain anything - they run as root already.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateMounts=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectProc=invisible
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+# Deliberately NOT ProtectKernelModules=yes - it exists to load vhci-hcd.
+# Deliberately NOT ProtectKernelTunables=yes - it remounts /sys read-only, and
+#   the one write this helper is here to make is a write into /sys.
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RemoveIPC=yes
+KeyringMode=private
+SystemCallArchitectures=native
+# AF_INET/AF_INET6 are required: usbip attach -r <exporter> opens a TCP
+# connection to port 3240 on the exporting machine. AF_UNIX is the socket this
+# request arrived on. No IPAddressDeny or IPAddressAllow is set, because
+# restricting the destination is the policy's job, not the sandbox's: the
+# exporter address is validated by the same is_usable_exporter() rule the app
+# runs, linked in rather than copied, and a sandbox rule here would be a second
+# copy of that decision living outside the policy.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

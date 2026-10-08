@@ -153,6 +153,7 @@ Requires: /usr/bin/python3
 Requires: /usr/bin/wayland-info
 Requires: /usr/bin/xdpyinfo
 Requires: socat
+Requires: usbip
 Requires: util-linux
 Recommends: dkms
 Recommends: gcc
@@ -1403,13 +1404,17 @@ if [ ! -x "$(command -v rpm-ostree)" ]; then
     fi
   done
 
-  # Trigger udev rule reload for /dev/uinput and /dev/uhid
+  # Trigger udev rule reload for /dev/uinput, /dev/uhid and input devices
   path_to_udevadm=$(command -v udevadm 2>/dev/null || true)
   if [ -x "$path_to_udevadm" ]; then
     echo "Reloading udev rules."
     $path_to_udevadm control --reload-rules
     $path_to_udevadm trigger --property-match=DEVNAME=/dev/uinput
     $path_to_udevadm trigger --property-match=DEVNAME=/dev/uhid
+    # Input devices are matched by subsystem: a shared keyboard has no fixed DEVNAME, and no
+    # node at all until something is sharing it. Without this line one already present when
+    # the rules changed keeps root:input, and the host cannot open it.
+    $path_to_udevadm trigger --subsystem-match=input
     echo "Udev rules reloaded successfully."
   else
     echo "error: udevadm not found or not executable."
@@ -1720,6 +1725,9 @@ fi
 %attr(0755,root,root) %{_prefix}/libexec/vibeshine/artlight-app-supervisor
 %{_prefix}/libexec/vibeshine/artlight-machine-host
 %attr(0755,root,root) %{_prefix}/libexec/vibeshine/artlight-kwin-session-environment
+# 0755 root:root and NOT setuid, with no file capabilities: not privileged by what it is, only by
+# what pkexec grants it for the length of a single call.
+%attr(0755,root,root) %{_prefix}/libexec/vibeshine/artlight-input-service
 %attr(0750,root,artlight) %caps(cap_sys_admin,cap_sys_nice+p) %{_prefix}/libexec/vibeshine/artlight-host
 %attr(4755,root,root) %{_libdir}/libvibeshine-kwin-gpu.so
 
@@ -1744,6 +1752,9 @@ fi
 %{_unitdir}/vibeshine-vkms.service
 %{_unitdir}/artlight-session-exec.socket
 %{_unitdir}/artlight-session-exec@.service
+%{_unitdir}/artlight-input-service.socket
+%{_unitdir}/artlight-input-service@.service
+%{_unitdir}/system-artlight-input-service.slice
 %{_unitdir}/artlight-session-controller.service
 %{_unitdir}/artlight.service
 
@@ -1756,9 +1767,16 @@ fi
 %{_sysconfdir}/ufw/applications.d/artlight
 %{_datadir}/pipewire/pipewire.conf.d/50-artlight-audio.conf
 
+# The USB input service is reached over a socket systemd serves, NOT through pkexec. The polkit
+# action that used to authorise that call is deliberately gone: it could never have worked for this
+# caller (the server is the privileged machine host and refuses setuid transitions for itself and
+# everything it spawns) and it was a standing grant of root execution to the local active session
+# while nothing used it.
+
 # Modules-load configuration
 %{_modulesloaddir}/*-sunshine.conf
 %{_modulesloaddir}/70-vibeshine-ds5.conf
+%{_modulesloaddir}/70-artlight-usbip.conf
 
 # Desktop entries
 %{_datadir}/applications/*.desktop

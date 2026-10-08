@@ -290,6 +290,35 @@ namespace config {
 
     // Limit the packetsize to avoid fragmentation on a low MTU link. 0 = off.
     int packetsize;
+
+    // ── USB device sharing (USB/IP) ────────────────────────────────────────────────────────────
+    //
+    // On by default, and it is safe to be, because this switch is not the gate. The gate is what
+    // the exporter is sharing: the list this reads is the far machine's offered devices, and a
+    // machine offering nothing lands on ListOutcome::NothingOffered and returns before it attaches
+    // anything. So this decides whether THIS PC reaches for devices already on offer - never whether
+    // a device moves. Off here would be a second click on top of a decision the person already made
+    // on the machine the device is plugged into.
+    //
+    // What it does still matters: an attached device is GONE from the machine it is plugged into for
+    // the length of the stream. Leave input_usbip_busids empty to take everything on offer; name
+    // devices to narrow it.
+    //
+    // Naming: exporter = the machine the device is plugged into; importer = the machine it arrives
+    // on. This build is the importer. Never write bare "host" or "client" here.
+    bool input_usbip_enabled = true;
+
+    // Which exporter to attach from. Empty is the NORMAL case, and means "the machine this stream was
+    // asked for from" - rtsp_stream::launch_session_t::rtsp_source_address, which is the address the
+    // launch request came from. That is the machine the person is sitting at, and it is where the
+    // devices are plugged in whenever they are sharing their own keyboard and mouse, which is the
+    // ordinary case. A value here is an override for an unusual topology where the exporter is some
+    // third machine - not the ordinary path.
+    std::string input_usbip_exporter;
+
+    // Optional comma-separated busid allowlist. Empty means everything the exporter offers, which
+    // is what someone who has just switched this on almost always wants.
+    std::string input_usbip_busids;
   };
 
   struct nvhttp_t {
@@ -336,6 +365,14 @@ namespace config {
 
     bool enable_input_only_mode;
     bool forward_rumble;
+
+    /**
+     * The combination that ends a stream whose keyboard has been taken away from its client,
+     * written the way a person would: "Ctrl+Alt+Shift+Q". Shared by both platforms, so the same
+     * value means the same thing on Windows and Linux. Guaranteed valid by the time anything
+     * reads it - config.cpp falls back to the default rather than letting a typo stop the server.
+     */
+    std::string input_quit_hotkey;
   };
 
   struct frame_limiter_t {

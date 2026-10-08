@@ -4,9 +4,9 @@ Documentation=https://github.com/onaiaku/ArtLight
 # The controller owns ordered cleanup through ExecStopPost. Binding this unit
 # directly to the controller would queue a concurrent stop and bypass that
 # close-admission, drain-host, drain-broker sequence.
-Requires=artlight-session-exec.socket
+Requires=artlight-session-exec.socket artlight-input-service.socket
 Wants=vibeshine-vkms.service
-After=artlight-session-controller.service artlight-session-exec.socket vibeshine-vkms.service
+After=artlight-session-controller.service artlight-session-exec.socket artlight-input-service.socket vibeshine-vkms.service
 ConditionPathExists=/run/artlight/session.env
 StartLimitIntervalSec=0
 
@@ -48,6 +48,20 @@ DeviceAllow=char-nvidia-caps r
 DeviceAllow=/dev/uinput rw
 DeviceAllow=/dev/uhid rw
 DeviceAllow=/dev/vibeshine-ds5 rw
+# The quit combo reads the keyboard a client shared in, so the sandbox has to let it at the
+# input nodes. DevicePolicy=closed denies everything not named above, and that denial arrives
+# as EPERM rather than EACCES - which makes it invisible to every check that is not this line:
+# the nodes are 0660, the host is in artlight-uinput, a root shell opens them all day, and the
+# reader's own open failure is deliberately silent. Without this the watcher skips every
+# imported keyboard it is handed and logs "no keyboard has been shared in yet" while one is
+# attached.
+#
+# Read only, because the watcher opens the node O_RDONLY and never writes to it. This is also
+# not the only wall: the machine's own keyboards stay root:input, and the host is not in input,
+# so ownership still refuses them even with this allowed. Measured on a real machine - a reader
+# run inside this unit's exact DevicePolicy=closed allow list reported "Operation not permitted"
+# on all five imported nodes, and five clean opens the moment char-input was added.
+DeviceAllow=char-input r
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes

@@ -1,0 +1,8 @@
+Imported USB devices
+====================
+Port 01: device in use at Full Speed(12Mbps)
+         Razer USA, Ltd : RC30-0305 Gaming Mouse Dongle [Viper Ultimate (Wireless)] (1532:007b)
+           -> usbip://192.168.50.35:3240/9-1
+           -> remote bus/dev: 009/001
+           -> serial: 
+           -> mode: zero-copy

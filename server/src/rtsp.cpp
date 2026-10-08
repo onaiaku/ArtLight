@@ -45,6 +45,7 @@ extern "C" {
 #include "stream.h"
 #include "sync.h"
 #include "thread_pool.h"
+#include "usbip_input_session.h"
 #include "video.h"
 
 namespace asio = boost::asio;
@@ -1250,6 +1251,34 @@ namespace rtsp_stream {
       return out;
     }
 
+    /**
+     * @brief The client of every live session that is holding imported USB devices.
+     *
+     * Returns CLIENTS, not sessions or devices. One client holding a keyboard and a mouse is one
+     * entry, because the question the caller is asking is "whose stream is this" and a person is
+     * one person however many devices they brought with them.
+     *
+     * Empty is a normal answer, not a failure: it means nothing is shared with this host, so the
+     * quit combo never reached us and the client is handling it locally.
+     */
+    std::list<std::string> clients_holding_usbip_devices() {
+      std::list<std::string> out;
+      auto lg = _session_state.lock();
+      for (const auto &session : _session_state->sessions) {
+        if (!session || !stream::session::holding_usbip_devices(*session)) {
+          continue;
+        }
+        const auto it = _session_state->client_uuids.find(session.get());
+        if (it == _session_state->client_uuids.end() || it->second.empty()) {
+          continue;
+        }
+        if (std::find(out.begin(), out.end(), it->second) == out.end()) {
+          out.push_back(it->second);
+        }
+      }
+      return out;
+    }
+
     client_disconnect_result_t disconnect_client(const std::string &client_uuid) {
       if (client_uuid.empty()) {
         return {};
@@ -1295,7 +1324,15 @@ namespace rtsp_stream {
 
       for (auto &slot : to_cleanup) {
         stream::session::mark_client_disconnected(*slot);
-        stream::session::stop(*slot);
+        // Graceful, because this function is a *disconnect*, not a terminate. A plain stop()
+        // raises the shutdown event and cuts the transport, so the client is never told and the
+        // stream is closed out from under it - from the far end that reads as "the stream
+        // suddenly died", not as "I was disconnected". graceful_stop() does the same teardown
+        // *and* sends the termination packet to the control peer, so the client disconnects
+        // itself and lands back on its own screen. Matches the user-facing disconnect path,
+        // which already asks for graceful. The hard stop still exists where it belongs:
+        // terminate_sessions() is the "stop everything now" path and keeps using stop().
+        stream::session::graceful_stop(*slot);
         stream::session::join(*slot);
       }
 
@@ -1801,6 +1838,11 @@ namespace rtsp_stream {
   std::list<std::string> get_all_session_client_uuids() {
     server.clear(false);
     return server.get_all_client_uuids();
+  }
+
+  std::list<std::string> clients_holding_usbip_devices() {
+    server.clear(false);
+    return server.clients_holding_usbip_devices();
   }
 
   bool disconnect_client_sessions(const std::string &client_uuid) {
@@ -2449,7 +2491,7 @@ namespace rtsp_stream {
       auto launch_session = session->clone_for_startup();
       server->run_startup(
         launch_session->virtual_display_guid_bytes,
-        [server, socket = std::move(socket), session = std::move(session), launch_session, config = std::move(config), remote_address = std::move(remote_address), client_uuid, sequence_number]() mutable {
+        [server, socket = std::move(socket), session = std::move(session), launch_session, config = std::move(config), remote_address = std::move(remote_address), client_uuid, sequence_number, usbip_enabled = config::stream.input_usbip_enabled, usbip_exporter = config::stream.input_usbip_exporter, usbip_busids = config::stream.input_usbip_busids]() mutable {
         // Apply deferred updates and take the hot-apply gate on the startup worker so
         // display/config churn cannot stall the RTSP io_context.
         std::unique_lock<std::mutex> lifecycle_lock(nvhttp::stream_lifecycle_mutex());
@@ -2496,7 +2538,52 @@ namespace rtsp_stream {
         }
 
         const bool stream_hdr_enabled = activates_vulkan_hdr_layer_for_stream(config.monitor);
+
+        // This stream's USB hold, and what is to be moved onto it. Declared here and filled in two
+        // halves below, because those halves must sit either side of the stream's answer.
+        std::shared_ptr<input::usbip::session_holder_t> usbip_holder;
+        input::usbip::session_request_t usbip_request;
+
         if (!startup_failed) {
+          // Take the USB devices this stream is configured for, and hand them to the session.
+          //
+          // Three orderings matter, and the third is the one that used to be wrong.
+          //
+          // The stream is already up - we are past a successful start - because attaching a device
+          // TAKES IT AWAY from the machine it is plugged into; attach first and the seat can go dark
+          // while the launch is still completing.
+          //
+          // The session is given its hold BEFORE insert(), so no concurrent cancellation can find a
+          // published session without one. It is handed an EMPTY holder at this point on purpose:
+          // the session owns its hold from the moment it is published, so every end path gives back
+          // whatever ends up on it, whichever side of the move below that end lands on. A session
+          // that ends mid-move leaves the holder to the move, and the move gives back what it took.
+          //
+          // And NOTHING is taken from anybody until the answer has gone out. Asking the exporter
+          // what it is offering is a network round trip to a machine that may be off, asleep or
+          // firewalled, and this used to happen BEFORE the 200 OK was posted. Measured 2026-10-05:
+          // the exporter's port was dark, the probe burned its full 20s timeout, the client never
+          // got its ANNOUNCE answer, never opened its sockets, and the stream died with Initial
+          // Ping Timeout while every log in sight blamed the network. The devices are not wanted
+          // until input starts arriving, which is long after the handshake.
+          //
+          // From here the session owns the holder, and ~session_t gives the devices back whichever way
+          // this session ends - the quit key, a lost network, a deadline timer, an exception. There is
+          // no end path that skips a destructor, which is the whole reason this is not a detach() call
+          // written at the end of a stop function.
+          if (usbip_enabled) {
+            usbip_request.enabled = true;
+
+            // Empty override means "the machine this stream was asked for from", which is where the
+            // devices are plugged in whenever the person streaming is sitting at them.
+            usbip_request.exporter = usbip_exporter.empty() ? launch_session->rtsp_source_address
+                                                            : usbip_exporter;
+            usbip_request.busids = usbip_busids;
+
+            usbip_holder = input::usbip::session_holder_t::holding_nothing();
+            stream::session::adopt_usbip_holder(*stream_session, usbip_holder);
+          }
+
           // Publish the active session before releasing the lifecycle gate.
           // Cancellation can then find and synchronously join every started
           // session instead of racing the posted RTSP response callback.
@@ -2528,6 +2615,30 @@ namespace rtsp_stream {
 
           server->shutdown_socket(*socket);
         });
+
+        // NOW move the devices, with the answer already queued. This is the slow half and the
+        // stream no longer waits on it: the client is past ANNOUNCE either way, and a probe that
+        // never gets through costs this worker its time and nothing else.
+        //
+        // Deliberately after the lifecycle gate is released as well - taking the devices must not
+        // hold up another session starting or stopping for the length of a network round trip that
+        // has nothing to do with it. It used to, because this ran while holding the gate.
+        //
+        // take_from() is safe on a holder whose session has already ended - that release has been
+        // recorded against an empty holder, so the move gives back whatever it just took rather
+        // than leaving it on a machine whose stream is gone.
+        if (usbip_holder) {
+          usbip_holder->take_from(usbip_request);
+          BOOST_LOG(info) << "USB input: "sv << usbip_holder->report();
+
+          const auto &failure = usbip_holder->release_failure();
+          if (!failure.empty()) {
+            // The one state that needs a person: a device is still away from the machine it is
+            // plugged into. Said here as well as at teardown, because this is the moment it can
+            // still be said while there is a log line to say it in.
+            BOOST_LOG(error) << "USB input: "sv << failure;
+          }
+        }
         }
       );
     } catch (const std::exception &e) {

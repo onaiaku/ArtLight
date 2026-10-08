@@ -1,0 +1,51 @@
+=== 1. is every piece signed? (a bundled driver must be) ===
+  C:\Program Files\USBip\usbip.exe
+      status=Valid  signer=E=itsec@scheibling.se, CN=Cloudyne Systems (Scheibling Consulting AB), O=Cloudyne Systems (Scheibling Consulting AB), STREET=Fyrislundsgatan 29 a, L=Uppsala, S=Uppsala, C=SE, OID.1.3.6.1.4.1.311.60.2.1.3=SE, SERIALNUMBER=559171-6567, OID.2.5.4.15=Private Organization
+  C:\Program Files\USBip\libusbip.dll
+      status=NotSigned  signer=
+  C:\Program Files\USBip\devnode.exe
+      status=Valid  signer=E=itsec@scheibling.se, CN=Cloudyne Systems (Scheibling Consulting AB), O=Cloudyne Systems (Scheibling Consulting AB), STREET=Fyrislundsgatan 29 a, L=Uppsala, S=Uppsala, C=SE, OID.1.3.6.1.4.1.311.60.2.1.3=SE, SERIALNUMBER=559171-6567, OID.2.5.4.15=Private Organization
+  C:\WINDOWS\system32\drivers\udecx.sys
+      status=Valid  signer=CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US
+  -- the two usbip drivers, from the driver store --
+  C:\WINDOWS\system32\drivers\mausbip.sys
+      status=Valid
+      signer=CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US
+  C:\WINDOWS\system32\DriverStore\FileRepository\usbip2_filter.inf_amd64_2af67c4689565fb6\usbip2_filter.sys
+      status=Valid
+      signer=CN=Microsoft Windows Hardware Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US
+  C:\WINDOWS\system32\DriverStore\FileRepository\usbip2_ude.inf_amd64_bcfb5e9b79f800fa\usbip2_ude.sys
+      status=Valid
+      signer=CN=Microsoft Windows Hardware Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US
+
+=== 2. the upstream installer - is a copy still around to study? ===
+  (silence = no copy left behind)
+
+=== 3. what the uninstaller tells us about how it was installed ===
+  DisplayName : USBip 0.9.8.1
+  Version     : 0.9.8.1
+  Publisher   : usbip-win2
+  Uninstall   : "C:\Program Files\USBip\unins000.exe" /LOG
+  QuietUninst : "C:\Program Files\USBip\unins000.exe" /SILENT /LOG
+  Inno Setup uninstaller present (unins000.exe) => upstream installer is itself Inno Setup
+
+=== 4. full file list - what a bundle would have to carry ===
+       524,112  devnode.exe
+     5,320,704  devnode.pdb
+       471,040  libdrv.pdb
+       368,128  libusbip.dll
+     3,665,920  libusbip.pdb
+        14,143  Readme.md
+         3,584  resources.dll
+        86,016  resources.pdb
+        24,641  unins000.dat
+     4,503,264  unins000.exe
+        25,130  unins000.msg
+     1,399,544  usbip.exe
+     6,213,632  usbip.pdb
+       831,488  usbip2_filter.pdb
+     1,978,368  usbip2_ude.pdb
+     6,616,696  wusbip.exe
+  total: 32,046,410 bytes
+
+=== 5. the driver infs a bundle would have to install ===

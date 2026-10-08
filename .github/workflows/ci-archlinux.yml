@@ -336,6 +336,7 @@ jobs:
           grep -qx 'usr/lib/systemd/system/artlight-session-exec.socket' <<< "${package_files}"
           grep -qx 'usr/lib/systemd/system/artlight-session-exec@.service' <<< "${package_files}"
           grep -qx 'usr/lib/systemd/system/artlight.service' <<< "${package_files}"
+          grep -qx 'usr/lib/systemd/system/system-artlight-input-service.slice' <<< "${package_files}"
           grep -qx 'usr/libexec/vibeshine/artlight-session-controller' <<< "${package_files}"
           grep -qx 'usr/libexec/vibeshine/artlight-session-exec' <<< "${package_files}"
           grep -qx 'usr/libexec/vibeshine/artlight-session-broker' <<< "${package_files}"

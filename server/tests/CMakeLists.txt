@@ -385,6 +385,26 @@ sunshine_register_component(NAME test_component_rtsp_pending_policy TEST_SOURCE 
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/rtsp_pending_policy.cpp")
 sunshine_register_component(NAME test_component_pyrowave_policy TEST_SOURCE unit/test_pyrowave_policy.cpp
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/pyrowave_policy.cpp")
+sunshine_register_component(NAME test_component_quit_request_policy TEST_SOURCE unit/test_quit_request_policy.cpp
+    PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/quit_request_policy.cpp")
+# The quit combo's parser is shared: Windows and Linux read the same config value, so the same
+# value has to mean the same thing on both. Pure string in, decision out.
+sunshine_register_component(NAME test_component_quit_hotkey_parse TEST_SOURCE unit/test_quit_hotkey_parse.cpp
+    PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/quit_hotkey_parse.cpp")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # The Linux quit combo's matching half. It is pure key-event logic with no kernel header and
+    # no device, which is exactly why it is worth testing: the part of the Linux trigger that
+    # cannot be tried on hardware is the part that must not be wrong.
+    sunshine_register_component(NAME test_component_combo_matcher TEST_SOURCE unit/test_combo_matcher.cpp
+        PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/platform/linux/quit_hotkey_linux.cpp")
+    # Which devices are ours. The whole feature rests on one claim - that a keyboard shared in over
+    # USB/IP can be told apart from the ones built into the machine - and that claim is asserted
+    # here against sysfs paths read off a real machine rather than invented ones. It needs no
+    # hardware and no privileges, so there is no reason for it ever to be skipped.
+    sunshine_register_component(NAME test_component_quit_hotkey_device TEST_SOURCE unit/test_quit_hotkey_device.cpp
+        PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/platform/linux/quit_hotkey_device.cpp"
+                        "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/platform/linux/quit_hotkey_linux.cpp")
+endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # A test component links only GTest plus whatever it declares, so any component
     # that reaches Boost headers must name the Boost target. With system Boost the
@@ -507,6 +527,15 @@ sunshine_register_component(NAME test_component_audio_policy TEST_SOURCE unit/te
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/audio_policy.cpp")
 sunshine_register_component(NAME test_component_mouse_policy TEST_SOURCE unit/test_mouse.cpp
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/mouse_input.cpp")
+sunshine_register_component(NAME test_component_usbip_input_policy TEST_SOURCE unit/test_usbip_input_policy.cpp
+    PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/usbip_input_policy.cpp")
+# The session's return path - the half that decides whether a device actually goes home. It needs
+# the policy too, because the port matching is the policy's and the join between them is the thing
+# that failed on real hardware on 2026-10-06. The platform edge is stood in for inside the test, on
+# purpose: the timing of when a port appears is the variable, and it is the one thing a machine
+# cannot be made to reproduce on demand.
+sunshine_register_component(NAME test_component_usbip_input_session TEST_SOURCE unit/test_usbip_input_session.cpp
+    PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/usbip_input_session.cpp;${SUNSHINE_TEST_REPOSITORY_ROOT}/src/usbip_input_policy.cpp")
 sunshine_register_component(NAME test_component_platform_common TEST_SOURCE unit/platform/test_common.cpp
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/platform/common_services.cpp")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

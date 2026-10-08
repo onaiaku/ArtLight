@@ -278,11 +278,39 @@ require(host, '"$profile/sunshine_state.json"', "legacy pairing state discovery"
 require(controller, 'desktop_service_supported() { [[ "$1" =~ ^(plasmalogin|plasmalogin-autologin|sddm|sddm-autologin)$ ]]; }',
         "SDDM and Plasma Login Manager desktop sessions")
 uinput_rules = (linux / "70-artlight-uinput.rules").read_text()
-for rule in (
-    'KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="artlight-uinput", MODE="0660"',
-    'KERNEL=="uhid", SUBSYSTEM=="misc", GROUP="artlight-uinput", MODE="0660"',
-):
-    require(uinput_rules, rule, "dedicated virtual input device group")
+
+
+def rules_for_node(text: str, node: str, source: str) -> str:
+    """The one rule line for a device node, matched by node rather than by one exact substring.
+
+    Matching a substring pins the ORDER the attributes are written in, which is not a contract
+    anyone meant to make: adding OWNER="artlight" to the uinput rule stopped this check matching
+    even though the rule was right, and the red build was read as the rule being wrong. The
+    attributes are what matter, so the attributes are what is asserted.
+    """
+    lines = [line for line in text.splitlines() if line.startswith(f'KERNEL=="{node}"')]
+    if len(lines) != 1:
+        raise AssertionError(f"expected exactly one {node} rule line in {source}, found {len(lines)}")
+    return lines[0]
+
+
+for node in ("uinput", "uhid"):
+    node_rule = rules_for_node(uinput_rules, node, "70-artlight-uinput.rules")
+    # The group and mode are the grant the host unit relies on. OWNER is the lever that survives
+    # another package tagging the node - Steam's and KDE Connect's rules both tag /dev/uinput,
+    # and a tag cannot be vetoed from here.
+    for attribute in ('OWNER="artlight"', 'GROUP="artlight-uinput"', 'MODE="0660"'):
+        require(node_rule, attribute, f"{node} device rule")
+    # uaccess is what made the real mode 0600 on a machine with either of those packages
+    # installed: logind's ACL leaves the group class empty. It must not come back on these two.
+    forbid(node_rule, "uaccess", f"{node} device rule")
+
+# The same two rules ship a second time, in upstream Sunshine's file, and udev applies both.
+# Fixing only ours would have shipped a no-op, so both are held to the same line.
+sunshine_rules = (root / "src_assets/linux/misc/60-sunshine.rules").read_text()
+for node in ("uinput", "uhid"):
+    forbid(rules_for_node(sunshine_rules, node, "60-sunshine.rules"), "uaccess",
+           f"{node} sunshine device rule")
 for native_asset in (
     "%{_udevrulesdir}/70-artlight-uinput.rules",
     "%{_prefix}/lib/firewalld/services/artlight.xml",
@@ -315,6 +343,70 @@ require(host_unit, "CapabilityBoundingSet=CAP_SYS_ADMIN CAP_SYS_NICE", "machine 
 require(host_unit, "AmbientCapabilities=", "machine host unit")
 require(host_unit, "NoNewPrivileges=no", "machine host unit")
 require(host_unit, "DevicePolicy=closed", "machine host unit")
+# The quit combo reads the imported keyboard, and DevicePolicy=closed refuses anything the
+# allow list does not name. The refusal is EPERM, so nothing else on the machine can notice it:
+# ownership checks pass and a root shell opens the same nodes. Dropping this line is a silently
+# dead feature, which is exactly what it was before it was added.
+require(host_unit, "DeviceAllow=char-input r", "quit combo imported-keyboard read access")
+
+# The USB/IP helper is the one privileged path that has to work while the host is
+# ALREADY stopping: giving a shared device back is the last thing a session does, and
+# it is one more helper verb, so it needs an instance and an instance needs its slice.
+#
+# Two separate things were wrong, and both produced the same silent symptom - the
+# device was never detached and the caller read an empty connection ("the USB/IP
+# helper closed the connection without answering"):
+#
+#   1. The instances run in a slice systemd creates on demand from their Slice=
+#      default, and an auto-created slice carries nothing against artlight.service.
+#      At shutdown it was swept in parallel with the host and removed before the
+#      host was even asked to stop. Measured on a z13, 2026-10-08: slice removed
+#      13:28:45.114144, host stop issued 13:28:45.121558, hand-back failed
+#      13:28:45.266. Hence the explicit slice unit, ordered like the socket.
+#   2. DefaultDependencies would give an instance Conflicts=shutdown.target, and
+#      starting a unit that conflicts with a shutdown.target already being activated
+#      is a contradictory transaction that systemd refuses. So the instance is never
+#      run at all. DefaultDependencies=no is what removes that conflict.
+input_socket_unit = (linux / "artlight-input-service.socket").read_text()
+input_connection_unit = (linux / "artlight-input-service@.service").read_text()
+input_slice_unit = (linux / "system-artlight-input-service.slice").read_text()
+
+# All three have to stay out of the shutdown transaction, and each one fails independently:
+# a stopping socket still accepts a connect() and then resets it, an instance that has to be
+# created cannot be, and the slice an instance needs cannot be created either. Any one alone
+# breaks the hand-back, and every one of them breaks it SILENTLY - the caller reads an empty
+# connection rather than an error it could name, and systemd logs nothing at all.
+# Comments in these units name the directives they exist to explain, so every check below
+# reads what systemd will actually apply, not the prose.
+for unit, label, unit_section in (
+    (input_socket_unit, "USB/IP helper socket", None),
+    (input_connection_unit, "USB/IP helper connection", "[Service]"),
+    (input_slice_unit, "USB/IP helper slice", None),
+):
+    effective = "\n".join(
+        line
+        for line in (unit if unit_section is None else unit.split(unit_section, 1)[0]).splitlines()
+        if not line.lstrip().startswith("#")
+    )
+    # Read the ordering the way systemd does - one set of names, however many Before= lines
+    # they are spread over - instead of demanding one exact spelling of the directive.
+    ordered_before = {
+        name
+        for line in effective.splitlines()
+        if line.strip().startswith("Before=")
+        for name in line.strip()[len("Before="):].split()
+    }
+    if "artlight.service" not in ordered_before:
+        raise AssertionError(f"{label} is not ordered to drain after artlight.service")
+    require(effective, "DefaultDependencies=no", f"{label} outside the shutdown transaction")
+    forbid(effective, "Conflicts=", f"{label} with a redundant conflict")
+# The slice is a package file, not something left to systemd to invent: an auto-created
+# one has the wrong ordering, and the ordering is the whole fix.
+for manifest, label in (
+    (packaging, "CMake install manifest"),
+    (rpm, "RPM unit manifest"),
+):
+    require(manifest, "system-artlight-input-service.slice", f"{label} carries the helper slice")
 require(host_unit, "ProtectSystem=strict", "machine host unit")
 require(host_unit, "ProtectHome=yes", "machine host unit")
 require(host_unit, "PrivateTmp=yes", "machine host unit")

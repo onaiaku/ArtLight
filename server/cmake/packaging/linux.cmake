@@ -126,6 +126,22 @@ else()
                 "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-kwin-session-environment.c")
         set_target_properties(artlight_kwin_session_environment PROPERTIES
                 OUTPUT_NAME "artlight-kwin-session-environment")
+        # The privileged half of USB device sharing. This is the ONE binary in the package that
+        # root runs on a user's request, and it exists so the server itself never has to be
+        # privileged: it takes a verb, does it, and exits, keeping no state of its own.
+        #
+        # Launched by pkexec through the polkit action installed below, which pins this exact path
+        # via org.freedesktop.policykit.exec.path - so a copy of this binary anywhere else, and a
+        # binary anywhere else at this path, both get nothing. The path is also compiled into the
+        # server (src/platform/linux/usbip_input.cpp, kHelperPath); if one moves, both must move.
+        #
+        # Boost-free on purpose, so it links against almost nothing: a binary that root executes
+        # should not drag in a library somebody else can replace.
+        add_executable(artlight_input_service
+                "${CMAKE_SOURCE_DIR}/../service/artlight-input-service.cpp"
+                "${CMAKE_SOURCE_DIR}/src/usbip_input_policy.cpp")
+        set_target_properties(artlight_input_service PROPERTIES OUTPUT_NAME "artlight-input-service")
+        target_include_directories(artlight_input_service PRIVATE "${CMAKE_SOURCE_DIR}")
         add_executable(artlight_provider_scan
                 "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-provider-scan.cpp"
                 "${CMAKE_SOURCE_DIR}/src/provider_scan_protocol.cpp"
@@ -178,6 +194,25 @@ else()
                 artlight_profile_import artlight_kwin_session_environment
                 artlight_provider_scan artlight_steam_launch artlight_display_power
                 RUNTIME DESTINATION "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}")
+        # 0755 root:root, deliberately NOT setuid and with no file capabilities. It is not
+        # privileged by what it is: systemd starts it as root for the length of one accepted
+        # connection on artlight-input-service.socket, and only the account the server runs as can
+        # reach that socket.
+        #
+        # It used to be launched by pkexec under a polkit action, and that could never have worked
+        # for this caller. The ArtLight server IS the privileged machine host: it sets
+        # NoNewPrivileges in its first statement, which permanently prevents a setuid transition in
+        # it and in anything it spawns, so pkexec found geteuid() != 0 and refused with
+        # "pkexec must be setuid root". Measured on the z13 on 2026-10-06.
+        #
+        # The action and rule that used to authorise that call are removed here rather than left
+        # behind. An action carrying org.freedesktop.policykit.exec.path is a LIVE grant of root
+        # execution to the active session; leaving one in place while nothing uses it would be a
+        # standing privilege nobody could account for.
+        install(TARGETS artlight_input_service
+                RUNTIME DESTINATION "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}")
+        install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/70-artlight-usbip.conf"
+                DESTINATION "${VIBESHINE_MODULES_LOAD_INSTALL_DIR}")
         install(TARGETS artlight_session_broker
                 RUNTIME DESTINATION "${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}"
                 PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE)
@@ -260,6 +295,9 @@ else()
                     "${CMAKE_CURRENT_BINARY_DIR}/vibeshine-vkms-control@.service"
                     "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-session-exec.socket"
                     "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-session-exec@.service"
+                    "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-input-service.socket"
+                    "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-input-service@.service"
+                    "${CMAKE_SOURCE_DIR}/packaging/linux/system-artlight-input-service.slice"
                     "${CMAKE_SOURCE_DIR}/packaging/linux/artlight-session-controller.service"
                     "${CMAKE_SOURCE_DIR}/packaging/linux/artlight.service"
                     DESTINATION "${VIBESHINE_SYSTEM_UNIT_INSTALL_DIR}")
@@ -315,6 +353,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-steam-launch"
             "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-kwin-session-environment"
             "%attr(0750,root,artlight) %caps(cap_sys_admin,cap_sys_nice+p) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-host"
+            # Listed explicitly for the same reason as the other capability-free helpers: so stale
+            # package metadata from the pkexec era cannot silently reattach capabilities to the one
+            # binary systemd runs as root. It needs none, and it has none.
+            "%attr(0755,root,root) ${VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR}/artlight-input-service"
     )
 endif()
 

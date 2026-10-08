@@ -1,8 +1,14 @@
-# Allows Sunshine to access /dev/uinput
-KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", GROUP="input", MODE="0660", TAG+="uaccess"
+# Allows the host to access /dev/uinput
+#
+# No TAG+="uaccess" here, deliberately - same reason as 70-artlight-uinput.rules. uaccess
+# makes logind put an ACL on the node for the logged-in user, which empties the GROUP
+# class (the real mode becomes 0600) and takes the device away from the service that
+# actually needs it. These two nodes are opened by the ArtLight host, not by a desktop
+# user, so the host's group is the correct grant and uaccess is the wrong one.
+KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", GROUP="input", MODE="0660"
 
-# Allows Sunshine to access /dev/uhid
-KERNEL=="uhid", GROUP="input", MODE="0660", TAG+="uaccess"
+# Allows the host to access /dev/uhid
+KERNEL=="uhid", GROUP="input", MODE="0660"
 
 # Joypads
 KERNEL=="hidraw*", ATTRS{name}=="Sunshine PS5 (virtual) pad*", GROUP="input", MODE="0660", TAG+="uaccess"

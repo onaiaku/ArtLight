@@ -52,6 +52,9 @@ function install() {
   sudo udevadm control --reload-rules
   sudo udevadm trigger --property-match=DEVNAME=/dev/uinput
   sudo udevadm trigger --property-match=DEVNAME=/dev/uhid
+  # Same reason as the Arch install hook: input devices have no fixed DEVNAME, and one that
+  # is already present when the rules change is otherwise left holding its old permissions.
+  sudo udevadm trigger --subsystem-match=input
 
   # ArtLight service
   mkdir -p ~/.config/systemd/user

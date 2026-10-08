@@ -52,6 +52,18 @@ namespace input::validation {
           return packet_size_bounds_t {sizeof(NV_INPUT_HEADER), sizeof(NV_UNICODE_PACKET)};
         case MULTI_CONTROLLER_MAGIC_GEN5:
           return packet_size_bounds_t {sizeof(NV_MULTI_CONTROLLER_PACKET), sizeof(NV_MULTI_CONTROLLER_PACKET)};
+        case ENABLE_HAPTICS_MAGIC:
+          // 0x0D is shared, and the size is the only thing that separates the two packets wearing it:
+          // ENABLE_HAPTICS_MAGIC here, MULTI_CONTROLLER_MAGIC in the same header. Bounding it to the
+          // haptics packet EXACTLY is what keeps a legacy controller report (sizeof(NV_MULTI_CONTROLLER_PACKET),
+          // 34 bytes against this packet's 10) from ever being read as one of these - both would otherwise
+          // pass a looser check and the controller would be misparsed. The packet itself is a
+          // capability announcement, sent once per stream when the
+          // client enables haptics; whether haptics are actually sent is decided by the negotiated
+          // ML_FF_HAPTICS_PCM feature flag, so accepting it and acting on nothing is the correct
+          // handling. Rejected as unknown, it put a warning in the log every session for a packet that
+          // was never a fault.
+          return packet_size_bounds_t {sizeof(NV_HAPTICS_PACKET), sizeof(NV_HAPTICS_PACKET)};
         case SS_TOUCH_MAGIC:
           return packet_size_bounds_t {sizeof(SS_TOUCH_PACKET), sizeof(SS_TOUCH_PACKET)};
         case SS_PEN_MAGIC:

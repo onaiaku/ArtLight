@@ -754,6 +754,10 @@ export const settingsCategories: SettingsCategory[] = [
       {
         id: 'input_devices',
         fields: [
+          // The USB/IP switch leads the group on purpose. It is the one control here that decides
+          // whether this PC reaches for devices at all, and a person looking for it should not have
+          // to scroll past thirteen device preferences to find out the feature exists.
+          boolean('input_usbip_enabled'),
           boolean('keyboard'),
           boolean('mouse'),
           boolean('controller'),
@@ -768,6 +772,10 @@ export const settingsCategories: SettingsCategory[] = [
           boolean('always_send_scancodes', { platform: 'windows' }),
           boolean('high_resolution_scrolling'),
           boolean('native_pen_touch', { platform: 'windows' }),
+          // The combo that ends a stream whose keyboard has been shared away from its client.
+          // A plain text field rather than the click-to-capture pair the restore hotkey uses:
+          // one value, the same on both platforms.
+          text('input_quit_hotkey', { platform: ['windows', 'linux'] }),
         ],
       },
       {
@@ -1016,6 +1024,15 @@ export const settingsDefaults: Record<string, unknown> = {
   capture: '',
   stream_audio: true,
   controller: true,
+  // Kept in agreement with config.h's default and the description in en.json. The page shows
+  // this when the server sends nothing, so all three must say the same combination.
+  input_quit_hotkey: 'Ctrl+Alt+Shift+Q',
+  // This entry is what makes the settings page agree with the host. The page builds its working
+  // copy as { ...settingsDefaults, ...configured }, so any field the server does not send comes
+  // from this table - and a boolean with no entry here renders OFF however the host is set.
+  // input_usbip_enabled is true in the host's own config (config.h). Without this line the page
+  // showed the feature switched off while the server had it on.
+  input_usbip_enabled: true,
   origin_web_ui_allowed: 'lan',
   upnp: false,
   output_name: '',

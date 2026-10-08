@@ -1125,11 +1125,38 @@ jobs:
 
           New-Item -ItemType Directory -Path (Join-Path $PWD 'build') -Force | Out-Null
           $controlInstaller = (Get-ChildItem "control/Output/*.exe" | Select-Object -First 1).FullName
+
+          # USB device sharing - the pinned USBip payload.
+          #
+          # Pinned by SHA-256, not by URL alone. This is a third-party installer that ends up inside
+          # our setup executable AND installs a kernel driver on the user's machine, so the bytes
+          # must be the bytes that were reviewed. A release tag can be moved and a download can be
+          # altered in transit; a hash is the only part of that which cannot be argued with.
+          $usbipVersion = '0.9.8.1'
+          $usbipSha256  = '38cad6d4432b52d5bb9409d9ad03b72fdffc4ada4cd3a48fbeca1a2752a8518a'
+          $usbipDir = Join-Path $PWD 'usbip-payload'
+          New-Item -ItemType Directory -Path $usbipDir -Force | Out-Null
+          $usbipExe = Join-Path $usbipDir "USBip-$usbipVersion-x64.exe"
+          $usbipLicense = Join-Path $usbipDir 'LICENSE.txt'
+          if (-not (Test-Path -LiteralPath $usbipExe)) {
+            Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/vadimgrn/usbip-win2/releases/download/v.$usbipVersion/USBip-$usbipVersion-x64.exe" -OutFile $usbipExe
+          }
+          $usbipActual = (Get-FileHash -LiteralPath $usbipExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($usbipActual -ne $usbipSha256) {
+            throw "USBip payload hash mismatch: expected $usbipSha256, got $usbipActual"
+          }
+          Write-Host "USBip payload verified: $usbipExe ($usbipActual)"
+          if (-not (Test-Path -LiteralPath $usbipLicense)) {
+            Invoke-WebRequest -UseBasicParsing -Uri "https://raw.githubusercontent.com/vadimgrn/usbip-win2/v.$usbipVersion/LICENSE.txt" -OutFile $usbipLicense
+          }
+
           & (Join-Path $PWD 'server/packaging/windows/bootstrapper/build_bootstrapper.ps1') `
             -BuildDir (Join-Path $PWD 'build') `
             -MsiPath $signedMsi `
             -OutputName $installerName `
             -ControlInstallerPath $controlInstaller `
+            -UsbipInstallerPath $usbipExe `
+            -UsbipLicensePath $usbipLicense `
             -DisableSignPath
 
           $installerExe = Join-Path (Join-Path $PWD 'build/cpack_artifacts') $installerName

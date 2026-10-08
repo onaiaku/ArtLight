@@ -61,6 +61,7 @@ extern "C" {
 #include "system_tray.h"
 #include "thread_safe.h"
 #include "update.h"
+#include "usbip_input_session.h"
 #include "utility.h"
 #include "uuid.h"
 #include "webrtc_stream.h"
@@ -581,6 +582,9 @@ namespace stream {
   };
 
   struct session_t {
+    /// Gives back any USB devices this session took, and says so if it could not.
+    ~session_t();
+
     std::shared_ptr<void> display_power_guard;
     std::shared_ptr<void> normal_display_capture;
     config_t config;
@@ -597,6 +601,14 @@ namespace stream {
     safe::mail_t mail;
 
     std::shared_ptr<input::input_t> input;
+
+    // The USB devices this session took from the exporter, and the promise to give them back.
+    //
+    // Owned by the session, NOT as a local in the ANNOUNCE handler: a local dies when that handler
+    // returns, which is before the stream has even started, and the devices would go home mid-session.
+    // As a member the release runs when the SESSION dies, and a session dies by every end path there
+    // is - including the ones nobody thought to write a detach() for.
+    std::shared_ptr<input::usbip::session_holder_t> usbip_holder;
 
 #ifdef _WIN32
     std::shared_future<rtsp_stream::launch_session_t::display_helper_gate_status_e> display_helper_gate;
@@ -704,6 +716,23 @@ namespace stream {
     } virtual_display;
 #endif
   };
+
+  // Defined in namespace stream, NOT in namespace stream::session: a member definition has to sit
+  // in a namespace that ENCLOSES the class, and stream::session does not enclose stream::session_t.
+  session_t::~session_t() {
+    // Release while we can still say whether it worked. Left to the member's own destructor the
+    // devices would still be given back, but the failure would land in an object that is already
+    // gone - and a device left on a machine its owner cannot reach is precisely the state that has
+    // to reach the log rather than only the kernel.
+    if (usbip_holder) {
+      usbip_holder->release_all();
+
+      const auto &failure = usbip_holder->release_failure();
+      if (!failure.empty()) {
+        BOOST_LOG(error) << "USB devices taken for this stream could not all be given back: "sv << failure;
+      }
+    }
+  }
 
   /**
    * First part of cipher must be struct of type control_encrypted_t
@@ -1724,6 +1753,20 @@ namespace stream {
       }
     };
 
+    // A peer whose termination packet is on the wire but whose reset has to wait for it to be
+    // read. See the STOPPING branch below for why the reset cannot follow the goodbye at once.
+    struct pending_peer_reset_t {
+      ENetPeer *peer;
+      std::chrono::steady_clock::time_point deadline;
+    };
+
+    // Long enough for the client's control loop to service the socket, dispatch the termination
+    // and act on it - that loop runs at frame rate, so this is tens of times the margin - and
+    // short enough that a peer is never left hanging.
+    constexpr auto kTerminationResetGrace = std::chrono::milliseconds(400);
+
+    std::vector<pending_peer_reset_t> pending_peer_resets;
+
     while (!shutdown_event->peek() && !broadcast_shutdown_event->peek()) {
       // running() performs synchronous process cleanup when it observes an
       // exited app. current_app_id() then gives the logical lifetime without
@@ -1734,6 +1777,23 @@ namespace stream {
       bool has_processless_live_session = false;
       bool haptics_client = false;
       bool has_game_session_pending_or_draining = false;
+
+      // Reap peers whose goodbye has had its window. A peer the client has already ended is
+      // dropped without touching it: ENet reset it when it dispatched the client's own
+      // disconnect, and the client sends that disconnect as soon as it reads the termination.
+      {
+        const auto reset_now = std::chrono::steady_clock::now();
+        for (auto it = pending_peer_resets.begin(); it != pending_peer_resets.end();) {
+          if (it->peer->state == ENET_PEER_STATE_DISCONNECTED) {
+            it = pending_peer_resets.erase(it);
+          } else if (reset_now >= it->deadline) {
+            enet_peer_disconnect_now(it->peer, 0);
+            it = pending_peer_resets.erase(it);
+          } else {
+            ++it;
+          }
+        }
+      }
 
       {
         auto lg = server->_sessions.lock();
@@ -1785,7 +1845,26 @@ namespace stream {
                 server->_peer_to_session->erase(session->control.peer);
               }
 
-              enet_peer_disconnect_now(session->control.peer, 0);
+              // A graceful_stop() queues its termination packet with enet_peer_send() and nothing
+              // else on that path flushes the host, so at this point the goodbye is still sitting
+              // in the peer's outgoing queue. Flush it: this is the thread that services the
+              // control host, so whatever is queued for this client goes out on the wire first.
+              server->flush();
+
+              // ...and then do not reset the peer here. The client's ENet destroys a
+              // received-but-not-yet-dispatched packet the moment it handles a DISCONNECT command
+              // (enet_protocol_handle_disconnect -> enet_peer_reset_queues), and ControlStream
+              // dispatches one event per service call, so a disconnect sent behind the goodbye
+              // wipes the goodbye before it is ever read - the client sees only the control stream
+              // drop and reports error -1 ("unexpected disconnect", ControlStream.c) instead of
+              // landing cleanly. Measured on the wire 2026-10-07: goodbye out at 24.739899,
+              // disconnect at 24.739953, 54us apart, and the client logged "unexpected disconnect"
+              // with no termination reason; an earlier disconnect that had room behind it was read
+              // as "Server notified termination reason: 0x80030023" and landed as error 0.
+              // Deferring the reset gives the goodbye its window, and the client ends its own side
+              // the moment it processes it, which is why the reap above drops a peer that is
+              // already disconnected without touching it.
+              pending_peer_resets.push_back({session->control.peer, std::chrono::steady_clock::now() + kTerminationResetGrace});
             }
 
             session->controlEnd.raise(true);
@@ -3342,6 +3421,18 @@ namespace stream {
 
     inline bool send(session_t &session, const std::string_view &payload) {
       return session.broadcast_ref->control_server.send(payload, session.control.peer);
+    }
+
+    void adopt_usbip_holder(session_t &session, std::shared_ptr<input::usbip::session_holder_t> holder) {
+      session.usbip_holder = std::move(holder);
+    }
+
+    bool holding_usbip_devices(const session_t &session) {
+      // Two conditions, and both are needed: a session that never attached anything has no
+      // holder at all, and a session whose attach came back empty has a holder that is holding
+      // nothing. Neither of those is "a device is away from its machine", and answering yes for
+      // either would end a stream the person did not ask to end.
+      return session.usbip_holder && session.usbip_holder->holding();
     }
 
     std::string uuid(const session_t &session) {

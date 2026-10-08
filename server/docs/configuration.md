@@ -4889,6 +4889,45 @@ Sets the maximum bitrate, in Kbps, considered by the network pacing policy. Set 
 
 Sets the maximum network packet size used for streaming. Set `0` to use the default behavior.
 
+### input_quit_hotkey
+
+The combination that ends a stream when its keyboard has been shared over USB, for example
+`Ctrl+Alt+Shift+Q`. The default is `Ctrl+Alt+Shift+Q` - the same combination the client uses to
+leave a stream, so the key people already press keeps working once the keyboard has moved.
+
+Sharing a keyboard takes it away from the machine the client is running on, so the client can no
+longer see the combination it normally uses to leave - the stream becomes inescapable. This setting
+is read from the shared keyboard instead, so it works from wherever that keyboard now is, including
+the machine it was taken from. Only the client the combination was pressed on leaves; anyone else
+watching the same stream keeps watching.
+
+Letters `A`-`Z`, digits `0`-`9` and function keys `F1`-`F24` are accepted, with `Ctrl`, `Alt` and
+`Shift` in any order and in any letter case. A value that cannot be understood is ignored, the
+default is used, and the reason is written to the log - a typo here does not stop the server.
+
+@note{On Windows the combination is reserved by the operating system, so it does not reach anything
+else running on that machine. On Linux the key press also carries on to whatever is running there.
+That is a real difference between the platforms rather than an oversight.}
+
+### input_usbip_enabled
+
+Moves the USB devices shared by the machine you are streaming from onto the machine you are streaming
+to, for the duration of the session, and gives them back when the session ends.
+
+Off by default. A device moved this way is taken away from the machine it is plugged into, so this
+does not turn itself on: set it to `true` to enable it per application.
+
+### input_usbip_exporter
+
+The machine the shared USB devices are plugged into. Leave empty to use the address the stream is
+being taken from, which is correct whenever the devices are plugged into the machine that is
+streaming.
+
+### input_usbip_busids
+
+A comma-separated list of the device IDs to move, for example `9-1,9-2`. Leave empty to move every
+device the exporter is offering, which is what the tick boxes on the exporter already decided.
+
 <div class="section_buttons">
 
 | Previous          |                            Next |

@@ -1,0 +1,58 @@
+[Unit]
+Description=ArtLight USB/IP privileged helper socket
+Documentation=https://github.com/onaiaku/ArtLight
+# The host is the only caller, and it lives in artlight.service. Take the socket
+# down with the host so a verb cannot outlive the session that asked for it - but
+# the LAST verb of a session arrives while the session is still going away, and it
+# has to be served.
+#
+# Before=artlight.service orders when this socket's stop COMPLETES. It says nothing
+# about when that stop BEGINS, and with DefaultDependencies the socket also carries
+# Conflicts=shutdown.target, so its stop job is enqueued the moment a shutdown
+# starts. systemd takes the unit into its stopping state there and then and stops
+# serving the listener, while the job itself waits for the host to finish. Through
+# that whole window the socket file is still in the filesystem and a connect() still
+# SUCCEEDS, so the caller believes it has the helper - and then the connection is
+# reset. "the USB/IP helper closed the connection without answering" was really
+# ECONNRESET, errno 104.
+#
+# Measured on a z13, 2026-10-08, reproduced directly against a stopping socket:
+#
+#   socket healthy -> connect=OK  reply=186B
+#   stop issued    -> connect=OK  recv failed errno=104 ECONNRESET, every attempt
+#
+# and in two real shutdowns the same window opened in the same place: stop job
+# enqueued at 13:48:10.86 and 14:00:28.33, hand-back failed at 13:48:10.964608 and
+# 14:00:28.465435, and the socket was not finally closed until 13:48:26.805003 and
+# 14:00:30.577062 - two to sixteen seconds of a listener that accepts and resets.
+#
+# The last thing a session does is give a shared device back, and it lands in that
+# window, so the window must not exist. DefaultDependencies=no keeps this socket out
+# of the shutdown transaction entirely; the explicit ordering below keeps everything
+# the defaults were contributing. It lives exactly as long as the host needs it and
+# no longer, and a verb still cannot outlive the session that asked for it.
+DefaultDependencies=no
+After=sysinit.target
+Before=sockets.target artlight.service
+
+[Socket]
+ListenSequentialPacket=/run/artlight/usbip-helper.sock
+SocketMode=0660
+SocketUser=root
+SocketGroup=artlight
+DirectoryMode=0755
+Accept=yes
+RemoveOnStop=yes
+Backlog=16
+MaxConnections=8
+MaxConnectionsPerSource=4
+# The helper returns the tool's own stdout AND stderr inside ONE framed packet.
+# A usbip refusal is a paragraph, not a line, and a packet the buffer cannot
+# hold would be handed back as a truncated reason - which is the failure this
+# whole path was rebuilt to stop producing.
+ReceiveBuffer=1M
+
+# Deliberately NO [Install] section, and so deliberately static: artlight.service
+# Requires= this socket, which means it follows the host's lifetime and can never
+# be found enabled while the host it belongs to is not. The exec broker beside it
+# is built the same way for the same reason.

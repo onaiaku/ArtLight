@@ -1,6 +1,67 @@
 # The machine-scoped ArtLight host runs as the unprivileged "artlight"
 # account. Grant it virtual input devices through a dedicated group instead of
 # the broad "input" group, which would also expose every physical input event.
-KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="artlight-uinput", MODE="0660", OPTIONS+="static_node=uinput", TAG+="uaccess"
-KERNEL=="uhid", SUBSYSTEM=="misc", GROUP="artlight-uinput", MODE="0660", OPTIONS+="static_node=uhid", TAG+="uaccess"
+# Deliberately NO TAG+="uaccess" on these three, and it must not come back.
+#
+# It reads as harmless and it is not. uaccess makes logind grant the LOGGED-IN user an
+# ACL on the node, and acl_set leaves the GROUP class empty - the real mode becomes 0600
+# even though the rule says MODE="0660". The artlight-uinput group above then grants
+# nothing, so the host cannot open these at all.
+#
+# Measured on a real machine, 2026-10-06: with uaccess present, `ls -l` still printed
+# crw-rw---- and looked perfectly correct, because ls shows the ACL MASK in the group
+# position; `getfacl` showed the truth, group::--- . Every virtual input device failed
+# to create - "Unable to create virtual mouse: Permission denied", same for the
+# keyboard, the touch screen, the pen tablet and both gamepads - so an unshared mouse,
+# keyboard or gamepad simply did not exist for a client to use. Proved by isolation:
+# the same account and group in a clean sandbox were denied, and chmod 0660 on the node
+# made the write succeed and every device appear.
+#
+# These devices belong to the SERVICE, not to whoever happens to be logged in at the
+# seat, which is exactly why the dedicated group exists. uaccess hands them to the
+# human and takes them away from the service.
+# OWNER is the belt, and it is here on purpose.
+#
+# Another package on the machine can put the uaccess tag back whatever this file says
+# (Steam's and KDE Connect's rules both tag /dev/uinput), and udev has no way to veto
+# them from here - a tag cannot be unset by simply not setting it. So the group grant
+# above is one tag away from being dead.
+#
+# Ownership cannot be taken away that way. The ACL entry for "the owner" always applies
+# to whoever owns the node, whichever order udev and logind do things in, so making the
+# host the owner guarantees it can open the device no matter what anybody else's tag
+# does. Nothing is lost by it: the seat user's own ACL entry is separate and still
+# issued, so KDE Connect and Steam Input keep working exactly as before.
+KERNEL=="uinput", SUBSYSTEM=="misc", OWNER="artlight", GROUP="artlight-uinput", MODE="0660", OPTIONS+="static_node=uinput"
+KERNEL=="uhid", SUBSYSTEM=="misc", OWNER="artlight", GROUP="artlight-uinput", MODE="0660", OPTIONS+="static_node=uhid"
+
+# uaccess stays on this one, for now and deliberately. It is the same trap as the two
+# above, and the group grant here is probably just as dead - but nothing in the host's
+# own source opens this node, while the only userspace opener in the tree is
+# tests/integration/probe_ds5_gadget_lifecycle.cpp, which opens it O_RDWR as an ordinary
+# user and so depends on uaccess to do it. Fixing a device that has never been reported
+# broken at the cost of a test that would break silently is not a trade worth making in
+# the same change. Revisit with the same getfacl proof if a DS5 problem is ever reported.
 KERNEL=="vibeshine-ds5", SUBSYSTEM=="misc", GROUP="artlight-uinput", MODE="0660", TAG+="uaccess"
+
+# A keyboard shared into this machine over USB/IP, so the host can watch for the
+# combination that ends a stream. Same group and the same reasoning as the three
+# above: the devices that arrived over the virtual host controller, and never the
+# keyboards built into the machine.
+#
+# A device attached this way is enumerated below vhci_hcd.N, so its sysfs path
+# contains that component and a built-in keyboard's does not. Measured on a real
+# machine: /devices/platform/vhci_hcd.0, while its own keyboards sit on
+# /devices/pci0000:00/.../input0 and /devices/platform/PNP0C0E:00/input/input1 -
+# none of them match. Proved with udevadm test before this line was written, and
+# the machine's own keyboards are still root:input after it is installed.
+#
+# The digit is required because that is the only name the kernel creates. The
+# reader in src/platform/linux/quit_hotkey_device.cpp carries the identical test
+# and the two must stay in step: a reader stricter than this rule is handed a
+# device it then refuses to open, so the feature does nothing and the log says
+# nothing.
+#
+# 70- on purpose: 50-udev-default.rules sets GROUP="input" on input nodes, and a
+# later file wins, so this takes effect over it.
+SUBSYSTEM=="input", KERNEL=="event*", DEVPATH=="*/vhci_hcd.[0-9]*", GROUP="artlight-uinput", MODE="0660"
