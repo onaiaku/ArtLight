@@ -205,9 +205,63 @@ jobs:
             echo "versioninfo_artifact_id=$(artifact_id 'windows-versioninfo-Windows')"
           } >> "${GITHUB_OUTPUT}"
 
+  fetch_vhf_gamepad_release:
+    name: Fetch pinned VHF producer release
+    if: inputs.artifact_source_run_id == ''
+    runs-on: windows-2022
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout consumer verifier
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          ref: ${{ inputs.release_commit }}
+          fetch-depth: 1
+
+      - name: Download and verify immutable producer release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+          VHF_ARCHIVE_SHA256: a45a8ae27d2764ad26a4b89d43d1e2dc43510d84bddd5899aac7c80499754782
+          VHF_DRIVER_VER: 09/22/2026,0.1.0.39
+          VHF_PROTOCOL_VERSION: '2'
+          VHF_SOURCE_REVISION: 4b56fb9da177f320fb2d7ddb1b6262e5d55d2750
+          VHF_TAG: v0.1.0-beta.6
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The verifier runs from the repository root, but the driver gitlink
+          # is staged under server/ with the rest of the ArtLight Server tree,
+          # so the pin is read from there. The script is under server/ too.
+          $gitlink = (git rev-parse "$($env:RELEASE_COMMIT):server/third-party/libvirtualgamepad").Trim()
+          if ($LASTEXITCODE -ne 0 -or $gitlink -cne $env:VHF_SOURCE_REVISION) {
+            throw "Release commit does not pin libvirtualgamepad $($env:VHF_SOURCE_REVISION); got '$gitlink'."
+          }
+
+          $packageRoot = Join-Path $env:RUNNER_TEMP 'vhf-gamepad-producer-release'
+          .\server\scripts\download_libvirtualgamepad_release.ps1 `
+            -Repository Nonary/libvirtualgamepad `
+            -Tag $env:VHF_TAG `
+            -ExpectedArchiveSha256 $env:VHF_ARCHIVE_SHA256 `
+            -ExpectedSourceRevision $env:VHF_SOURCE_REVISION `
+            -ExpectedDriverVer $env:VHF_DRIVER_VER `
+            -ExpectedProtocolVersion $env:VHF_PROTOCOL_VERSION `
+            -OutDir $packageRoot `
+            -GitHubToken $env:GH_TOKEN
+
+      - name: Upload verified producer package for Windows build
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: vhf-gamepad-producer-release-Windows
+          path: ${{ runner.temp }}\vhf-gamepad-producer-release
+          if-no-files-found: error
+          retention-days: ${{ inputs.release_artifact_retention_days }}
+
   build_windows:
     name: ${{ matrix.name }}
-    if: inputs.artifact_source_run_id == ''
+    needs:
+      - fetch_vhf_gamepad_release
+    if: inputs.artifact_source_run_id == '' && needs.fetch_vhf_gamepad_release.result == 'success'
     runs-on: ${{ matrix.os }}
     outputs:
       msi_name: ${{ steps.package-windows-msi.outputs.msi_name }}
@@ -434,6 +488,23 @@ jobs:
           "VDD_PREBUILT_PACKAGE_DIR=$downloadDir" >> $env:GITHUB_ENV
           "Using virtual display driver package: $downloadDir"
 
+      - name: Download verified VHF producer package
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        with:
+          name: vhf-gamepad-producer-release-Windows
+          path: ${{ runner.temp }}\vhf-gamepad-producer-release
+
+      - name: Point the build at the verified VHF producer package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packageRoot = Join-Path $env:RUNNER_TEMP 'vhf-gamepad-producer-release'
+          if (-not (Test-Path -LiteralPath $packageRoot)) {
+            throw "Verified VHF producer package was not downloaded: $packageRoot"
+          }
+          "VHF_PACKAGE_ROOT=$packageRoot" >> $env:GITHUB_ENV
+          Write-Host "Using verified VHF producer release v0.1.0-beta.6"
+
       - name: Download pinned WebRTC artifacts
         shell: pwsh
         env:
@@ -502,6 +573,26 @@ jobs:
             echo "Using pinned TrueHDR runtime: ${SUNSHINE_TRUEHDR_RUNTIME_DIR}"
           fi
 
+          # The virtual gamepad driver is part of the product, so the build is
+          # pointed at the verified producer package and the bundle is switched
+          # on explicitly. Without it the MSI ships drivers/vhf-gamepad/ with
+          # only the cleanup script in it, and the installer collapses its
+          # "Install ArtLight Server virtual gamepad driver" tick entirely.
+          if [[ -z "${VHF_PACKAGE_ROOT:-}" ]]; then
+            echo "Verified VHF producer package path is missing." >&2
+            exit 1
+          fi
+          vhf_gamepad_package_arg=(
+            -DSUNSHINE_BUNDLE_VHF_GAMEPAD_DRIVER=ON
+            -DSUNSHINE_LIBVIRTUALGAMEPAD_PREBUILT_DIR="$(cygpath -u "${VHF_PACKAGE_ROOT}")"
+            -DSUNSHINE_VHF_GAMEPAD_RELEASE_TAG=v0.1.0-beta.6
+            -DSUNSHINE_VHF_GAMEPAD_RELEASE_ASSET_SHA256=a45a8ae27d2764ad26a4b89d43d1e2dc43510d84bddd5899aac7c80499754782
+            -DSUNSHINE_VHF_GAMEPAD_SOURCE_REVISION=4b56fb9da177f320fb2d7ddb1b6262e5d55d2750
+            -DSUNSHINE_VHF_GAMEPAD_DRIVER_VER=09/22/2026,0.1.0.39
+            -DSUNSHINE_VHF_GAMEPAD_PROTOCOL_VERSION=2
+          )
+          echo "Using verified VHF producer release v0.1.0-beta.6"
+
           mkdir -p build
           # Release tag builds omit test targets; ordinary reusable-workflow calls retain them.
           cmake \
@@ -528,6 +619,7 @@ jobs:
             -DSUNSHINE_PUBLISHER_NAME="${GITHUB_REPOSITORY_OWNER}" \
             -DSUNSHINE_PUBLISHER_WEBSITE="https://github.com/onaiaku/ArtLight" \
             -DSUNSHINE_PUBLISHER_ISSUE_URL="https://github.com/onaiaku/ArtLight/issues" \
+            "${vhf_gamepad_package_arg[@]}" \
             "${vdd_prebuilt_arg[@]}" \
             "${truehdr_runtime_arg[@]}"
           echo "::add-matcher::.github/matchers/gcc.json"
@@ -733,6 +825,51 @@ jobs:
           msi_name="$(basename "${msi_path}")"
           cp "${msi_path}" "../unsigned-signpath-msi/${msi_name}"
           echo "msi_name=${msi_name}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify unsigned MSI contains the pinned VHF package
+        shell: pwsh
+        env:
+          MSI_NAME: ${{ steps.package-windows-msi.outputs.msi_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # This is the check that would have caught 1.5.0 shipping without the
+          # virtual gamepad driver: the MSI is opened and the packaged
+          # drivers\vhf-gamepad folder is asserted to hold the whole pinned
+          # producer package, not just the cleanup script.
+          $extractRoot = Join-Path $env:RUNNER_TEMP 'unsigned-vhf-msi-extract'
+          if (Test-Path -LiteralPath $extractRoot) { Remove-Item -LiteralPath $extractRoot -Recurse -Force }
+          New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
+          $msiPath = Join-Path $PWD "unsigned-signpath-msi\$($env:MSI_NAME)"
+          if (-not (Test-Path -LiteralPath $msiPath)) {
+            throw "Unsigned MSI was not found for verification: $msiPath"
+          }
+          $process = Start-Process msiexec.exe -ArgumentList @('/a', $msiPath, '/qn', "TARGETDIR=$extractRoot") -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "Administrative extraction of unsigned MSI failed with exit code $($process.ExitCode)."
+          }
+
+          $packageDir = Get-ChildItem -LiteralPath $extractRoot -Recurse -Directory -Filter 'vhf-gamepad' -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $packageDir) {
+            throw "The MSI does not contain a drivers\vhf-gamepad folder at all."
+          }
+          $expected = @(
+            'cleanup.ps1',
+            'driver/VibeshineVhfGamepad.cat',
+            'driver/VibeshineVhfGamepad.dll',
+            'driver/VibeshineVhfGamepad.inf',
+            'install.ps1',
+            'manifest.json',
+            'release-lock.json',
+            'tools/VibeshineVhfGamepadDeviceSetup.exe'
+          )
+          $actual = @(Get-ChildItem -LiteralPath $packageDir.FullName -Recurse -File | ForEach-Object {
+            $_.FullName.Substring($packageDir.FullName.Length).TrimStart('\', '/').Replace('\', '/')
+          } | Sort-Object)
+          if (($actual -join "`n") -cne ($expected -join "`n")) {
+            throw "MSI VHF layout is not exact. Found: $($actual -join ', ')"
+          }
+          Write-Host "Verified: the MSI carries the pinned virtual gamepad driver."
 
       - name: Upload unsigned MSI for SignPath
         id: upload-unsigned-msi
