@@ -273,7 +273,10 @@ if(SUNSHINE_BUNDLE_VHF_GAMEPAD_DRIVER)
                 SUNSHINE_VHF_GAMEPAD_PROTOCOL_VERSION)
             if("${${_vhf_gamepad_pin}}" STREQUAL "")
                 message(FATAL_ERROR
-                    "SUNSHINE_BUNDLE_VHF_GAMEPAD_DRIVER requires ${_vhf_gamepad_pin} for a production package.")
+                    "SUNSHINE_BUNDLE_VHF_GAMEPAD_DRIVER is ON (the default on x64) but ${_vhf_gamepad_pin} is empty. "
+                    "Supply the pinned producer package - -DSUNSHINE_LIBVIRTUALGAMEPAD_PREBUILT_DIR=<dir> plus the "
+                    "SUNSHINE_VHF_GAMEPAD_* pins - or pass -DSUNSHINE_BUNDLE_VHF_GAMEPAD_DRIVER=OFF to build an "
+                    "installer that deliberately ships without the virtual gamepad driver.")
             endif()
         endforeach()
         unset(_vhf_gamepad_pin)

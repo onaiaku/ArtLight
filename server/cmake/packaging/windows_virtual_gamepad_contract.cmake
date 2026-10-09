@@ -80,11 +80,30 @@ set(SUNSHINE_VHF_GAMEPAD_INSTALLER_BEST_EFFORT ON)
 set(SUNSHINE_VHF_GAMEPAD_REMOVE_ROOT_ON_FINAL_UNINSTALL ON)
 set(SUNSHINE_VHF_GAMEPAD_REMOVE_DRIVERSTORE_ONLY_ON_REQUEST ON)
 
-# Local packaging remains opt-in. Release CI supplies the already downloaded,
-# independently validated producer artifact and enables the bundle explicitly.
+# The gamepad driver is part of the product, not an optional extra, and an
+# installer built without it fails SILENTLY rather than obviously: the
+# ownership-scoped cleanup script is still installed unconditionally (see
+# windows.cmake), so drivers/vhf-gamepad/ exists and still uninstalls - it
+# just contains nothing to install. The bootstrapper also reads this state
+# back out of the MSI (INSTALL_VIRTUAL_GAMEPAD_DRIVER) and hides its
+# "Install ArtLight Server virtual gamepad driver" tick entirely when the
+# driver is not bundled.
+#
+# So default it ON for the only architecture the pinned package supports, and
+# make an unbundled installer an explicit, meant opt-out:
+#   -DSUNSHINE_BUNDLE_VHF_GAMEPAD_DRIVER=OFF
+# Release CI still supplies the prebuilt package and the pins explicitly.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|x86_64)$")
+    set(_vhf_gamepad_bundle_default ON)
+else()
+    # Not default-bundled anywhere else: the pinned libvirtualgamepad package
+    # is x64 only, and windows.cmake rejects any other processor when this is ON.
+    set(_vhf_gamepad_bundle_default OFF)
+endif()
 option(SUNSHINE_BUNDLE_VHF_GAMEPAD_DRIVER
        "Bundle the pinned libvirtualgamepad UMDF/VHF package in the Windows installer."
-       OFF)
+       ${_vhf_gamepad_bundle_default})
+unset(_vhf_gamepad_bundle_default)
 option(SUNSHINE_ALLOW_LOCAL_VHF_GAMEPAD_TEST_PACKAGE
        "Allow an explicitly supplied local self-signed VHF gamepad package for development packaging."
        OFF)
