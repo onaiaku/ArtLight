@@ -170,6 +170,25 @@ cmake --build build --target package_msi
 This produces `ArtLight Server.msi`. It is an intermediate: the single installer consumes it, so it is
 not published on its own. The download is `ArtLight Setup.exe`.
 
+**The virtual gamepad driver is bundled by default on x64, and configure fails rather than quietly
+building an installer without it.** `package_msi` needs the pinned libvirtualgamepad producer package.
+Either supply it the way release CI does:
+
+```bash
+cmake -S server -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DSUNSHINE_LIBVIRTUALGAMEPAD_PREBUILT_DIR=<unpacked libvirtualgamepad release> \
+  -DSUNSHINE_VHF_GAMEPAD_RELEASE_TAG=v0.1.0-beta.6 \
+  -DSUNSHINE_VHF_GAMEPAD_RELEASE_ASSET_SHA256=a45a8ae27d2764ad26a4b89d43d1e2dc43510d84bddd5899aac7c80499754782 \
+  -DSUNSHINE_VHF_GAMEPAD_SOURCE_REVISION=4b56fb9da177f320fb2d7ddb1b6262e5d55d2750 \
+  -DSUNSHINE_VHF_GAMEPAD_DRIVER_VER=09/22/2026,0.1.0.39 \
+  -DSUNSHINE_VHF_GAMEPAD_PROTOCOL_VERSION=2
+```
+
+or pass `-DSUNSHINE_BUNDLE_VHF_GAMEPAD_DRIVER=OFF` to build one that deliberately ships without it.
+Do not ship that one: it installs no virtual gamepad, and because the bootstrapper reads the bundle
+state back out of the MSI, it also collapses the installer's *"Install ArtLight Server virtual gamepad
+driver"* tick — leaving the user with no way to add the driver afterwards.
+
 ### Build the single installer
 
 The `ArtLight Setup.exe` that users download is a bootstrapper containing the server MSI and,
