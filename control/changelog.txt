@@ -11,10 +11,10 @@ ArtLight Server 1.5.1 brings the virtual gamepad driver back into the
 installer.
 
 1.5.0 shipped without it. With no driver present no virtual controller
-can be created, so controller input never reached a stream, and the
-server reported ViGEmBus as missing even though ArtLight does not use
-it. The driver is part of every installer again, and the installer's
-tick box for it is present and ticked by default.
+could be created, so controller input never reached a stream, and the
+tray warned that ViGEmBus was missing. The driver is part of every
+installer again, and the installer's tick box for it is present and
+ticked by default.
 
 Control is bumped to 1.5.1 in lockstep so Server and Control report the
 same version. Control's own code is unchanged in this release.
