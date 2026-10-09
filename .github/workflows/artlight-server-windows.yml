@@ -826,51 +826,6 @@ jobs:
           cp "${msi_path}" "../unsigned-signpath-msi/${msi_name}"
           echo "msi_name=${msi_name}" >> "${GITHUB_OUTPUT}"
 
-      - name: Verify unsigned MSI contains the pinned VHF package
-        shell: pwsh
-        env:
-          MSI_NAME: ${{ steps.package-windows-msi.outputs.msi_name }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          # This is the check that would have caught 1.5.0 shipping without the
-          # virtual gamepad driver: the MSI is opened and the packaged
-          # drivers\vhf-gamepad folder is asserted to hold the whole pinned
-          # producer package, not just the cleanup script.
-          $extractRoot = Join-Path $env:RUNNER_TEMP 'unsigned-vhf-msi-extract'
-          if (Test-Path -LiteralPath $extractRoot) { Remove-Item -LiteralPath $extractRoot -Recurse -Force }
-          New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
-          $msiPath = Join-Path $PWD "unsigned-signpath-msi\$($env:MSI_NAME)"
-          if (-not (Test-Path -LiteralPath $msiPath)) {
-            throw "Unsigned MSI was not found for verification: $msiPath"
-          }
-          $process = Start-Process msiexec.exe -ArgumentList @('/a', $msiPath, '/qn', "TARGETDIR=$extractRoot") -Wait -PassThru
-          if ($process.ExitCode -ne 0) {
-            throw "Administrative extraction of unsigned MSI failed with exit code $($process.ExitCode)."
-          }
-
-          $packageDir = Get-ChildItem -LiteralPath $extractRoot -Recurse -Directory -Filter 'vhf-gamepad' -ErrorAction SilentlyContinue |
-            Select-Object -First 1
-          if (-not $packageDir) {
-            throw "The MSI does not contain a drivers\vhf-gamepad folder at all."
-          }
-          $expected = @(
-            'cleanup.ps1',
-            'driver/VibeshineVhfGamepad.cat',
-            'driver/VibeshineVhfGamepad.dll',
-            'driver/VibeshineVhfGamepad.inf',
-            'install.ps1',
-            'manifest.json',
-            'release-lock.json',
-            'tools/VibeshineVhfGamepadDeviceSetup.exe'
-          )
-          $actual = @(Get-ChildItem -LiteralPath $packageDir.FullName -Recurse -File | ForEach-Object {
-            $_.FullName.Substring($packageDir.FullName.Length).TrimStart('\', '/').Replace('\', '/')
-          } | Sort-Object)
-          if (($actual -join "`n") -cne ($expected -join "`n")) {
-            throw "MSI VHF layout is not exact. Found: $($actual -join ', ')"
-          }
-          Write-Host "Verified: the MSI carries the pinned virtual gamepad driver."
-
       - name: Upload unsigned MSI for SignPath
         id: upload-unsigned-msi
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
@@ -938,14 +893,87 @@ jobs:
             Write-Host "WiX log was not found: $log"
           }
 
+  verify_vhf_in_msi:
+    name: Verify the installer carries the pinned driver
+    needs:
+      - build_windows
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Download the unsigned MSI the build produced
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        with:
+          pattern: unsigned-msi-package-*
+          path: msi
+          merge-multiple: true
+
+      # msiexec is deliberately NOT used here. An administrative install of a
+      # WiX package hangs indefinitely on a runner that has no interactive
+      # session: the job stalls with no output and no timeout (measured on
+      # 2026-10-09, 25 minutes and climbing before the run was cancelled).
+      # msitools reads the same tables straight out of the container in about
+      # half a second, and it never executes the package.
+      - name: Install msitools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq msitools
+
+      - name: Assert the pinned virtual gamepad driver is inside the MSI
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          msi="$(find msi -type f -name '*.msi' | head -n 1)"
+          if [[ -z "${msi}" ]]; then
+            echo "::error::No unsigned MSI was downloaded, so nothing was verified."
+            find msi -maxdepth 3 -type f || true
+            exit 1
+          fi
+          echo "MSI under test: ${msi} ($(stat -c%s "${msi}") bytes)"
+
+          rm -rf extract
+          mkdir -p extract
+          ( cd extract && msiextract "../${msi}" > /dev/null )
+
+          package_dir="$(find extract -type d -name 'vhf-gamepad' | head -n 1)"
+          if [[ -z "${package_dir}" ]]; then
+            echo "::error::The MSI contains no drivers/vhf-gamepad folder at all."
+            exit 1
+          fi
+          echo "Driver folder inside the MSI: ${package_dir}"
+
+          expected="$(printf '%s\n' \
+            cleanup.ps1 \
+            driver/VibeshineVhfGamepad.cat \
+            driver/VibeshineVhfGamepad.dll \
+            driver/VibeshineVhfGamepad.inf \
+            install.ps1 \
+            manifest.json \
+            release-lock.json \
+            tools/VibeshineVhfGamepadDeviceSetup.exe | sort)"
+
+          actual="$(cd "${package_dir}" && find . -type f | sed 's|^\./||' | sort)"
+
+          echo "--- files actually in the driver folder ---"
+          echo "${actual}"
+
+          if [[ "${actual}" != "${expected}" ]]; then
+            echo "::error::The MSI does not carry the pinned virtual gamepad driver. This is the 1.5.0 fault: an installer that offers the driver and does not contain it."
+            diff <(echo "${expected}") <(echo "${actual}") || true
+            exit 1
+          fi
+
+          echo "Verified: the MSI carries the complete pinned virtual gamepad driver."
+
   release_artifacts:
     name: Select release artifacts
     needs:
       - build_windows
       - resolve_source_artifacts
+      - verify_vhf_in_msi
     if: >-
       ${{ always() && !cancelled() &&
-          ((inputs.artifact_source_run_id == '' && needs.build_windows.result == 'success') ||
+          ((inputs.artifact_source_run_id == '' && needs.build_windows.result == 'success' && needs.verify_vhf_in_msi.result == 'success') ||
            (inputs.artifact_source_run_id != '' && needs.resolve_source_artifacts.result == 'success')) }}
     runs-on: ubuntu-latest
     outputs:
