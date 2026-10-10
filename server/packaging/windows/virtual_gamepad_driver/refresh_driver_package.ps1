@@ -33,6 +33,14 @@ $manifestPayload = @(
     'driver/VibeshineVhfGamepad.cat',
     'tools/VibeshineVhfGamepadDeviceSetup.exe'
 )
+# Re-signed by the consumer after the producer manifest was written, so neither
+# their recorded hash nor their signer identity can come from the producer
+# package. A package carrying them signed is bound to the pinned ArtLight
+# publisher instead; one still carrying the producer bytes must be unsigned.
+$downstreamSignedFiles = @(
+    'driver/VibeshineVhfGamepad.cat',
+    'tools/VibeshineVhfGamepadDeviceSetup.exe'
+)
 $localTestCertificate = 'driver/VibeshineVhfGamepad.cer'
 $releaseLockFile = 'release-lock.json'
 $consumerReleaseLockFile = 'consumer-release-lock.json'
@@ -258,7 +266,17 @@ function Assert-ManifestPayloadContract {
     # manifest.json is metadata written after the payload hashes are known; a
     # self-hash would be circular. Require it to exist and parse, but only
     # hash-check the immutable artifacts it describes.
+    #
+    # Under $msiRequestChannel the catalogue and the root-device setup tool are
+    # re-signed after this manifest was written, so once the package has been
+    # consumer-signed their recorded hashes are expected not to match. They are
+    # bound by signature to the pinned publisher in the channel checks below.
+    # The shipped install.ps1 makes the same exemption for the same two files.
+    $signedDownstream = [string] $Manifest.signing.channel -eq $msiRequestChannel
     foreach ($relativePath in $expectedPayload) {
+        if ($signedDownstream -and $downstreamSignedFiles -contains $relativePath) {
+            continue
+        }
         Assert-ManifestHash -Manifest $Manifest -Root $Root -RelativePath $relativePath
     }
 }
@@ -332,16 +350,50 @@ function Assert-Package {
             'driver/VibeshineVhfGamepad.inf'
         )
         Assert-ExactList -Actual @($manifest.signing.catalog_membership.files.PSObject.Properties.Name | Sort-Object) -Expected $membershipFiles -Name 'catalog membership evidence files'
+        # The fresh-Inf2Cat evidence describes the producer's unsigned bytes. The
+        # catalogue is the one membership file a consumer re-signs, so its recorded
+        # hash cannot describe the signed file; it is bound to the pinned publisher
+        # below instead. INF and DLL are untouched by signing.
         foreach ($relativePath in $membershipFiles) {
+            if ($downstreamSignedFiles -contains $relativePath) {
+                continue
+            }
             $path = Join-Path $Root ($relativePath -replace '/', '\')
             if ([string] $manifest.signing.catalog_membership.files.PSObject.Properties[$relativePath].Value -cne (Get-Sha256 -Path $path)) {
                 throw "[VibeshineVhfGamepad] Fresh Inf2Cat evidence hash mismatch for '$relativePath'."
             }
         }
-        foreach ($path in @($catalogPath, $dllPath, $toolPath)) {
-            Assert-UnsignedAuthenticode -Path $path
+
+        # The catalogue and the root-device setup tool arrive in one of exactly two
+        # legitimate states: the producer's unsigned bytes, where the manifest hash
+        # still binds them, or already re-signed by the consumer, where the recorded
+        # hash is expected to differ and the signature must carry the pinned
+        # ArtLight publisher. The DLL is never signed, because the catalogue hashes
+        # it, so it stays unsigned in both states.
+        foreach ($payload in @(
+            @{ Path = $catalogPath; RelativePath = 'driver/VibeshineVhfGamepad.cat'; Pin = $ExpectedCatalogSignerThumbprint; Label = 'catalogue' },
+            @{ Path = $toolPath; RelativePath = 'tools/VibeshineVhfGamepadDeviceSetup.exe'; Pin = $ExpectedDeviceSetupSignerThumbprint; Label = 'root-device setup tool' }
+        )) {
+            $entry = @($manifest.files | Where-Object { $_.path -eq $payload.RelativePath })
+            if ($entry.Count -eq 1 -and (Get-Sha256 -Path $payload.Path) -eq $entry[0].sha256.ToLowerInvariant()) {
+                Assert-UnsignedAuthenticode -Path $payload.Path
+                continue
+            }
+            if ([string]::IsNullOrWhiteSpace($payload.Pin)) {
+                throw "[VibeshineVhfGamepad] $($payload.Label) does not match the producer manifest and no consumer signer is pinned to accept it."
+            }
+            $signature = Get-AuthenticodeSignature -LiteralPath $payload.Path
+            if ($null -eq $signature.SignerCertificate -or
+                $signature.Status -eq [System.Management.Automation.SignatureStatus]::HashMismatch) {
+                throw "[VibeshineVhfGamepad] $($payload.Label) matches neither the producer manifest hash nor an intact signature."
+            }
+            if ((Get-Thumbprint -Certificate $signature.SignerCertificate) -ne $payload.Pin.ToUpperInvariant()) {
+                throw "[VibeshineVhfGamepad] $($payload.Label) is not signed by the pinned ArtLight driver publisher."
+            }
+            Write-Host "[VibeshineVhfGamepad] $($payload.Label) is consumer-signed by the pinned ArtLight driver publisher."
         }
-        Write-Host '[VibeshineVhfGamepad] Producer CAT, DLL, and setup tool are unsigned; fresh Inf2Cat evidence binds CAT/INF/DLL.'
+        Assert-UnsignedAuthenticode -Path $dllPath
+        Write-Host '[VibeshineVhfGamepad] Producer evidence intact; CAT and setup tool are either unsigned producer bytes or consumer-signed by the pinned publisher.'
         return $manifest
     }
 
