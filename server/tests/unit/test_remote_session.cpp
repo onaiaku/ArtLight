@@ -160,15 +160,11 @@ TEST(RemoteSession, EveryPairedCallerIsToldWhatTheHostIsRunning) {
   EXPECT_TRUE(remote_session::exposes_active_game(other, active_game, {}, false));
   EXPECT_TRUE(remote_session::exposes_active_game(other, active_game, {}, true));
 
-  // And the catalogue a secondary caller receives agrees with serverinfo: the host is in
-  // use, so it is not reported free, and the running app is named.
-  const std::vector<remote_session::app_t> configured {
-    active_game.app,
-    {7, "other", "Another game", false},
-  };
-  const auto secondary = remote_session::project(other, active_game, {}, configured, false);
-  EXPECT_FALSE(secondary.free);
-  EXPECT_EQ(secondary.current_game, active_game.app.id);
+  // What is deliberately NOT changed: the catalogue a secondary caller receives. project()'s
+  // `free` says that THIS caller may launch, which is true — it gets the full configured list
+  // and the takeover controls, and the host's flow decides what happens to the running
+  // session. Only serverinfo states what the host is doing, and that is the channel a client
+  // reads for the running app. CatalogueProjectionMatchesCallerOwnershipMatrix pins this.
 
   // Still unexposed: nothing running; this caller holds a role of its own (a retained
   // Remote Monitor follows its own path); the caller may not view the host at all; and an

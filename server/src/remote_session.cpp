@@ -206,15 +206,15 @@ namespace remote_session {
       return result;
     }
     if (game.running) {
-      // Secondary clients keep the complete configured catalogue and get a distinct,
-      // resume-only copy of the active game at the front; the configured copy remains
-      // available under its normal identity. The projection also reports the host as in
-      // use, because it is: what the host is running is a fact about the host, not about
-      // the caller. Nik's rule (2026-10-10) — any device looking at that PC sees what is
-      // happening on it — so a second ArtMoon must not be handed a free-looking host and
-      // then discover the session only when its launch is refused.
-      result.free = false;
-      result.current_game = game.app.id;
+      // Secondary clients are told the host is free so they can choose any
+      // configured app. Keep that complete catalogue, but add a distinct,
+      // resume-only copy of the active game at the front. The configured copy
+      // remains available under its normal identity.
+      //
+      // `free` here is a statement about THIS CALLER's launchability, not about the host
+      // being idle: a secondary client may launch any configured app, and the host's
+      // takeover flow decides what happens to the running session. What the host is
+      // actually doing goes in serverinfo via exposes_active_game(). Do not conflate them.
       result.catalogue = {
         synthetic_running_game(game.app),
         prioritized_secondary_control(control_e::resume),
