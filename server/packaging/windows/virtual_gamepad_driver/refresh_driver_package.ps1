@@ -587,6 +587,19 @@ try {
         $destination = Join-Path $stageDir ($localTestCertificate -replace '/', '\\')
         Copy-Item -LiteralPath (Join-Path $PrebuiltPackageDir ($localTestCertificate -replace '/', '\\')) -Destination $destination -Force
     }
+    # The publisher certificate is a consumer-side asset, added by the fetch job
+    # after it verifies the producer archive. This function rebuilds the package
+    # by staging a fresh directory and swapping it in, so anything not copied
+    # here is silently discarded - and the MSI would then ship a driver whose
+    # installer has no certificate to trust.
+    $publisherCertificateRelative = 'publisher/ArtLightDriverSigning.cer'
+    $publisherCertificateSource = Join-Path $PrebuiltPackageDir ($publisherCertificateRelative -replace '/', '\\')
+    if (-not (Test-Path -LiteralPath $publisherCertificateSource -PathType Leaf)) {
+        throw "The prebuilt package does not carry the publisher certificate: $publisherCertificateSource"
+    }
+    $publisherCertificateDestination = Join-Path $stageDir ($publisherCertificateRelative -replace '/', '\\')
+    New-Item -ItemType Directory -Path (Split-Path -Parent $publisherCertificateDestination) -Force | Out-Null
+    Copy-Item -LiteralPath $publisherCertificateSource -Destination $publisherCertificateDestination -Force
     $stagedManifest = Assert-Package -Root $stageDir -AllowLocalTest:$AllowLocalTestPackage
     Write-ReleaseLock -Root $stageDir -Manifest $stagedManifest -AllowLocalTest:$AllowLocalTestPackage
     Assert-ReleaseLock -Root $stageDir -Manifest $stagedManifest -AllowLocalTest:$AllowLocalTestPackage

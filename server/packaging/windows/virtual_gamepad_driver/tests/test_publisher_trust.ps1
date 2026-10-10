@@ -5,6 +5,9 @@ $installScript = Join-Path $repositoryRoot 'src_assets/windows/drivers/vhf-gamep
 $workflowPath = Join-Path $repositoryRoot '.github/workflows/ci-windows.yml'
 $windowsPackagingCmake = Join-Path $repositoryRoot 'cmake/packaging/windows.cmake'
 $expectedSignPathFoundationSignerSubject = 'CN=SignPath Foundation, O=SignPath Foundation, L=Lewes, S=Delaware, C=US'
+# The virtual gamepad payload is signed by ArtLight itself, not by SignPath.
+$expectedPublisherSignerSubject = 'CN=ArtLight Driver Signing, O=onaiaku'
+$expectedPublisherThumbprint = '4EBF1AC9B78D8982DAE701EEAB63A2DE7B5243D6'
 $tokens = $null
 $parseErrors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile(
@@ -16,9 +19,13 @@ if ($parseErrors.Count -ne 0) {
 }
 
 $installFileText = Get-Content -LiteralPath $installScript -Raw
-$expectedSubjectAssignment = "`$expectedSignPathFoundationSignerSubject = '$expectedSignPathFoundationSignerSubject'"
+$expectedSubjectAssignment = "`$expectedPublisherSignerSubject = '$expectedPublisherSignerSubject'"
 if ($installFileText.IndexOf($expectedSubjectAssignment, [System.StringComparison]::Ordinal) -lt 0) {
-    throw 'install.ps1 does not pin the expected SignPath Foundation signer subject.'
+    throw 'install.ps1 does not pin the ArtLight driver-signing publisher subject.'
+}
+$expectedThumbprintAssignment = "`$expectedPublisherThumbprint = '$expectedPublisherThumbprint'"
+if ($installFileText.IndexOf($expectedThumbprintAssignment, [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'install.ps1 does not pin the ArtLight driver-signing publisher thumbprint.'
 }
 
 $wanted = @(
@@ -268,11 +275,29 @@ foreach ($requiredPostSignCheck in @(
     "`$expectedSignPathFoundationSigner = '$expectedSignPathFoundationSignerSubject'",
     "`$catalogSignature.SignerCertificate.Subject -ne `$expectedSignPathFoundationSigner",
     "`$vhfCatalogSignature.SignerCertificate.Thumbprint -cne `$vhfToolSignature.SignerCertificate.Thumbprint",
-    "`$vhfCatalogSignature.SignerCertificate.Subject -ne `$expectedSignPathFoundationSigner",
-    "`$vhfToolSignature.SignerCertificate.Subject -ne `$expectedSignPathFoundationSigner"
+    "`$vhfCatalogSignature.SignerCertificate.Subject -ne `$expectedVhfPublisherSigner",
+    "`$vhfToolSignature.SignerCertificate.Subject -ne `$expectedVhfPublisherSigner"
 )) {
     if ($postSignScript.IndexOf($requiredPostSignCheck, [System.StringComparison]::Ordinal) -lt 0) {
         throw "Post-sign VHF verification lacks required signer check: $requiredPostSignCheck"
+    }
+}
+
+# The VHF payload is consumer-signed, so its verification must live on the
+# always-running path. The SignPath-gated step cannot be the only place that
+# checks these signatures, because SignPath is not enabled.
+$vhfSourceVerifyScript = Get-WorkflowLiteralRunBlock `
+    -Lines $workflowLines `
+    -StepName 'Verify unsigned MSI contains the pinned VHF package'
+foreach ($requiredSourceCheck in @(
+    "'publisher/ArtLightDriverSigning.cer',",
+    "`$expectedVhfPublisherSubject = '$expectedPublisherSignerSubject'",
+    "`$expectedVhfPublisherThumbprint = '$expectedPublisherThumbprint'",
+    "verify '/v' '/pa' '/c' `$vhfCatalogPath `$payload",
+    'catalog-bound VHF DLL must stay unsigned'
+)) {
+    if ($vhfSourceVerifyScript.IndexOf($requiredSourceCheck, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "The always-running VHF verification lacks a required check: $requiredSourceCheck"
     }
 }
 

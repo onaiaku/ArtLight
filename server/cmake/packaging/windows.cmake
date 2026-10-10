@@ -452,6 +452,13 @@ if(SUNSHINE_BUNDLE_VHF_GAMEPAD_DRIVER)
     install(FILES ${SUNSHINE_VIRTUAL_GAMEPAD_DRIVER_TOOL_FILES}
             DESTINATION "${SUNSHINE_VHF_GAMEPAD_DRIVER_DESTINATION}/tools"
             COMPONENT virtual_gamepad_driver)
+    # The public publisher certificate travels with the driver so the runtime
+    # installer can trust it into LocalMachine\TrustedPublisher before it
+    # validates the catalog and the setup tool. Without this file the driver is
+    # refused on every machine, which is the 1.5.0/1.5.1 fault.
+    install(FILES "${SUNSHINE_VIRTUAL_GAMEPAD_DRIVER_SOURCE_DIR}/${SUNSHINE_VHF_GAMEPAD_PUBLISHER_CERTIFICATE}"
+            DESTINATION "${SUNSHINE_VHF_GAMEPAD_DRIVER_DESTINATION}/publisher"
+            COMPONENT virtual_gamepad_driver)
     if(SUNSHINE_ALLOW_LOCAL_VHF_GAMEPAD_TEST_PACKAGE)
         install(FILES ${SUNSHINE_VIRTUAL_GAMEPAD_DRIVER_LOCAL_TEST_FILES}
                 DESTINATION "${SUNSHINE_VHF_GAMEPAD_DRIVER_DESTINATION}/driver"

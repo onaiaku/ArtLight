@@ -249,6 +249,66 @@ jobs:
             -OutDir $packageRoot `
             -GitHubToken $env:GH_TOKEN
 
+      # The producer archive is verified above, then the two files the upstream
+      # project cannot sign are re-signed here with ArtLight's own driver-signing
+      # certificate, and that certificate is added to the package. This is the
+      # step that makes the virtual gamepad driver installable at all: without
+      # it the installer refuses the pair as unsigned and the driver silently
+      # never loads, for every user.
+      - name: Re-sign the verified package with the ArtLight publisher certificate
+        shell: pwsh
+        env:
+          VHF_PUBLISHER_THUMBPRINT: 4EBF1AC9B78D8982DAE701EEAB63A2DE7B5243D6
+          VHF_PUBLISHER_SUBJECT: 'CN=ArtLight Driver Signing, O=onaiaku'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packageRoot = Join-Path $env:RUNNER_TEMP 'vhf-gamepad-producer-release'
+          $signedRoot = 'server\packaging\windows\virtual_gamepad_driver\consumer-signed'
+          if (-not (Test-Path -LiteralPath $signedRoot)) {
+            throw "The consumer-signed driver payload is missing from the tree: $signedRoot"
+          }
+
+          function Get-NormalizedThumbprint([string] $Thumbprint) {
+            return ($Thumbprint -replace '[^0-9A-Fa-f]', '').ToUpperInvariant()
+          }
+
+          $certificate = Get-ChildItem -LiteralPath $signedRoot -Filter '*.cer' | Select-Object -First 1
+          if ($null -eq $certificate) { throw "No publisher certificate found under $signedRoot" }
+          $certificateObject = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($certificate.FullName)
+          if ((Get-NormalizedThumbprint $certificateObject.Thumbprint) -ne $env:VHF_PUBLISHER_THUMBPRINT) {
+            throw "The bundled publisher certificate is not the pinned signer: $($certificateObject.Thumbprint)"
+          }
+          if ($certificateObject.Subject -ne $env:VHF_PUBLISHER_SUBJECT) {
+            throw "The bundled publisher certificate subject is wrong: $($certificateObject.Subject)"
+          }
+
+          $payload = @(
+            @{ Signed = 'VibeshineVhfGamepad.cat';                Dest = 'driver\VibeshineVhfGamepad.cat' },
+            @{ Signed = 'VibeshineVhfGamepadDeviceSetup.exe';     Dest = 'tools\VibeshineVhfGamepadDeviceSetup.exe' }
+          )
+          foreach ($entry in $payload) {
+            $source = Join-Path $signedRoot $entry.Signed
+            $destination = Join-Path $packageRoot $entry.Dest
+            if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+              throw "Consumer-signed payload is missing: $source"
+            }
+            $signature = Get-AuthenticodeSignature -LiteralPath $source
+            if ($signature.Status -eq [System.Management.Automation.SignatureStatus]::NotSigned -or
+                $null -eq $signature.SignerCertificate) {
+              throw "Consumer-signed payload carries no signature: $source"
+            }
+            if ((Get-NormalizedThumbprint $signature.SignerCertificate.Thumbprint) -ne $env:VHF_PUBLISHER_THUMBPRINT) {
+              throw "Consumer-signed payload is signed by the wrong identity: $source"
+            }
+            Copy-Item -LiteralPath $source -Destination $destination -Force
+            Write-Host "Re-signed into the package: $($entry.Dest)"
+          }
+
+          $publisherDir = Join-Path $packageRoot 'publisher'
+          New-Item -ItemType Directory -Path $publisherDir -Force | Out-Null
+          Copy-Item -LiteralPath $certificate.FullName -Destination (Join-Path $publisherDir 'ArtLightDriverSigning.cer') -Force
+          Write-Host 'Publisher certificate added to the package: publisher\ArtLightDriverSigning.cer'
+
       - name: Upload verified producer package for Windows build
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
@@ -913,10 +973,10 @@ jobs:
       # 2026-10-09, 25 minutes and climbing before the run was cancelled).
       # msitools reads the same tables straight out of the container in about
       # half a second, and it never executes the package.
-      - name: Install msitools
+      - name: Install msitools and osslsigncode
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq msitools
+          sudo apt-get install -y -qq msitools osslsigncode
 
       - name: Assert the pinned virtual gamepad driver is inside the MSI
         shell: bash
@@ -949,6 +1009,7 @@ jobs:
             driver/VibeshineVhfGamepad.inf \
             install.ps1 \
             manifest.json \
+            publisher/ArtLightDriverSigning.cer \
             release-lock.json \
             tools/VibeshineVhfGamepadDeviceSetup.exe | sort)"
 
@@ -964,6 +1025,49 @@ jobs:
           fi
 
           echo "Verified: the MSI carries the complete pinned virtual gamepad driver."
+
+          # Presence is not enough. A driver that is present but unsigned is
+          # refused by install.ps1 on every machine, and the install still exits
+          # 0 - which is how 1.5.1 shipped green and reached nobody. These are
+          # the signature checks the SignPath-gated step performs but that step
+          # has never run, because SignPath is not enabled and ArtLight signs
+          # this payload itself.
+          publisher_subject='CN=ArtLight Driver Signing, O=onaiaku'
+          publisher_thumbprint='4EBF1AC9B78D8982DAE701EEAB63A2DE7B5243D6'
+
+          certificate="${package_dir}/publisher/ArtLightDriverSigning.cer"
+          embedded_thumbprint="$(openssl pkcs7 -inform DER -in "${package_dir}/driver/VibeshineVhfGamepad.cat" -print_certs 2>/dev/null \
+            | openssl x509 -noout -fingerprint -sha1 2>/dev/null | cut -d= -f2 | tr -d ':' | tr 'a-f' 'A-F')"
+          if [[ "${embedded_thumbprint}" != "${publisher_thumbprint}" ]]; then
+            echo "::error::The catalog is signed by ${embedded_thumbprint:-nothing}, not the pinned ArtLight publisher ${publisher_thumbprint}."
+            exit 1
+          fi
+          echo "Catalog signer thumbprint matches the pinned publisher: ${embedded_thumbprint}"
+
+          for payload in "driver/VibeshineVhfGamepad.cat" "tools/VibeshineVhfGamepadDeviceSetup.exe"; do
+            verify_out="$(osslsigncode verify -in "${package_dir}/${payload}" 2>&1 || true)"
+            if ! grep -q "Subject: O=onaiaku,CN=ArtLight Driver Signing" <<<"${verify_out}"; then
+              echo "::error::${payload} is not signed by the pinned ArtLight publisher."
+              echo "${verify_out}" | head -20
+              exit 1
+            fi
+            if ! grep -qi "Message digest algorithm" <<<"${verify_out}"; then
+              echo "::error::${payload} carries no intact signature - the bytes were changed after signing."
+              echo "${verify_out}" | head -20
+              exit 1
+            fi
+            echo "OK  ${payload} is intact and signed by ${publisher_subject}"
+          done
+
+          # Signing the catalog-bound DLL would invalidate the catalog, so it must
+          # stay unsigned exactly as the manifest declares it.
+          if osslsigncode verify -in "${package_dir}/driver/VibeshineVhfGamepad.dll" >/dev/null 2>&1; then
+            echo "::error::The catalog-bound DLL carries a signature, which invalidates the catalog."
+            exit 1
+          fi
+          echo "OK  the catalog-bound DLL is unsigned, as the catalog requires."
+
+          echo "Verified: the driver payload is present, complete, and signed by ArtLight's pinned publisher."
 
   release_artifacts:
     name: Select release artifacts

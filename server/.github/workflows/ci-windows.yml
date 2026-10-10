@@ -849,6 +849,7 @@ jobs:
             'driver/VibeshineVhfGamepad.inf',
             'install.ps1',
             'manifest.json',
+            'publisher/ArtLightDriverSigning.cer',
             'release-lock.json',
             'tools/VibeshineVhfGamepadDeviceSetup.exe'
           )
@@ -858,6 +859,76 @@ jobs:
           if (($actual -join "`n") -cne ($expected -join "`n")) {
             throw "Unsigned MSI VHF layout is not exact: $($actual -join ', ')"
           }
+
+          # The catalog and the root-device setup tool are consumer-signed before
+          # this MSI is built, so both signatures are already present here. They
+          # are verified on this always-running path rather than behind the
+          # SignPath gate, because ArtLight's driver signing does not depend on
+          # SignPath ever being enabled. The publisher certificate ships inside
+          # the package, so it is imported into the throwaway runner's machine
+          # stores first; an untrusted self-signed chain otherwise reads as
+          # UnknownError even though the signature is intact.
+          function Get-NormalizedThumbprint([string] $Thumbprint) {
+            return ($Thumbprint -replace '[^0-9A-Fa-f]', '').ToUpperInvariant()
+          }
+          $expectedVhfPublisherSubject = 'CN=ArtLight Driver Signing, O=onaiaku'
+          $expectedVhfPublisherThumbprint = '4EBF1AC9B78D8982DAE701EEAB63A2DE7B5243D6'
+          $vhfPublisherCertificatePath = Join-Path $packageDir 'publisher\ArtLightDriverSigning.cer'
+          if (-not (Test-Path -LiteralPath $vhfPublisherCertificatePath -PathType Leaf)) {
+            throw 'The consumer-signed VHF package does not carry its publisher certificate.'
+          }
+          $vhfPublisherCertificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($vhfPublisherCertificatePath)
+          if ((Get-NormalizedThumbprint $vhfPublisherCertificate.Thumbprint) -ne $expectedVhfPublisherThumbprint) {
+            throw "VHF publisher certificate is not the pinned signer: $($vhfPublisherCertificate.Thumbprint)"
+          }
+          foreach ($storeName in @('TrustedPublisher', 'Root')) {
+            $store = [System.Security.Cryptography.X509Certificates.X509Store]::new($storeName, 'LocalMachine')
+            $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+            $store.Add($vhfPublisherCertificate)
+            $store.Close()
+          }
+          $vhfCatalogPath = Join-Path $packageDir 'driver\VibeshineVhfGamepad.cat'
+          $vhfDllPath = Join-Path $packageDir 'driver\VibeshineVhfGamepad.dll'
+          $vhfToolPath = Join-Path $packageDir 'tools\VibeshineVhfGamepadDeviceSetup.exe'
+          $vhfCatalogSignature = Get-AuthenticodeSignature -LiteralPath $vhfCatalogPath
+          $vhfToolSignature = Get-AuthenticodeSignature -LiteralPath $vhfToolPath
+          if ($vhfCatalogSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+            throw "VHF catalog signature is not valid: $($vhfCatalogSignature.Status)"
+          }
+          if ($vhfToolSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+            throw "VHF setup tool signature is not valid: $($vhfToolSignature.Status)"
+          }
+          if ((Get-NormalizedThumbprint $vhfCatalogSignature.SignerCertificate.Thumbprint) -ne $expectedVhfPublisherThumbprint -or
+              (Get-NormalizedThumbprint $vhfToolSignature.SignerCertificate.Thumbprint) -ne $expectedVhfPublisherThumbprint) {
+            throw "VHF catalog/setup signer is not the pinned publisher: catalog='$($vhfCatalogSignature.SignerCertificate.Subject)'; setup='$($vhfToolSignature.SignerCertificate.Subject)'"
+          }
+          if ($vhfCatalogSignature.SignerCertificate.Subject -ne $expectedVhfPublisherSubject -or
+              $vhfToolSignature.SignerCertificate.Subject -ne $expectedVhfPublisherSubject) {
+            throw "VHF catalog/setup signer subject is not the pinned publisher: catalog='$($vhfCatalogSignature.SignerCertificate.Subject)'; setup='$($vhfToolSignature.SignerCertificate.Subject)'"
+          }
+          $vhfDllSignature = Get-AuthenticodeSignature -LiteralPath $vhfDllPath
+          if ($vhfDllSignature.Status -ne [System.Management.Automation.SignatureStatus]::NotSigned -or
+              $null -ne $vhfDllSignature.SignerCertificate) {
+            throw 'The catalog-bound VHF DLL must stay unsigned; signing it would invalidate the catalog.'
+          }
+          $signtool = Get-Command signtool.exe -ErrorAction SilentlyContinue
+          if ($null -eq $signtool) {
+            $kitsRoot = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows Kits\Installed Roots' -Name KitsRoot10 -ErrorAction SilentlyContinue).KitsRoot10
+            if (-not [string]::IsNullOrWhiteSpace($kitsRoot)) {
+              $signtool = Get-ChildItem -Path (Join-Path $kitsRoot 'bin') -Directory -Filter '10.*' -ErrorAction SilentlyContinue |
+                Sort-Object { [version] $_.Name } -Descending |
+                ForEach-Object { Join-Path $_.FullName 'x64\signtool.exe' } |
+                Where-Object { Test-Path -LiteralPath $_ } |
+                Select-Object -First 1
+            }
+          }
+          if ($null -eq $signtool) { throw 'signtool.exe was not found, so catalog membership cannot be verified.' }
+          $signToolPath = if ($signtool.Source) { $signtool.Source } else { $signtool }
+          foreach ($payload in @($vhfDllPath, (Join-Path $packageDir 'driver\VibeshineVhfGamepad.inf'))) {
+            & $signToolPath verify '/v' '/pa' '/c' $vhfCatalogPath $payload
+            if ($LASTEXITCODE -ne 0) { throw "VHF catalog membership verification failed: $payload" }
+          }
+          Write-Host '[verify] OK   VHF catalog and setup tool are intact, pinned, and the catalog covers the INF and DLL.'
 
       - name: Upload unsigned MSI for SignPath
         id: upload-unsigned-msi
@@ -1401,6 +1472,9 @@ jobs:
           $virtualDisplayInf = Join-Path $virtualDisplayRoot 'SunshineVirtualDisplayDriver.inf'
           $virtualDisplayDll = Join-Path $virtualDisplayRoot 'SunshineVirtualDisplayDriver.dll'
           $expectedSignPathFoundationSigner = 'CN=SignPath Foundation, O=SignPath Foundation, L=Lewes, S=Delaware, C=US'
+          # The virtual gamepad payload is consumer-signed, not SignPath-signed,
+          # so it is pinned to ArtLight's own publisher instead.
+          $expectedVhfPublisherSigner = 'CN=ArtLight Driver Signing, O=onaiaku'
           if (-not (Test-Path -LiteralPath $virtualDisplayCatalog -PathType Leaf)) {
             $failures.Add('Sunshine virtual display catalog is missing from the signed MSI')
           } elseif (Test-Signed $virtualDisplayCatalog) {
@@ -1606,9 +1680,9 @@ jobs:
                   throw 'VHF catalog and setup tool were signed by different identities'
                 }
                 if (-not $allowUntrustedSignatures) {
-                  if ($vhfCatalogSignature.SignerCertificate.Subject -ne $expectedSignPathFoundationSigner -or
-                      $vhfToolSignature.SignerCertificate.Subject -ne $expectedSignPathFoundationSigner) {
-                    throw "VHF catalog/setup signer is not SignPath Foundation: catalog='$($vhfCatalogSignature.SignerCertificate.Subject)'; setup='$($vhfToolSignature.SignerCertificate.Subject)'"
+                  if ($vhfCatalogSignature.SignerCertificate.Subject -ne $expectedVhfPublisherSigner -or
+                      $vhfToolSignature.SignerCertificate.Subject -ne $expectedVhfPublisherSigner) {
+                    throw "VHF catalog/setup signer is not the ArtLight publisher: catalog='$($vhfCatalogSignature.SignerCertificate.Subject)'; setup='$($vhfToolSignature.SignerCertificate.Subject)'"
                   }
                   $signTool = Resolve-SignTool
                   foreach ($payload in @(

@@ -25,6 +25,12 @@ $manifestPayload = @(
     'tools/VibeshineVhfGamepadDeviceSetup.exe'
 )
 $localTestCertificate = 'driver/VibeshineVhfGamepad.cer'
+# The production publisher certificate. The package ships this public
+# certificate beside the driver; the installer trusts it into
+# LocalMachine\TrustedPublisher before it validates the catalogue and the
+# root-device setup tool, and pins the exact thumbprint it may trust.
+$publisherCertificate = 'publisher/ArtLightDriverSigning.cer'
+$expectedPublisherThumbprint = '4EBF1AC9B78D8982DAE701EEAB63A2DE7B5243D6'
 $expectedProducerRepository = 'Nonary/libvirtualgamepad'
 $expectedProducerTag = 'v0.1.0-beta.6'
 $expectedProducerAsset = 'libvirtualgamepad-0.1.0-beta.6-windows-x64.zip'
@@ -32,12 +38,13 @@ $expectedProducerArchiveSha256 = 'a45a8ae27d2764ad26a4b89d43d1e2dc43510d84bddd58
 $expectedProducerSourceRevision = '4b56fb9da177f320fb2d7ddb1b6262e5d55d2750'
 $expectedDriverVer = '09/22/2026,0.1.0.39'
 $expectedProtocolVersion = 2
-$expectedSignPathFoundationSignerSubject = 'CN=SignPath Foundation, O=SignPath Foundation, L=Lewes, S=Delaware, C=US'
+$expectedPublisherSignerSubject = 'CN=ArtLight Driver Signing, O=onaiaku'
 
-# Signing channel for a package that ships unsigned and is signed by the
-# consumer MSI signing request instead. SignPath is not available on
+# Signing channel for a package that ships unsigned from the producer and is
+# re-signed downstream by the consumer. SignPath is not available on
 # Nonary/libvirtualgamepad, so its releases cannot carry a production
-# signature; the catalogue is signed downstream, inside the MSI.
+# signature; ArtLight re-signs the catalogue and the setup tool with its own
+# driver-signing certificate and ships that certificate inside the package.
 $msiRequestChannel = 'msi-request-signing'
 
 # Under that channel these two files are re-signed after the manifest was
@@ -417,14 +424,24 @@ function Assert-DriverPackage {
             throw '[VibeshineVhfGamepad] Manifest signer identity does not match the signed package artifacts.'
         }
     } else {
-        # The signed MSI authenticates these two package files. Bind silent PnP
-        # trust to the exact shared SignPath Foundation signer certificate,
-        # independent of any certificate installed by the optional display
-        # driver.
+        # Bind silent PnP trust to the exact pinned publisher certificate the
+        # package ships, independent of any certificate installed by the
+        # optional display driver. The certificate has to be trusted before the
+        # two signatures can report Valid, so it is established here and the
+        # signer is then proved to be that same certificate.
+        $publisherCertificatePath = Join-Path $Root ($publisherCertificate -replace '/', '\\')
+        Assert-File -Path $publisherCertificatePath
+        $publisherCertificateObject = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($publisherCertificatePath)
+        if ((Get-Thumbprint -Certificate $publisherCertificateObject) -ne $expectedPublisherThumbprint) {
+            throw '[VibeshineVhfGamepad] The packaged publisher certificate does not match the pinned production signer thumbprint.'
+        }
+        Ensure-ProductionPublisherTrusted `
+            -PublisherCertificate $publisherCertificateObject `
+            -ExpectedSubject $expectedPublisherSignerSubject
         $productionPublisherCertificate = Get-ValidatedSharedPublisherCertificate `
             -CatalogSignature $catalogSignature `
             -ToolSignature $toolSignature `
-            -ExpectedSubject $expectedSignPathFoundationSignerSubject
+            -ExpectedSubject $expectedPublisherSignerSubject
     }
 
     Assert-ReleaseLock -Root $Root -Manifest $manifest -CatalogSignature $catalogSignature -ToolSignature $toolSignature
@@ -506,7 +523,7 @@ function Install-DriverPackage {
     if ($null -ne $package.ProductionPublisherCertificate) {
         Ensure-ProductionPublisherTrusted `
             -PublisherCertificate $package.ProductionPublisherCertificate `
-            -ExpectedSubject $expectedSignPathFoundationSignerSubject
+            -ExpectedSubject $expectedPublisherSignerSubject
     }
     # PnPUtil performs Windows' catalog-to-INF/DLL membership validation while
     # it stages the package. The installed product deliberately does not ship
