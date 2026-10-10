@@ -117,6 +117,33 @@ function Get-Thumbprint {
     return $Certificate.Thumbprint.Replace(' ', '').ToUpperInvariant()
 }
 
+function Test-SubjectMatches {
+    # Compare a certificate subject as a SET of relative distinguished names
+    # rather than as one rendered string. .NET renders Subject in a different
+    # order depending on how the certificate was obtained: the publisher .cer
+    # bundled in the package renders as 'O=onaiaku, CN=ArtLight Driver Signing',
+    # while the same certificate read from an Authenticode signature renders as
+    # 'CN=ArtLight Driver Signing, O=onaiaku'. An ordered string comparison
+    # therefore rejects the correct certificate, which is what stopped the
+    # virtual gamepad driver installing. This only confirms the name is the one
+    # expected; the pinned thumbprint is what pins the identity.
+    param(
+        [Parameter(Mandatory = $true)][string] $Actual,
+        [Parameter(Mandatory = $true)][string] $Expected
+    )
+    $actualNames = @($Actual -split ',' | ForEach-Object { $_.Trim().ToUpperInvariant() } | Where-Object { $_ -ne '' } | Sort-Object)
+    $expectedNames = @($Expected -split ',' | ForEach-Object { $_.Trim().ToUpperInvariant() } | Where-Object { $_ -ne '' } | Sort-Object)
+    if ($actualNames.Count -ne $expectedNames.Count) {
+        return $false
+    }
+    for ($i = 0; $i -lt $actualNames.Count; $i++) {
+        if ($actualNames[$i] -cne $expectedNames[$i]) {
+            return $false
+        }
+    }
+    return $true
+}
+
 function Get-ValidatedSharedPublisherCertificate {
     param(
         [Parameter(Mandatory = $true)] $CatalogSignature,
@@ -132,8 +159,8 @@ function Get-ValidatedSharedPublisherCertificate {
     }
     $catalogSubject = [string] $CatalogSignature.SignerCertificate.Subject
     $toolSubject = [string] $ToolSignature.SignerCertificate.Subject
-    if (-not [string]::Equals($catalogSubject, $ExpectedSubject, [System.StringComparison]::OrdinalIgnoreCase) -or
-        -not [string]::Equals($toolSubject, $ExpectedSubject, [System.StringComparison]::OrdinalIgnoreCase)) {
+    if (-not (Test-SubjectMatches -Actual $catalogSubject -Expected $ExpectedSubject) -or
+        -not (Test-SubjectMatches -Actual $toolSubject -Expected $ExpectedSubject)) {
         throw "[VibeshineVhfGamepad] Refusing publisher trust for an unexpected signer identity. Expected '$ExpectedSubject'; catalog='$catalogSubject'; setup='$toolSubject'."
     }
     $catalogThumbprint = Get-Thumbprint -Certificate $CatalogSignature.SignerCertificate
@@ -151,10 +178,16 @@ function Ensure-ProductionPublisherTrusted {
     )
 
     $publisherSubject = [string] $PublisherCertificate.Subject
-    if (-not [string]::Equals($publisherSubject, $ExpectedSubject, [System.StringComparison]::OrdinalIgnoreCase)) {
+    if (-not (Test-SubjectMatches -Actual $publisherSubject -Expected $ExpectedSubject)) {
         throw "[VibeshineVhfGamepad] Refusing to modify publisher trust for unexpected signer '$publisherSubject'."
     }
     $thumbprint = Get-Thumbprint -Certificate $PublisherCertificate
+    # The name above is only a sanity check. The certificate's identity is its
+    # thumbprint, and that is pinned, so a certificate that merely carries the
+    # same subject name still cannot be trusted here.
+    if ($thumbprint -ne $expectedPublisherThumbprint) {
+        throw "[VibeshineVhfGamepad] Refusing to modify publisher trust for signer $thumbprint; expected $expectedPublisherThumbprint."
+    }
     $store = [System.Security.Cryptography.X509Certificates.X509Store]::new('TrustedPublisher', 'LocalMachine')
     try {
         $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)

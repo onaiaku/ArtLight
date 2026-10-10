@@ -30,6 +30,7 @@ if ($installFileText.IndexOf($expectedThumbprintAssignment, [System.StringCompar
 
 $wanted = @(
     'Get-Thumbprint',
+    'Test-SubjectMatches',
     'Get-ValidatedSharedPublisherCertificate',
     'Ensure-ProductionPublisherTrusted'
 )
@@ -128,6 +129,50 @@ if (-not $unexpectedStoreSignerRejected) {
     throw 'The publisher store boundary accepted an unexpected signer identity.'
 }
 
+# A certificate renders its subject in a different RDN order depending on how
+# it was loaded: the publisher .cer bundled in the package renders as
+# 'O=onaiaku, CN=ArtLight Driver Signing', while the same certificate read from
+# an Authenticode signature renders as 'CN=ArtLight Driver Signing, O=onaiaku'.
+# The ordered comparison shipped in 1.5.3 rejected the certificate the package
+# had just been signed with, so the driver never installed. Both renderings
+# must be accepted; the name still has to be exactly the expected one.
+foreach ($rendering in @(
+    'CN=ArtLight Driver Signing, O=onaiaku',
+    'O=onaiaku, CN=ArtLight Driver Signing',
+    'cn=artlight driver signing,  o=ONAIaku'
+)) {
+    if (-not (Test-SubjectMatches -Actual $rendering -Expected $expectedPublisherSignerSubject)) {
+        throw "A valid publisher subject rendering was rejected: $rendering"
+    }
+}
+foreach ($lookalike in @(
+    'CN=ArtLight Driver Signing, O=Somebody Else',
+    'CN=ArtLight Driver Signing',
+    'CN=ArtLight Driver Signing, O=onaiaku, C=US',
+    'CN=ArtLight Driver Signing, O=onaiaku2'
+)) {
+    if (Test-SubjectMatches -Actual $lookalike -Expected $expectedPublisherSignerSubject) {
+        throw "An unexpected publisher subject was accepted: $lookalike"
+    }
+}
+
+# A certificate carrying the expected name but not the pinned thumbprint must
+# be refused before the machine certificate store is touched.
+$lookalikeSignerRejected = $false
+try {
+    Ensure-ProductionPublisherTrusted `
+        -PublisherCertificate ([PSCustomObject]@{
+            Thumbprint = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'
+            Subject = $expectedPublisherSignerSubject
+        }) `
+        -ExpectedSubject $expectedPublisherSignerSubject
+} catch {
+    $lookalikeSignerRejected = $true
+}
+if (-not $lookalikeSignerRejected) {
+    throw 'A certificate with the expected name but an unpinned thumbprint was accepted for publisher trust.'
+}
+
 $trustFunction = @($definitions | Where-Object Name -eq 'Ensure-ProductionPublisherTrusted')
 if ($trustFunction.Count -ne 1) {
     throw 'Ensure-ProductionPublisherTrusted was not found exactly once.'
@@ -143,10 +188,14 @@ foreach ($requiredTrustOperation in @(
         throw "Publisher trust function lacks required operation: $requiredTrustOperation"
     }
 }
-$subjectGuardOffset = $trustText.IndexOf('[string]::Equals', [System.StringComparison]::Ordinal)
+$subjectGuardOffset = $trustText.IndexOf('Test-SubjectMatches', [System.StringComparison]::Ordinal)
+$thumbprintGuardOffset = $trustText.IndexOf('$thumbprint -ne $expectedPublisherThumbprint', [System.StringComparison]::Ordinal)
 $storeConstructionOffset = $trustText.IndexOf("X509Store]::new('TrustedPublisher', 'LocalMachine')", [System.StringComparison]::Ordinal)
 if ($subjectGuardOffset -lt 0 -or $storeConstructionOffset -lt 0 -or $subjectGuardOffset -ge $storeConstructionOffset) {
     throw 'Unexpected publisher identity is not rejected before the machine certificate store is accessed.'
+}
+if ($thumbprintGuardOffset -lt 0 -or $thumbprintGuardOffset -ge $storeConstructionOffset) {
+    throw 'The pinned publisher thumbprint is not checked before the machine certificate store is accessed.'
 }
 
 $installFunction = @($ast.FindAll({
