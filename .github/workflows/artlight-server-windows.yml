@@ -843,11 +843,14 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $tests = 'server\packaging\windows\virtual_gamepad_driver\tests'
-          cmake -P "$tests\test_release_contract.cmake"
+          # This job's default working directory is 'server', so a repo-root-relative
+          # path here lands on server\server\... and cmake reports the file does not
+          # exist. Anchor to the workspace rather than trusting the cwd.
+          $tests = Join-Path $env:GITHUB_WORKSPACE 'server/packaging/windows/virtual_gamepad_driver/tests'
+          cmake -P (Join-Path $tests 'test_release_contract.cmake')
           if ($LASTEXITCODE -ne 0) { throw 'VHF release contract test failed.' }
-          & "$tests\test_manifest_channel_contract.ps1"
-          & "$tests\test_publisher_trust.ps1"
+          & (Join-Path $tests 'test_manifest_channel_contract.ps1')
+          & (Join-Path $tests 'test_publisher_trust.ps1')
           Write-Host 'VHF driver packaging policy tests passed.'
 
       - name: Validate SignPath configuration
