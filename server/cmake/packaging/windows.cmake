@@ -62,7 +62,13 @@ if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64" AND DEFINED _MINHOOK_DLL)
     install(FILES "${_MINHOOK_DLL}" DESTINATION "." COMPONENT application)
 endif()
 
-# ViGEmBus installer is no longer bundled or managed by the installer
+# Virtual gamepad driver (ViGEmBus).
+#
+# The driver ArtLight builds itself is a driver package, so it installs only when its catalogue is
+# signed - and we have no code-signing certificate. It is therefore not something the user can be
+# given by us. ViGEmBus is signed by its authors, so their setup is what ships, embedded in the
+# bootstrapper as Payload.vigem.exe next to Payload.usbip.exe rather than extracted to an MSI
+# component. Nothing is installed from this tree; packaging/linux and the MSI do not carry it.
 
 # Adding tools
 install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
