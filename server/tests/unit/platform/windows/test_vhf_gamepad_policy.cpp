@@ -45,8 +45,8 @@ namespace {
 
   class VhfGamepadPolicyTest: public testing::Test {};
 
-  TEST_F(VhfGamepadPolicyTest, AutomaticBackendFallsBackToVhfWhenVigemIsUnavailable) {
-    EXPECT_EQ(select_automatic_backend(true, true), backend_e::vigem);
+  TEST_F(VhfGamepadPolicyTest, AutomaticBackendPrefersArtLightsDriverAndFallsBackToVigem) {
+    EXPECT_EQ(select_automatic_backend(true, true), backend_e::vhf);
     EXPECT_EQ(select_automatic_backend(true, false), backend_e::vigem);
     EXPECT_EQ(select_automatic_backend(false, true), backend_e::vhf);
     EXPECT_EQ(select_automatic_backend(false, false), backend_e::unavailable);
