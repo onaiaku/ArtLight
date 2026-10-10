@@ -195,6 +195,12 @@ namespace ArtLightServerInstaller {
       return InstallerRunner.HasEmbeddedUsbipPayload();
     }
 
+    // Same forwarder for the ViGEmBus half. Control and USBip each have one of these; this was
+    // written without it, which is what CS0103 caught on the 1.5.2 build.
+    private static bool HasEmbeddedVigemPayload() {
+      return InstallerRunner.HasEmbeddedVigemPayload();
+    }
+
     private readonly InstallerRunner.InstalledProductInfo _legacySunshineProduct;
     private readonly InstallerRunner.LegacySunshineRegistration _legacySunshineRegistration;
     private readonly InstallerRunner.LegacySunshineRegistration _legacyApolloRegistration;
