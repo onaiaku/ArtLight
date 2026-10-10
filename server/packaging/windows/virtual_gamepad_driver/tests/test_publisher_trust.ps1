@@ -301,6 +301,30 @@ foreach ($requiredSourceCheck in @(
     }
 }
 
+# The workflow checked above is upstream Vibepollo's copy, staged under the
+# tree. GitHub runs workflows only from the repository root, so that copy never
+# executes - which is how a driverless installer shipped while its tests passed.
+# Guard the gate that actually runs as well.
+$shippingWorkflowPath = Join-Path $repositoryRoot '../.github/workflows/artlight-server-windows.yml'
+if (-not (Test-Path -LiteralPath $shippingWorkflowPath -PathType Leaf)) {
+    throw "The shipping Windows workflow was not found: $shippingWorkflowPath"
+}
+$shippingWorkflowText = Get-Content -LiteralPath $shippingWorkflowPath -Raw
+foreach ($requiredShippingCheck in @(
+    'Assert the pinned virtual gamepad driver is inside the MSI',
+    'publisher/ArtLightDriverSigning.cer',
+    '4EBF1AC9B78D8982DAE701EEAB63A2DE7B5243D6',
+    'osslsigncode verify',
+    'ArtLightDriverSigning.cer'
+)) {
+    if ($shippingWorkflowText.IndexOf($requiredShippingCheck, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "The shipping workflow no longer verifies the driver payload: $requiredShippingCheck"
+    }
+}
+if ($shippingWorkflowText.IndexOf('Re-sign the verified package with the ArtLight publisher certificate', [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'The shipping workflow no longer re-signs the verified producer package.'
+}
+
 $packagingText = Get-Content -LiteralPath $windowsPackagingCmake -Raw
 if ($packagingText.IndexOf('test_publisher_trust.ps1', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
     throw 'The publisher trust policy test was added to the installed VHF payload.'

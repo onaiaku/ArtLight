@@ -832,6 +832,17 @@ jobs:
 
       # WiX already installed before configure so env:WIX is available
 
+      - name: Test the VHF driver packaging policy
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tests = 'server\packaging\windows\virtual_gamepad_driver\tests'
+          cmake -P "$tests\test_release_contract.cmake"
+          if ($LASTEXITCODE -ne 0) { throw 'VHF release contract test failed.' }
+          & "$tests\test_manifest_channel_contract.ps1"
+          & "$tests\test_publisher_trust.ps1"
+          Write-Host 'VHF driver packaging policy tests passed.'
+
       - name: Validate SignPath configuration
         shell: msys2 {0}
         env:
