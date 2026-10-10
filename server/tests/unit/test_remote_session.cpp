@@ -130,12 +130,13 @@ TEST(RemoteSession, UngatedGameStaysLaunchableAndCancelableUntilSpecialSessionOw
   const auto other = caller("other");
 
   EXPECT_TRUE(remote_session::exposes_active_game(owner, active_game, {}, false));
-  EXPECT_FALSE(remote_session::exposes_active_game(other, active_game, {}, false));
+  // Not owner-only any more: see EveryPairedCallerIsToldWhatTheHostIsRunning for the rule.
+  EXPECT_TRUE(remote_session::exposes_active_game(other, active_game, {}, false));
   EXPECT_TRUE(remote_session::allows_normal_game_cancel(owner, active_game, false));
   EXPECT_TRUE(remote_session::allows_normal_game_cancel(other, active_game, false));
 
   EXPECT_TRUE(remote_session::exposes_active_game(owner, active_game, {}, true));
-  EXPECT_FALSE(remote_session::exposes_active_game(other, active_game, {}, true));
+  EXPECT_TRUE(remote_session::exposes_active_game(other, active_game, {}, true));
   EXPECT_TRUE(remote_session::exposes_active_game(other, active_game, {}, false, true));
   EXPECT_TRUE(remote_session::allows_normal_game_cancel(owner, active_game, true));
   EXPECT_FALSE(remote_session::allows_normal_game_cancel(other, active_game, true));
@@ -144,6 +145,38 @@ TEST(RemoteSession, UngatedGameStaysLaunchableAndCancelableUntilSpecialSessionOw
   EXPECT_FALSE(remote_session::exposes_active_game(owner, active_game, retained_monitor, true));
   EXPECT_FALSE(remote_session::exposes_active_game(other, {}, {}, false));
   EXPECT_FALSE(remote_session::allows_normal_game_cancel(caller("other", true, true, false), active_game, false));
+}
+
+TEST(RemoteSession, EveryPairedCallerIsToldWhatTheHostIsRunning) {
+  // Nik's rule (2026-10-10): any device looking at that PC sees what is happening on it.
+  // Upstream 2.0.0 restricted the active game to its own owner, so a second ArtMoon was
+  // handed a free-looking host mid-stream: no running-app card, no STREAMING badge and no
+  // Resume/Stop, on a session the host would have handed over on request.
+  const auto active_game = game();
+  const auto owner = caller("owner");
+  const auto other = caller("other");
+
+  EXPECT_TRUE(remote_session::exposes_active_game(owner, active_game, {}, false));
+  EXPECT_TRUE(remote_session::exposes_active_game(other, active_game, {}, false));
+  EXPECT_TRUE(remote_session::exposes_active_game(other, active_game, {}, true));
+
+  // What is deliberately NOT changed: the catalogue a secondary caller receives. project()'s
+  // `free` says that THIS caller may launch, which is true — it gets the full configured list
+  // and the takeover controls, and the host's flow decides what happens to the running
+  // session. Only serverinfo states what the host is doing, and that is the channel a client
+  // reads for the running app. CatalogueProjectionMatchesCallerOwnershipMatrix pins this.
+
+  // Still unexposed: nothing running; this caller holds a role of its own (a retained
+  // Remote Monitor follows its own path); the caller may not view the host at all; and an
+  // unpaired caller is told nothing about a session.
+  EXPECT_FALSE(remote_session::exposes_active_game(other, {}, {}, false));
+  const remote_session::owner_t retained_monitor {.role = remote_session::role_e::monitor, .retained = true};
+  EXPECT_FALSE(remote_session::exposes_active_game(owner, active_game, retained_monitor, true));
+  EXPECT_FALSE(remote_session::exposes_active_game(other, active_game, retained_monitor, true));
+  EXPECT_FALSE(remote_session::exposes_active_game(caller("other", false), active_game, {}, false));
+
+  const remote_session::caller_t unpaired {.uuid = "stranger", .paired = false, .may_view = true, .may_launch = true, .may_terminate = true};
+  EXPECT_FALSE(remote_session::exposes_active_game(unpaired, active_game, {}, false));
 }
 
 TEST(RemoteSession, SecondaryCatalogueKeepsConfiguredRunningAppBesideInvisibleResumeDuplicate) {

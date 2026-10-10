@@ -23,6 +23,11 @@ The USB device sharing option in this installer is now described in one plain
 sentence. The note about Windows having to trust the driver, and the note about
 unticking to skip it, are gone.
 
+A second device now sees what the host is actually running. If the host is
+streaming Desktop, opening ArtMoon anywhere else shows Desktop as streaming,
+with Resume and Stop, instead of showing the machine as free. Any paired device
+that is allowed to view a host is told what that host is doing.
+
 ------------------------------------------------
 Version 1.5.2 (10/10/2026)
 ------------------------------------------------

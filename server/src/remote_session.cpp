@@ -161,7 +161,19 @@ namespace remote_session {
   ) {
     if (!game.running) return false;
     if (replacement_confirmation_active) return true;
-    return owner.role == role_e::none && owns_game(caller, game);
+    // Any paired client that may view the host is told what the host is actually doing.
+    //
+    // Upstream 2.0.0 restricted this to the session's own owner, which left every OTHER
+    // ArtMoon looking at a host that claimed to be free while it was mid-stream: no
+    // running-app card, no STREAMING badge, no Resume/Stop — on a session the host would
+    // happily hand over. Nik's rule (2026-10-10): any device looking at that PC sees what
+    // is happening on it. What an active game is doing is a fact about the HOST, not about
+    // the caller, so it is not the owner's private information.
+    //
+    // Kept unexposed: no game running, a caller holding a role of its own (a retained
+    // Remote Monitor follows its own path), and a caller without view permission.
+    if (owner.role != role_e::none) return false;
+    return caller.paired && caller.may_view;
   }
 
   bool allows_normal_game_cancel(const caller_t &caller, const game_t &game, const bool remote_sessions_active) {
@@ -198,6 +210,11 @@ namespace remote_session {
       // configured app. Keep that complete catalogue, but add a distinct,
       // resume-only copy of the active game at the front. The configured copy
       // remains available under its normal identity.
+      //
+      // `free` here is a statement about THIS CALLER's launchability, not about the host
+      // being idle: a secondary client may launch any configured app, and the host's
+      // takeover flow decides what happens to the running session. What the host is
+      // actually doing goes in serverinfo via exposes_active_game(). Do not conflate them.
       result.catalogue = {
         synthetic_running_game(game.app),
         prioritized_secondary_control(control_e::resume),
