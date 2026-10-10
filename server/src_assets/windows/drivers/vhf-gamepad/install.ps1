@@ -217,7 +217,39 @@ function Ensure-ProductionPublisherTrusted {
     } finally {
         $verificationStore.Close()
     }
-    Write-DriverMessage "Validated publisher $thumbprint is present in LocalMachine\TrustedPublisher."
+
+    # TrustedPublisher alone is not enough. This publisher certificate is
+    # self-signed, so it is its own root: until that root is trusted Windows
+    # cannot build the chain and reports the catalog and setup tool as
+    # UnknownError rather than Valid, which the validation below then refuses.
+    # The pinned thumbprint is what authorises this, and it was checked above.
+    $rootStore = [System.Security.Cryptography.X509Certificates.X509Store]::new('Root', 'LocalMachine')
+    try {
+        $rootStore.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+        $existingRoot = $rootStore.Certificates.Find(
+            [System.Security.Cryptography.X509Certificates.X509FindType]::FindByThumbprint,
+            $thumbprint,
+            $false)
+        if ($existingRoot.Count -eq 0) {
+            $rootStore.Add($PublisherCertificate)
+        }
+    } finally {
+        $rootStore.Close()
+    }
+    $verificationRootStore = [System.Security.Cryptography.X509Certificates.X509Store]::new('Root', 'LocalMachine')
+    try {
+        $verificationRootStore.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly)
+        $verifiedRoot = $verificationRootStore.Certificates.Find(
+            [System.Security.Cryptography.X509Certificates.X509FindType]::FindByThumbprint,
+            $thumbprint,
+            $false)
+        if ($verifiedRoot.Count -eq 0) {
+            throw "[VibeshineVhfGamepad] Failed to establish root trust for validated signer $thumbprint."
+        }
+    } finally {
+        $verificationRootStore.Close()
+    }
+    Write-DriverMessage "Validated publisher $thumbprint is present in LocalMachine\Root and LocalMachine\TrustedPublisher."
 }
 
 function Get-RequiredStringProperty {
@@ -471,6 +503,13 @@ function Assert-DriverPackage {
         Ensure-ProductionPublisherTrusted `
             -PublisherCertificate $publisherCertificateObject `
             -ExpectedSubject $expectedPublisherSignerSubject
+        # The two signature objects above were read before the publisher was
+        # trusted, and they are snapshots: they keep reporting the pre-trust
+        # status even after the chain resolves. Re-read them now that both
+        # stores carry the pinned certificate, exactly as the local-test path
+        # below does.
+        $catalogSignature = Get-AuthenticodeSignature -LiteralPath $catalogPath
+        $toolSignature = Get-AuthenticodeSignature -LiteralPath $toolPath
         $productionPublisherCertificate = Get-ValidatedSharedPublisherCertificate `
             -CatalogSignature $catalogSignature `
             -ToolSignature $toolSignature `

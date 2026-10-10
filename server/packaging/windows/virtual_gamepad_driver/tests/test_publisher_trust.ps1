@@ -198,6 +198,50 @@ if ($thumbprintGuardOffset -lt 0 -or $thumbprintGuardOffset -ge $storeConstructi
     throw 'The pinned publisher thumbprint is not checked before the machine certificate store is accessed.'
 }
 
+# The publisher certificate is self-signed, so it is its own root. Windows
+# cannot build a chain for a signature whose root it does not trust: the
+# catalog and setup tool report UnknownError rather than Valid, and the
+# production path then refused them. Both stores must be established, and only
+# after the pinned thumbprint has authorised it.
+$rootStoreOffset = $trustText.IndexOf("X509Store]::new('Root', 'LocalMachine')", [System.StringComparison]::Ordinal)
+if ($rootStoreOffset -lt 0) {
+    throw 'The production publisher certificate is never trusted as a root; a self-signed signer cannot report a valid signature without it.'
+}
+if ($rootStoreOffset -le $thumbprintGuardOffset) {
+    throw 'Root trust is established before the pinned thumbprint is checked.'
+}
+if ($trustText.IndexOf('$rootStore.Add($PublisherCertificate)', [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'The root store block does not add the validated publisher certificate.'
+}
+if ($trustText.IndexOf('Root and LocalMachine\TrustedPublisher', [System.StringComparison]::Ordinal) -lt 0) {
+    throw "The publisher trust report does not name both stores it established."
+}
+
+# Signature objects are snapshots. The production branch reads the catalog and
+# setup tool signatures, then establishes trust, and the snapshots above keep
+# reporting the pre-trust status. They must be re-read before validation, or
+# the guard rejects a package that is in fact now trusted.
+$packageFunction = @($ast.FindAll({
+    param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -eq 'Assert-DriverPackage'
+}, $true))
+if ($packageFunction.Count -ne 1) {
+    throw 'Assert-DriverPackage was not found exactly once.'
+}
+$packageText = $packageFunction[0].Extent.Text
+$trustCallOffset = $packageText.IndexOf('Ensure-ProductionPublisherTrusted', [System.StringComparison]::Ordinal)
+$validationOffset = $packageText.IndexOf('Get-ValidatedSharedPublisherCertificate', [System.StringComparison]::Ordinal)
+if ($trustCallOffset -lt 0 -or $validationOffset -lt 0 -or $trustCallOffset -ge $validationOffset) {
+    throw 'The production branch does not establish publisher trust before validating the signatures.'
+}
+$catalogRereadOffset = $packageText.IndexOf('$catalogSignature = Get-AuthenticodeSignature -LiteralPath $catalogPath', $trustCallOffset, [System.StringComparison]::Ordinal)
+$toolRereadOffset = $packageText.IndexOf('$toolSignature = Get-AuthenticodeSignature -LiteralPath $toolPath', $trustCallOffset, [System.StringComparison]::Ordinal)
+if ($catalogRereadOffset -lt $trustCallOffset -or $catalogRereadOffset -ge $validationOffset -or
+    $toolRereadOffset -lt $trustCallOffset -or $toolRereadOffset -ge $validationOffset) {
+    throw 'The production branch validates signature snapshots taken before publisher trust was established.'
+}
+
 $installFunction = @($ast.FindAll({
     param($node)
     $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
