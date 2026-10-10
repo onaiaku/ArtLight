@@ -778,7 +778,7 @@ namespace ArtLightServerInstaller {
       usbipHeader.Children.Add(_installUsbipCheckBox);
       usbipStack.Children.Add(usbipHeader);
       usbipStack.Children.Add(new TextBlock {
-        Text = "Installs USBip, which lets this PC use a keyboard, mouse or controller plugged into the PC you stream from. Requires Windows to trust its driver - Windows will ask once. Untick to skip; you can install it later by running this setup again.",
+        Text = "Installs USB Sharing, which lets this PC use a keyboard, mouse or controller plugged into the PC you are streaming from.",
         FontSize = 12.5,
         Foreground = new SolidColorBrush(Color.FromRgb(209, 222, 241)),
         Margin = new Thickness(0, 6, 0, 0),
