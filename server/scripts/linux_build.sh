@@ -711,8 +711,11 @@ function run_step_validation() {
   echo "Running step: Validation"
 
   # Run appstream validation, etc.
-  appstreamcli validate "build/io.github.onaiaku.ArtLight.metainfo.xml"
-  appstream-util validate "build/io.github.onaiaku.ArtLight.metainfo.xml"
+  # --no-net: the link-reachability checks are not about our metadata and they turn this
+  # step into a coin flip on whatever the URLs answer at that moment. See the same note in
+  # server/packaging/linux/Arch/PKGBUILD.
+  appstreamcli validate --no-net "build/io.github.onaiaku.ArtLight.metainfo.xml"
+  appstream-util validate --no-net "build/io.github.onaiaku.ArtLight.metainfo.xml"
   desktop-file-validate "build/io.github.onaiaku.ArtLight.desktop"
   if [[ "$appimage_build" == 0 ]]; then
     desktop-file-validate "build/io.github.onaiaku.ArtLight.terminal.desktop"

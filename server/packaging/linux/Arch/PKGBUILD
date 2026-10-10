@@ -190,8 +190,12 @@ build() {
 
     cmake "${_cmake_options[@]}"
 
-    appstreamcli validate "build/io.github.onaiaku.ArtLight.metainfo.xml"
-    appstream-util validate "build/io.github.onaiaku.ArtLight.metainfo.xml"
+    # --no-net: validation must not depend on live network. Without it, appstreamcli's
+    # url-not-reachable check makes the whole Arch job a coin flip on whatever the URLs
+    # answer at that moment — the 1.5.3 tag build died on a GitHub 503 for a docs page
+    # while every Windows job passed. Metadata validation is about the metadata.
+    appstreamcli validate --no-net "build/io.github.onaiaku.ArtLight.metainfo.xml"
+    appstream-util validate --no-net "build/io.github.onaiaku.ArtLight.metainfo.xml"
     desktop-file-validate "build/io.github.onaiaku.ArtLight.desktop"
     desktop-file-validate "build/io.github.onaiaku.ArtLight.terminal.desktop"
 
