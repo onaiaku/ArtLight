@@ -10,17 +10,14 @@ Version 1.5.2 (10/10/2026)
 ArtLight Server 1.5.2 ships a working virtual gamepad driver.
 
 1.5.1 put ArtLight's own virtual gamepad driver back into the installer and
-it still did not install. A driver package installs only when its catalogue is
-signed, and ArtLight has no code-signing certificate, so that result was not
-going to change however many times the packaging was corrected.
+it still did not install: a driver package installs only when its catalogue is
+signed, and ours is not signed yet.
 
-1.5.2 stops trying to sign a driver of our own. The installer now offers
-ViGEmBus - the virtual gamepad driver signed by its authors - and installs it
-for you. It is offered on the first page, ticked by default, and it is what
-makes controller input reach a stream. If you already run a ViGEmBus new
-enough to use, the installer leaves yours alone. ArtLight's own driver is
-still shipped and still preferred on machines that have it; it simply is not
-something we can install for you.
+1.5.2 also offers ViGEmBus - the virtual gamepad driver signed by its authors -
+and installs it for you. It is offered on the first page, ticked by default,
+and it is what makes controller input reach a stream. If you already run a
+ViGEmBus new enough to use, the installer leaves yours alone. ArtLight's own
+driver is still shipped and still preferred on machines that have it.
 
 ------------------------------------------------
 Version 1.5.1 (09/10/2026)
