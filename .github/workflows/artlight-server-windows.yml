@@ -1053,10 +1053,19 @@ jobs:
           # the signature checks the SignPath-gated step performs but that step
           # has never run, because SignPath is not enabled and ArtLight signs
           # this payload itself.
-          publisher_subject='CN=ArtLight Driver Signing, O=onaiaku'
           publisher_thumbprint='4EBF1AC9B78D8982DAE701EEAB63A2DE7B5243D6'
 
           certificate="${package_dir}/publisher/ArtLightDriverSigning.cer"
+          openssl x509 -in "${certificate}" -inform DER -out pinned-ca.pem 2>/dev/null \
+            || openssl x509 -in "${certificate}" -out pinned-ca.pem
+          bundled_thumbprint="$(openssl x509 -in pinned-ca.pem -noout -fingerprint -sha1 \
+            | cut -d= -f2 | tr -d ':' | tr 'a-f' 'A-F')"
+          if [[ "${bundled_thumbprint}" != "${publisher_thumbprint}" ]]; then
+            echo "::error::The certificate bundled in the package is ${bundled_thumbprint:-nothing}, not the pinned ArtLight publisher ${publisher_thumbprint}."
+            exit 1
+          fi
+          echo "Bundled publisher certificate matches the pinned thumbprint: ${bundled_thumbprint}"
+
           embedded_thumbprint="$(openssl pkcs7 -inform DER -in "${package_dir}/driver/VibeshineVhfGamepad.cat" -print_certs 2>/dev/null \
             | openssl x509 -noout -fingerprint -sha1 2>/dev/null | cut -d= -f2 | tr -d ':' | tr 'a-f' 'A-F')"
           if [[ "${embedded_thumbprint}" != "${publisher_thumbprint}" ]]; then
@@ -1065,19 +1074,25 @@ jobs:
           fi
           echo "Catalog signer thumbprint matches the pinned publisher: ${embedded_thumbprint}"
 
+          # Validate each signature against the pinned certificate rather than by
+          # matching the signer's subject text. osslsigncode renders a subject as
+          # "O=x,CN=y" on 2.13 but "/CN=y/O=x" on 2.8, which is the version the
+          # runner installs: a subject regex that passes on a workstation fails in
+          # CI, which is exactly how this step first went red. The exit status of
+          # the -CAfile check is identical on both versions, and it is a
+          # cryptographic verdict rather than a string match.
           for payload in "driver/VibeshineVhfGamepad.cat" "tools/VibeshineVhfGamepadDeviceSetup.exe"; do
-            verify_out="$(osslsigncode verify -in "${package_dir}/${payload}" 2>&1 || true)"
-            if ! grep -qE "O=onaiaku, ?CN=ArtLight Driver Signing" <<<"${verify_out}"; then
-              echo "::error::${payload} is not signed by the pinned ArtLight publisher."
+            verify_out="$(osslsigncode verify -in "${package_dir}/${payload}" -CAfile pinned-ca.pem 2>&1)" || {
+              echo "::error::${payload} does not validate against the pinned ArtLight publisher."
               echo "${verify_out}" | head -20
               exit 1
-            fi
+            }
             if ! grep -qi "Message digest algorithm" <<<"${verify_out}"; then
               echo "::error::${payload} carries no intact signature - the bytes were changed after signing."
               echo "${verify_out}" | head -20
               exit 1
             fi
-            echo "OK  ${payload} is intact and signed by ${publisher_subject}"
+            echo "OK  ${payload} is intact and validates against the pinned ArtLight publisher"
           done
 
           # Signing the catalog-bound DLL would invalidate the catalog, so it must
