@@ -4261,11 +4261,17 @@ namespace ArtLightServerInstaller {
       // No /DIR. USBip installs where it chooses, and ArtLight finds it by the location it uses and
       // then by the uninstall record. Redirecting it would put the client somewhere ArtLight is not
       // looking, and the feature would report "not installed" on a machine that plainly has it.
+      // USBip's own installer is Inno Setup, and its desktop shortcut is behind a task:
+      // setup.iss defines "desktopicon" and the {commondesktop} icon carries "Tasks: desktopicon".
+      // The task has no "Flags: unchecked", so it is selected by default and every install leaves a
+      // USBip icon on the public desktop. We do not ask for one. The ! prefix deselects just that
+      // task and leaves every other default (including the vcredist task) exactly as upstream set it.
       var args = new List<string> {
         "/VERYSILENT",
         "/SUPPRESSMSGBOXES",
         "/NORESTART",
-        "/NOCANCEL"
+        "/NOCANCEL",
+        "/MERGETASKS=!desktopicon"
       };
       var startInfo = new ProcessStartInfo {
         FileName = usbipExePath,
