@@ -62,7 +62,13 @@ if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64" AND DEFINED _MINHOOK_DLL)
     install(FILES "${_MINHOOK_DLL}" DESTINATION "." COMPONENT application)
 endif()
 
-# ViGEmBus installer is no longer bundled or managed by the installer
+# Virtual gamepad driver (ViGEmBus).
+#
+# The driver ArtLight builds itself is a driver package, so it installs only when its catalogue is
+# signed - and we have no code-signing certificate. It is therefore not something the user can be
+# given by us. ViGEmBus is signed by its authors, so their setup is what ships, embedded in the
+# bootstrapper as Payload.vigem.exe next to Payload.usbip.exe rather than extracted to an MSI
+# component. Nothing is installed from this tree; packaging/linux and the MSI do not carry it.
 
 # Adding tools
 install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
@@ -273,7 +279,10 @@ if(SUNSHINE_BUNDLE_VHF_GAMEPAD_DRIVER)
                 SUNSHINE_VHF_GAMEPAD_PROTOCOL_VERSION)
             if("${${_vhf_gamepad_pin}}" STREQUAL "")
                 message(FATAL_ERROR
-                    "SUNSHINE_BUNDLE_VHF_GAMEPAD_DRIVER requires ${_vhf_gamepad_pin} for a production package.")
+                    "SUNSHINE_BUNDLE_VHF_GAMEPAD_DRIVER is ON (the default on x64) but ${_vhf_gamepad_pin} is empty. "
+                    "Supply the pinned producer package - -DSUNSHINE_LIBVIRTUALGAMEPAD_PREBUILT_DIR=<dir> plus the "
+                    "SUNSHINE_VHF_GAMEPAD_* pins - or pass -DSUNSHINE_BUNDLE_VHF_GAMEPAD_DRIVER=OFF to build an "
+                    "installer that deliberately ships without the virtual gamepad driver.")
             endif()
         endforeach()
         unset(_vhf_gamepad_pin)

@@ -205,9 +205,63 @@ jobs:
             echo "versioninfo_artifact_id=$(artifact_id 'windows-versioninfo-Windows')"
           } >> "${GITHUB_OUTPUT}"
 
+  fetch_vhf_gamepad_release:
+    name: Fetch pinned VHF producer release
+    if: inputs.artifact_source_run_id == ''
+    runs-on: windows-2022
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout consumer verifier
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          ref: ${{ inputs.release_commit }}
+          fetch-depth: 1
+
+      - name: Download and verify immutable producer release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+          VHF_ARCHIVE_SHA256: a45a8ae27d2764ad26a4b89d43d1e2dc43510d84bddd5899aac7c80499754782
+          VHF_DRIVER_VER: 09/22/2026,0.1.0.39
+          VHF_PROTOCOL_VERSION: '2'
+          VHF_SOURCE_REVISION: 4b56fb9da177f320fb2d7ddb1b6262e5d55d2750
+          VHF_TAG: v0.1.0-beta.6
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The verifier runs from the repository root, but the driver gitlink
+          # is staged under server/ with the rest of the ArtLight Server tree,
+          # so the pin is read from there. The script is under server/ too.
+          $gitlink = (git rev-parse "$($env:RELEASE_COMMIT):server/third-party/libvirtualgamepad").Trim()
+          if ($LASTEXITCODE -ne 0 -or $gitlink -cne $env:VHF_SOURCE_REVISION) {
+            throw "Release commit does not pin libvirtualgamepad $($env:VHF_SOURCE_REVISION); got '$gitlink'."
+          }
+
+          $packageRoot = Join-Path $env:RUNNER_TEMP 'vhf-gamepad-producer-release'
+          .\server\scripts\download_libvirtualgamepad_release.ps1 `
+            -Repository Nonary/libvirtualgamepad `
+            -Tag $env:VHF_TAG `
+            -ExpectedArchiveSha256 $env:VHF_ARCHIVE_SHA256 `
+            -ExpectedSourceRevision $env:VHF_SOURCE_REVISION `
+            -ExpectedDriverVer $env:VHF_DRIVER_VER `
+            -ExpectedProtocolVersion $env:VHF_PROTOCOL_VERSION `
+            -OutDir $packageRoot `
+            -GitHubToken $env:GH_TOKEN
+
+      - name: Upload verified producer package for Windows build
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: vhf-gamepad-producer-release-Windows
+          path: ${{ runner.temp }}\vhf-gamepad-producer-release
+          if-no-files-found: error
+          retention-days: ${{ inputs.release_artifact_retention_days }}
+
   build_windows:
     name: ${{ matrix.name }}
-    if: inputs.artifact_source_run_id == ''
+    needs:
+      - fetch_vhf_gamepad_release
+    if: inputs.artifact_source_run_id == '' && needs.fetch_vhf_gamepad_release.result == 'success'
     runs-on: ${{ matrix.os }}
     outputs:
       msi_name: ${{ steps.package-windows-msi.outputs.msi_name }}
@@ -434,6 +488,23 @@ jobs:
           "VDD_PREBUILT_PACKAGE_DIR=$downloadDir" >> $env:GITHUB_ENV
           "Using virtual display driver package: $downloadDir"
 
+      - name: Download verified VHF producer package
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        with:
+          name: vhf-gamepad-producer-release-Windows
+          path: ${{ runner.temp }}\vhf-gamepad-producer-release
+
+      - name: Point the build at the verified VHF producer package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packageRoot = Join-Path $env:RUNNER_TEMP 'vhf-gamepad-producer-release'
+          if (-not (Test-Path -LiteralPath $packageRoot)) {
+            throw "Verified VHF producer package was not downloaded: $packageRoot"
+          }
+          "VHF_PACKAGE_ROOT=$packageRoot" >> $env:GITHUB_ENV
+          Write-Host "Using verified VHF producer release v0.1.0-beta.6"
+
       - name: Download pinned WebRTC artifacts
         shell: pwsh
         env:
@@ -502,6 +573,26 @@ jobs:
             echo "Using pinned TrueHDR runtime: ${SUNSHINE_TRUEHDR_RUNTIME_DIR}"
           fi
 
+          # The virtual gamepad driver is part of the product, so the build is
+          # pointed at the verified producer package and the bundle is switched
+          # on explicitly. Without it the MSI ships drivers/vhf-gamepad/ with
+          # only the cleanup script in it, and the installer collapses its
+          # "Install ArtLight Server virtual gamepad driver" tick entirely.
+          if [[ -z "${VHF_PACKAGE_ROOT:-}" ]]; then
+            echo "Verified VHF producer package path is missing." >&2
+            exit 1
+          fi
+          vhf_gamepad_package_arg=(
+            -DSUNSHINE_BUNDLE_VHF_GAMEPAD_DRIVER=ON
+            -DSUNSHINE_LIBVIRTUALGAMEPAD_PREBUILT_DIR="$(cygpath -u "${VHF_PACKAGE_ROOT}")"
+            -DSUNSHINE_VHF_GAMEPAD_RELEASE_TAG=v0.1.0-beta.6
+            -DSUNSHINE_VHF_GAMEPAD_RELEASE_ASSET_SHA256=a45a8ae27d2764ad26a4b89d43d1e2dc43510d84bddd5899aac7c80499754782
+            -DSUNSHINE_VHF_GAMEPAD_SOURCE_REVISION=4b56fb9da177f320fb2d7ddb1b6262e5d55d2750
+            -DSUNSHINE_VHF_GAMEPAD_DRIVER_VER=09/22/2026,0.1.0.39
+            -DSUNSHINE_VHF_GAMEPAD_PROTOCOL_VERSION=2
+          )
+          echo "Using verified VHF producer release v0.1.0-beta.6"
+
           mkdir -p build
           # Release tag builds omit test targets; ordinary reusable-workflow calls retain them.
           cmake \
@@ -528,6 +619,7 @@ jobs:
             -DSUNSHINE_PUBLISHER_NAME="${GITHUB_REPOSITORY_OWNER}" \
             -DSUNSHINE_PUBLISHER_WEBSITE="https://github.com/onaiaku/ArtLight" \
             -DSUNSHINE_PUBLISHER_ISSUE_URL="https://github.com/onaiaku/ArtLight/issues" \
+            "${vhf_gamepad_package_arg[@]}" \
             "${vdd_prebuilt_arg[@]}" \
             "${truehdr_runtime_arg[@]}"
           echo "::add-matcher::.github/matchers/gcc.json"
@@ -801,14 +893,87 @@ jobs:
             Write-Host "WiX log was not found: $log"
           }
 
+  verify_vhf_in_msi:
+    name: Verify the installer carries the pinned driver
+    needs:
+      - build_windows
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Download the unsigned MSI the build produced
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        with:
+          pattern: unsigned-msi-package-*
+          path: msi
+          merge-multiple: true
+
+      # msiexec is deliberately NOT used here. An administrative install of a
+      # WiX package hangs indefinitely on a runner that has no interactive
+      # session: the job stalls with no output and no timeout (measured on
+      # 2026-10-09, 25 minutes and climbing before the run was cancelled).
+      # msitools reads the same tables straight out of the container in about
+      # half a second, and it never executes the package.
+      - name: Install msitools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq msitools
+
+      - name: Assert the pinned virtual gamepad driver is inside the MSI
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          msi="$(find msi -type f -name '*.msi' | head -n 1)"
+          if [[ -z "${msi}" ]]; then
+            echo "::error::No unsigned MSI was downloaded, so nothing was verified."
+            find msi -maxdepth 3 -type f || true
+            exit 1
+          fi
+          echo "MSI under test: ${msi} ($(stat -c%s "${msi}") bytes)"
+
+          rm -rf extract
+          mkdir -p extract
+          ( cd extract && msiextract "../${msi}" > /dev/null )
+
+          package_dir="$(find extract -type d -name 'vhf-gamepad' | head -n 1)"
+          if [[ -z "${package_dir}" ]]; then
+            echo "::error::The MSI contains no drivers/vhf-gamepad folder at all."
+            exit 1
+          fi
+          echo "Driver folder inside the MSI: ${package_dir}"
+
+          expected="$(printf '%s\n' \
+            cleanup.ps1 \
+            driver/VibeshineVhfGamepad.cat \
+            driver/VibeshineVhfGamepad.dll \
+            driver/VibeshineVhfGamepad.inf \
+            install.ps1 \
+            manifest.json \
+            release-lock.json \
+            tools/VibeshineVhfGamepadDeviceSetup.exe | sort)"
+
+          actual="$(cd "${package_dir}" && find . -type f | sed 's|^\./||' | sort)"
+
+          echo "--- files actually in the driver folder ---"
+          echo "${actual}"
+
+          if [[ "${actual}" != "${expected}" ]]; then
+            echo "::error::The MSI does not carry the pinned virtual gamepad driver. This is the 1.5.0 fault: an installer that offers the driver and does not contain it."
+            diff <(echo "${expected}") <(echo "${actual}") || true
+            exit 1
+          fi
+
+          echo "Verified: the MSI carries the complete pinned virtual gamepad driver."
+
   release_artifacts:
     name: Select release artifacts
     needs:
       - build_windows
       - resolve_source_artifacts
+      - verify_vhf_in_msi
     if: >-
       ${{ always() && !cancelled() &&
-          ((inputs.artifact_source_run_id == '' && needs.build_windows.result == 'success') ||
+          ((inputs.artifact_source_run_id == '' && needs.build_windows.result == 'success' && needs.verify_vhf_in_msi.result == 'success') ||
            (inputs.artifact_source_run_id != '' && needs.resolve_source_artifacts.result == 'success')) }}
     runs-on: ubuntu-latest
     outputs:
@@ -1150,6 +1315,39 @@ jobs:
             Invoke-WebRequest -UseBasicParsing -Uri "https://raw.githubusercontent.com/vadimgrn/usbip-win2/v.$usbipVersion/LICENSE.txt" -OutFile $usbipLicense
           }
 
+          # Virtual gamepad driver - the pinned ViGEmBus payload.
+          #
+          # Same reasoning as USBip above, and the same reason this file changed at all: we cannot
+          # sign a driver, so the only virtual gamepad that can install on a user's machine is one
+          # somebody else already signed. ViGEmBus is that driver - Authenticode-signed by Nefarius
+          # Software Solutions e.U. through DigiCert and timestamped - and it ships as their own
+          # setup, which is what we run. Unpacking a driver and dropping the files in is how you get
+          # a device that attaches and then never appears anywhere; their setup installs it AS a
+          # driver, and it is the only part of this we do not have to own.
+          #
+          # Pinned to 1.21.442.0 deliberately, not to the newer 1.22.0. 1.22.0 is upstream's
+          # end-of-life release: it removes the updater, leaves the driver version unchanged, and its
+          # own notes record that an in-place upgrade "doesn't work for some reason". Same driver,
+          # with a broken upgrade path bolted on.
+          $vigemAsset   = 'ViGEmBus_1.21.442_x64_x86_arm64.exe'
+          $vigemTag     = 'v1.21.442.0'
+          $vigemSha256  = '155c50f1eec07bdc28d2f61a3e3c2c6c132fee7328412de224695f89143316bc'
+          $vigemDir = Join-Path $PWD 'vigem-payload'
+          New-Item -ItemType Directory -Path $vigemDir -Force | Out-Null
+          $vigemExe = Join-Path $vigemDir $vigemAsset
+          $vigemLicense = Join-Path $vigemDir 'LICENSE.txt'
+          if (-not (Test-Path -LiteralPath $vigemExe)) {
+            Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/nefarius/ViGEmBus/releases/download/$vigemTag/$vigemAsset" -OutFile $vigemExe
+          }
+          $vigemActual = (Get-FileHash -LiteralPath $vigemExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($vigemActual -ne $vigemSha256) {
+            throw "ViGEmBus payload hash mismatch: expected $vigemSha256, got $vigemActual"
+          }
+          Write-Host "ViGEmBus payload verified: $vigemExe ($vigemActual)"
+          if (-not (Test-Path -LiteralPath $vigemLicense)) {
+            Invoke-WebRequest -UseBasicParsing -Uri "https://raw.githubusercontent.com/nefarius/ViGEmBus/$vigemTag/LICENSE" -OutFile $vigemLicense
+          }
+
           & (Join-Path $PWD 'server/packaging/windows/bootstrapper/build_bootstrapper.ps1') `
             -BuildDir (Join-Path $PWD 'build') `
             -MsiPath $signedMsi `
@@ -1157,6 +1355,8 @@ jobs:
             -ControlInstallerPath $controlInstaller `
             -UsbipInstallerPath $usbipExe `
             -UsbipLicensePath $usbipLicense `
+            -VigemInstallerPath $vigemExe `
+            -VigemLicensePath $vigemLicense `
             -DisableSignPath
 
           $installerExe = Join-Path (Join-Path $PWD 'build/cpack_artifacts') $installerName
