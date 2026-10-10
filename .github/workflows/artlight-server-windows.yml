@@ -263,7 +263,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $packageRoot = Join-Path $env:RUNNER_TEMP 'vhf-gamepad-producer-release'
-          $signedRoot = 'server\packaging\windows\virtual_gamepad_driver\consumer-signed'
+          $signedRoot = 'server/packaging/windows/virtual_gamepad_driver/consumer-signed'
           if (-not (Test-Path -LiteralPath $signedRoot)) {
             throw "The consumer-signed driver payload is missing from the tree: $signedRoot"
           }
@@ -272,23 +272,30 @@ jobs:
             return ($Thumbprint -replace '[^0-9A-Fa-f]', '').ToUpperInvariant()
           }
 
+          # X509Certificate2.Subject renders RDNs in encoded order, which is the
+          # reverse of the conventional string: 'CN=X, O=Y' comes back as
+          # 'O=Y, CN=X'. Compare the components as a set, not as a string.
+          function Get-NormalizedSubject([string] $Subject) {
+            return (($Subject -split ',') | ForEach-Object { $_.Trim() } | Sort-Object) -join ', '
+          }
+
           $certificate = Get-ChildItem -LiteralPath $signedRoot -Filter '*.cer' | Select-Object -First 1
           if ($null -eq $certificate) { throw "No publisher certificate found under $signedRoot" }
           $certificateObject = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($certificate.FullName)
           if ((Get-NormalizedThumbprint $certificateObject.Thumbprint) -ne $env:VHF_PUBLISHER_THUMBPRINT) {
             throw "The bundled publisher certificate is not the pinned signer: $($certificateObject.Thumbprint)"
           }
-          if ($certificateObject.Subject -ne $env:VHF_PUBLISHER_SUBJECT) {
+          if ((Get-NormalizedSubject $certificateObject.Subject) -ne (Get-NormalizedSubject $env:VHF_PUBLISHER_SUBJECT)) {
             throw "The bundled publisher certificate subject is wrong: $($certificateObject.Subject)"
           }
 
           $payload = @(
-            @{ Signed = 'VibeshineVhfGamepad.cat';                Dest = 'driver\VibeshineVhfGamepad.cat' },
-            @{ Signed = 'VibeshineVhfGamepadDeviceSetup.exe';     Dest = 'tools\VibeshineVhfGamepadDeviceSetup.exe' }
+            @{ File = 'VibeshineVhfGamepad.cat';            Dir = 'driver' },
+            @{ File = 'VibeshineVhfGamepadDeviceSetup.exe'; Dir = 'tools' }
           )
           foreach ($entry in $payload) {
-            $source = Join-Path $signedRoot $entry.Signed
-            $destination = Join-Path $packageRoot $entry.Dest
+            $source = Join-Path $signedRoot $entry.File
+            $destination = Join-Path (Join-Path $packageRoot $entry.Dir) $entry.File
             if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
               throw "Consumer-signed payload is missing: $source"
             }
@@ -301,13 +308,13 @@ jobs:
               throw "Consumer-signed payload is signed by the wrong identity: $source"
             }
             Copy-Item -LiteralPath $source -Destination $destination -Force
-            Write-Host "Re-signed into the package: $($entry.Dest)"
+            Write-Host "Re-signed into the package: $($entry.Dir)/$($entry.File)"
           }
 
           $publisherDir = Join-Path $packageRoot 'publisher'
           New-Item -ItemType Directory -Path $publisherDir -Force | Out-Null
           Copy-Item -LiteralPath $certificate.FullName -Destination (Join-Path $publisherDir 'ArtLightDriverSigning.cer') -Force
-          Write-Host 'Publisher certificate added to the package: publisher\ArtLightDriverSigning.cer'
+          Write-Host 'Publisher certificate added to the package: publisher/ArtLightDriverSigning.cer'
 
       - name: Upload verified producer package for Windows build
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
@@ -1057,7 +1064,7 @@ jobs:
 
           for payload in "driver/VibeshineVhfGamepad.cat" "tools/VibeshineVhfGamepadDeviceSetup.exe"; do
             verify_out="$(osslsigncode verify -in "${package_dir}/${payload}" 2>&1 || true)"
-            if ! grep -q "Subject: O=onaiaku,CN=ArtLight Driver Signing" <<<"${verify_out}"; then
+            if ! grep -qE "O=onaiaku, ?CN=ArtLight Driver Signing" <<<"${verify_out}"; then
               echo "::error::${payload} is not signed by the pinned ArtLight publisher."
               echo "${verify_out}" | head -20
               exit 1
