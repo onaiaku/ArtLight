@@ -1455,39 +1455,6 @@ jobs:
             Invoke-WebRequest -UseBasicParsing -Uri "https://raw.githubusercontent.com/vadimgrn/usbip-win2/v.$usbipVersion/LICENSE.txt" -OutFile $usbipLicense
           }
 
-          # Virtual gamepad driver - the pinned ViGEmBus payload.
-          #
-          # Same reasoning as USBip above, and the same reason this file changed at all: we cannot
-          # sign a driver, so the only virtual gamepad that can install on a user's machine is one
-          # somebody else already signed. ViGEmBus is that driver - Authenticode-signed by Nefarius
-          # Software Solutions e.U. through DigiCert and timestamped - and it ships as their own
-          # setup, which is what we run. Unpacking a driver and dropping the files in is how you get
-          # a device that attaches and then never appears anywhere; their setup installs it AS a
-          # driver, and it is the only part of this we do not have to own.
-          #
-          # Pinned to 1.21.442.0 deliberately, not to the newer 1.22.0. 1.22.0 is upstream's
-          # end-of-life release: it removes the updater, leaves the driver version unchanged, and its
-          # own notes record that an in-place upgrade "doesn't work for some reason". Same driver,
-          # with a broken upgrade path bolted on.
-          $vigemAsset   = 'ViGEmBus_1.21.442_x64_x86_arm64.exe'
-          $vigemTag     = 'v1.21.442.0'
-          $vigemSha256  = '155c50f1eec07bdc28d2f61a3e3c2c6c132fee7328412de224695f89143316bc'
-          $vigemDir = Join-Path $PWD 'vigem-payload'
-          New-Item -ItemType Directory -Path $vigemDir -Force | Out-Null
-          $vigemExe = Join-Path $vigemDir $vigemAsset
-          $vigemLicense = Join-Path $vigemDir 'LICENSE.txt'
-          if (-not (Test-Path -LiteralPath $vigemExe)) {
-            Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/nefarius/ViGEmBus/releases/download/$vigemTag/$vigemAsset" -OutFile $vigemExe
-          }
-          $vigemActual = (Get-FileHash -LiteralPath $vigemExe -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($vigemActual -ne $vigemSha256) {
-            throw "ViGEmBus payload hash mismatch: expected $vigemSha256, got $vigemActual"
-          }
-          Write-Host "ViGEmBus payload verified: $vigemExe ($vigemActual)"
-          if (-not (Test-Path -LiteralPath $vigemLicense)) {
-            Invoke-WebRequest -UseBasicParsing -Uri "https://raw.githubusercontent.com/nefarius/ViGEmBus/$vigemTag/LICENSE" -OutFile $vigemLicense
-          }
-
           & (Join-Path $PWD 'server/packaging/windows/bootstrapper/build_bootstrapper.ps1') `
             -BuildDir (Join-Path $PWD 'build') `
             -MsiPath $signedMsi `
@@ -1495,8 +1462,6 @@ jobs:
             -ControlInstallerPath $controlInstaller `
             -UsbipInstallerPath $usbipExe `
             -UsbipLicensePath $usbipLicense `
-            -VigemInstallerPath $vigemExe `
-            -VigemLicensePath $vigemLicense `
             -DisableSignPath
 
           $installerExe = Join-Path (Join-Path $PWD 'build/cpack_artifacts') $installerName

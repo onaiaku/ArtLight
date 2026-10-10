@@ -15,6 +15,10 @@ not. The driver package now carries its own signing certificate and is
 signed, so it installs and the virtual controller works without depending
 on anything else being present.
 
+The Windows installer no longer offers or bundles ViGEmBus. ViGEmBus is
+retired upstream (end of life late 2023), and ArtLight's own virtual gamepad
+driver provides virtual gamepads.
+
 ------------------------------------------------
 Version 1.5.2 (10/10/2026)
 ------------------------------------------------
