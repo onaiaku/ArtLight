@@ -25,6 +25,12 @@ $manifestPayload = @(
     'tools/VibeshineVhfGamepadDeviceSetup.exe'
 )
 $localTestCertificate = 'driver/VibeshineVhfGamepad.cer'
+# The production publisher certificate. The package ships this public
+# certificate beside the driver; the installer trusts it into
+# LocalMachine\TrustedPublisher before it validates the catalogue and the
+# root-device setup tool, and pins the exact thumbprint it may trust.
+$publisherCertificate = 'publisher/ArtLightDriverSigning.cer'
+$expectedPublisherThumbprint = '4EBF1AC9B78D8982DAE701EEAB63A2DE7B5243D6'
 $expectedProducerRepository = 'Nonary/libvirtualgamepad'
 $expectedProducerTag = 'v0.1.0-beta.6'
 $expectedProducerAsset = 'libvirtualgamepad-0.1.0-beta.6-windows-x64.zip'
@@ -32,12 +38,13 @@ $expectedProducerArchiveSha256 = 'a45a8ae27d2764ad26a4b89d43d1e2dc43510d84bddd58
 $expectedProducerSourceRevision = '4b56fb9da177f320fb2d7ddb1b6262e5d55d2750'
 $expectedDriverVer = '09/22/2026,0.1.0.39'
 $expectedProtocolVersion = 2
-$expectedSignPathFoundationSignerSubject = 'CN=SignPath Foundation, O=SignPath Foundation, L=Lewes, S=Delaware, C=US'
+$expectedPublisherSignerSubject = 'CN=ArtLight Driver Signing, O=onaiaku'
 
-# Signing channel for a package that ships unsigned and is signed by the
-# consumer MSI signing request instead. SignPath is not available on
+# Signing channel for a package that ships unsigned from the producer and is
+# re-signed downstream by the consumer. SignPath is not available on
 # Nonary/libvirtualgamepad, so its releases cannot carry a production
-# signature; the catalogue is signed downstream, inside the MSI.
+# signature; ArtLight re-signs the catalogue and the setup tool with its own
+# driver-signing certificate and ships that certificate inside the package.
 $msiRequestChannel = 'msi-request-signing'
 
 # Under that channel these two files are re-signed after the manifest was
@@ -110,6 +117,33 @@ function Get-Thumbprint {
     return $Certificate.Thumbprint.Replace(' ', '').ToUpperInvariant()
 }
 
+function Test-SubjectMatches {
+    # Compare a certificate subject as a SET of relative distinguished names
+    # rather than as one rendered string. .NET renders Subject in a different
+    # order depending on how the certificate was obtained: the publisher .cer
+    # bundled in the package renders as 'O=onaiaku, CN=ArtLight Driver Signing',
+    # while the same certificate read from an Authenticode signature renders as
+    # 'CN=ArtLight Driver Signing, O=onaiaku'. An ordered string comparison
+    # therefore rejects the correct certificate, which is what stopped the
+    # virtual gamepad driver installing. This only confirms the name is the one
+    # expected; the pinned thumbprint is what pins the identity.
+    param(
+        [Parameter(Mandatory = $true)][string] $Actual,
+        [Parameter(Mandatory = $true)][string] $Expected
+    )
+    $actualNames = @($Actual -split ',' | ForEach-Object { $_.Trim().ToUpperInvariant() } | Where-Object { $_ -ne '' } | Sort-Object)
+    $expectedNames = @($Expected -split ',' | ForEach-Object { $_.Trim().ToUpperInvariant() } | Where-Object { $_ -ne '' } | Sort-Object)
+    if ($actualNames.Count -ne $expectedNames.Count) {
+        return $false
+    }
+    for ($i = 0; $i -lt $actualNames.Count; $i++) {
+        if ($actualNames[$i] -cne $expectedNames[$i]) {
+            return $false
+        }
+    }
+    return $true
+}
+
 function Get-ValidatedSharedPublisherCertificate {
     param(
         [Parameter(Mandatory = $true)] $CatalogSignature,
@@ -125,8 +159,8 @@ function Get-ValidatedSharedPublisherCertificate {
     }
     $catalogSubject = [string] $CatalogSignature.SignerCertificate.Subject
     $toolSubject = [string] $ToolSignature.SignerCertificate.Subject
-    if (-not [string]::Equals($catalogSubject, $ExpectedSubject, [System.StringComparison]::OrdinalIgnoreCase) -or
-        -not [string]::Equals($toolSubject, $ExpectedSubject, [System.StringComparison]::OrdinalIgnoreCase)) {
+    if (-not (Test-SubjectMatches -Actual $catalogSubject -Expected $ExpectedSubject) -or
+        -not (Test-SubjectMatches -Actual $toolSubject -Expected $ExpectedSubject)) {
         throw "[VibeshineVhfGamepad] Refusing publisher trust for an unexpected signer identity. Expected '$ExpectedSubject'; catalog='$catalogSubject'; setup='$toolSubject'."
     }
     $catalogThumbprint = Get-Thumbprint -Certificate $CatalogSignature.SignerCertificate
@@ -144,10 +178,16 @@ function Ensure-ProductionPublisherTrusted {
     )
 
     $publisherSubject = [string] $PublisherCertificate.Subject
-    if (-not [string]::Equals($publisherSubject, $ExpectedSubject, [System.StringComparison]::OrdinalIgnoreCase)) {
+    if (-not (Test-SubjectMatches -Actual $publisherSubject -Expected $ExpectedSubject)) {
         throw "[VibeshineVhfGamepad] Refusing to modify publisher trust for unexpected signer '$publisherSubject'."
     }
     $thumbprint = Get-Thumbprint -Certificate $PublisherCertificate
+    # The name above is only a sanity check. The certificate's identity is its
+    # thumbprint, and that is pinned, so a certificate that merely carries the
+    # same subject name still cannot be trusted here.
+    if ($thumbprint -ne $expectedPublisherThumbprint) {
+        throw "[VibeshineVhfGamepad] Refusing to modify publisher trust for signer $thumbprint; expected $expectedPublisherThumbprint."
+    }
     $store = [System.Security.Cryptography.X509Certificates.X509Store]::new('TrustedPublisher', 'LocalMachine')
     try {
         $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
@@ -177,7 +217,39 @@ function Ensure-ProductionPublisherTrusted {
     } finally {
         $verificationStore.Close()
     }
-    Write-DriverMessage "Validated publisher $thumbprint is present in LocalMachine\TrustedPublisher."
+
+    # TrustedPublisher alone is not enough. This publisher certificate is
+    # self-signed, so it is its own root: until that root is trusted Windows
+    # cannot build the chain and reports the catalog and setup tool as
+    # UnknownError rather than Valid, which the validation below then refuses.
+    # The pinned thumbprint is what authorises this, and it was checked above.
+    $rootStore = [System.Security.Cryptography.X509Certificates.X509Store]::new('Root', 'LocalMachine')
+    try {
+        $rootStore.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+        $existingRoot = $rootStore.Certificates.Find(
+            [System.Security.Cryptography.X509Certificates.X509FindType]::FindByThumbprint,
+            $thumbprint,
+            $false)
+        if ($existingRoot.Count -eq 0) {
+            $rootStore.Add($PublisherCertificate)
+        }
+    } finally {
+        $rootStore.Close()
+    }
+    $verificationRootStore = [System.Security.Cryptography.X509Certificates.X509Store]::new('Root', 'LocalMachine')
+    try {
+        $verificationRootStore.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly)
+        $verifiedRoot = $verificationRootStore.Certificates.Find(
+            [System.Security.Cryptography.X509Certificates.X509FindType]::FindByThumbprint,
+            $thumbprint,
+            $false)
+        if ($verifiedRoot.Count -eq 0) {
+            throw "[VibeshineVhfGamepad] Failed to establish root trust for validated signer $thumbprint."
+        }
+    } finally {
+        $verificationRootStore.Close()
+    }
+    Write-DriverMessage "Validated publisher $thumbprint is present in LocalMachine\Root and LocalMachine\TrustedPublisher."
 }
 
 function Get-RequiredStringProperty {
@@ -417,14 +489,31 @@ function Assert-DriverPackage {
             throw '[VibeshineVhfGamepad] Manifest signer identity does not match the signed package artifacts.'
         }
     } else {
-        # The signed MSI authenticates these two package files. Bind silent PnP
-        # trust to the exact shared SignPath Foundation signer certificate,
-        # independent of any certificate installed by the optional display
-        # driver.
+        # Bind silent PnP trust to the exact pinned publisher certificate the
+        # package ships, independent of any certificate installed by the
+        # optional display driver. The certificate has to be trusted before the
+        # two signatures can report Valid, so it is established here and the
+        # signer is then proved to be that same certificate.
+        $publisherCertificatePath = Join-Path $Root ($publisherCertificate -replace '/', '\\')
+        Assert-File -Path $publisherCertificatePath
+        $publisherCertificateObject = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($publisherCertificatePath)
+        if ((Get-Thumbprint -Certificate $publisherCertificateObject) -ne $expectedPublisherThumbprint) {
+            throw '[VibeshineVhfGamepad] The packaged publisher certificate does not match the pinned production signer thumbprint.'
+        }
+        Ensure-ProductionPublisherTrusted `
+            -PublisherCertificate $publisherCertificateObject `
+            -ExpectedSubject $expectedPublisherSignerSubject
+        # The two signature objects above were read before the publisher was
+        # trusted, and they are snapshots: they keep reporting the pre-trust
+        # status even after the chain resolves. Re-read them now that both
+        # stores carry the pinned certificate, exactly as the local-test path
+        # below does.
+        $catalogSignature = Get-AuthenticodeSignature -LiteralPath $catalogPath
+        $toolSignature = Get-AuthenticodeSignature -LiteralPath $toolPath
         $productionPublisherCertificate = Get-ValidatedSharedPublisherCertificate `
             -CatalogSignature $catalogSignature `
             -ToolSignature $toolSignature `
-            -ExpectedSubject $expectedSignPathFoundationSignerSubject
+            -ExpectedSubject $expectedPublisherSignerSubject
     }
 
     Assert-ReleaseLock -Root $Root -Manifest $manifest -CatalogSignature $catalogSignature -ToolSignature $toolSignature
@@ -506,7 +595,7 @@ function Install-DriverPackage {
     if ($null -ne $package.ProductionPublisherCertificate) {
         Ensure-ProductionPublisherTrusted `
             -PublisherCertificate $package.ProductionPublisherCertificate `
-            -ExpectedSubject $expectedSignPathFoundationSignerSubject
+            -ExpectedSubject $expectedPublisherSignerSubject
     }
     # PnPUtil performs Windows' catalog-to-INF/DLL membership validation while
     # it stages the package. The installed product deliberately does not ship

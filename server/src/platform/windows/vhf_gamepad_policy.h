@@ -22,8 +22,9 @@ namespace platf::vhf_gamepad {
 
   /**
    * @brief Selects the backend used by the Automatic gamepad setting.
-   * @details ViGEm remains preferred when usable. ArtLight's VHF driver is the fallback when
-   *          ViGEmBus is absent or cannot be opened.
+   * @details ArtLight's own driver is preferred whenever it is usable. ViGEmBus is the fallback,
+   *          for machines where ArtLight's driver cannot provide controllers - ViGEmBus is retired
+   *          upstream (end of life late 2023), so it is not what a working machine should land on.
    * @param vigem_available Whether a connection to ViGEmBus succeeded.
    * @param vhf_available Whether ArtLight's VHF driver exposes a usable controller profile.
    * @return The selected backend, or `unavailable` when neither backend can create controllers.
@@ -32,11 +33,11 @@ namespace platf::vhf_gamepad {
     const bool vigem_available,
     const bool vhf_available
   ) noexcept {
-    if (vigem_available) {
-      return backend_e::vigem;
-    }
     if (vhf_available) {
       return backend_e::vhf;
+    }
+    if (vigem_available) {
+      return backend_e::vigem;
     }
     return backend_e::unavailable;
   }

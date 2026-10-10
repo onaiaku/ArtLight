@@ -6,8 +6,6 @@ param(
     [string]$ControlInstallerPath = "",
     [string]$UsbipInstallerPath = "",
     [string]$UsbipLicensePath = "",
-    [string]$VigemInstallerPath = "",
-    [string]$VigemLicensePath = "",
     [string]$OutputName = "",
     [switch]$UninstallOnly,
     [switch]$SignWithSignPath,
@@ -350,20 +348,6 @@ if ($UninstallOnly) {
         $usbipLicensePath = Resolve-PathStrict $UsbipLicensePath
         Write-Host "[bootstrapper] Embedding USBip licence: $usbipLicensePath"
         $args += "/resource:$usbipLicensePath,License.USBip.txt"
-    }
-    # Virtual gamepad driver. Third-party (ViGEmBus, BSD-3-Clause) and embedded as its own installer
-    # rather than unpacked, for the same reason as USBip: the driver has to be installed AS a driver,
-    # by the setup that knows how. Nefarius signed their installer, so it installs on a machine that
-    # has never heard of us. A driver we built ourselves could not, because we cannot sign one.
-    if (-not [string]::IsNullOrWhiteSpace($VigemInstallerPath)) {
-        $vigemPath = Resolve-PathStrict $VigemInstallerPath
-        Write-Host "[bootstrapper] Embedding ViGEmBus payload: $vigemPath"
-        $args += "/resource:$vigemPath,Payload.vigem.exe"
-    }
-    if (-not [string]::IsNullOrWhiteSpace($VigemLicensePath)) {
-        $vigemLicensePath = Resolve-PathStrict $VigemLicensePath
-        Write-Host "[bootstrapper] Embedding ViGEmBus licence: $vigemLicensePath"
-        $args += "/resource:$vigemLicensePath,License.ViGEmBus.txt"
     }
 }
 

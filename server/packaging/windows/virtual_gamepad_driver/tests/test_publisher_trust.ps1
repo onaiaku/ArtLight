@@ -5,6 +5,9 @@ $installScript = Join-Path $repositoryRoot 'src_assets/windows/drivers/vhf-gamep
 $workflowPath = Join-Path $repositoryRoot '.github/workflows/ci-windows.yml'
 $windowsPackagingCmake = Join-Path $repositoryRoot 'cmake/packaging/windows.cmake'
 $expectedSignPathFoundationSignerSubject = 'CN=SignPath Foundation, O=SignPath Foundation, L=Lewes, S=Delaware, C=US'
+# The virtual gamepad payload is signed by ArtLight itself, not by SignPath.
+$expectedPublisherSignerSubject = 'CN=ArtLight Driver Signing, O=onaiaku'
+$expectedPublisherThumbprint = '4EBF1AC9B78D8982DAE701EEAB63A2DE7B5243D6'
 $tokens = $null
 $parseErrors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile(
@@ -16,13 +19,18 @@ if ($parseErrors.Count -ne 0) {
 }
 
 $installFileText = Get-Content -LiteralPath $installScript -Raw
-$expectedSubjectAssignment = "`$expectedSignPathFoundationSignerSubject = '$expectedSignPathFoundationSignerSubject'"
+$expectedSubjectAssignment = "`$expectedPublisherSignerSubject = '$expectedPublisherSignerSubject'"
 if ($installFileText.IndexOf($expectedSubjectAssignment, [System.StringComparison]::Ordinal) -lt 0) {
-    throw 'install.ps1 does not pin the expected SignPath Foundation signer subject.'
+    throw 'install.ps1 does not pin the ArtLight driver-signing publisher subject.'
+}
+$expectedThumbprintAssignment = "`$expectedPublisherThumbprint = '$expectedPublisherThumbprint'"
+if ($installFileText.IndexOf($expectedThumbprintAssignment, [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'install.ps1 does not pin the ArtLight driver-signing publisher thumbprint.'
 }
 
 $wanted = @(
     'Get-Thumbprint',
+    'Test-SubjectMatches',
     'Get-ValidatedSharedPublisherCertificate',
     'Ensure-ProductionPublisherTrusted'
 )
@@ -121,6 +129,50 @@ if (-not $unexpectedStoreSignerRejected) {
     throw 'The publisher store boundary accepted an unexpected signer identity.'
 }
 
+# A certificate renders its subject in a different RDN order depending on how
+# it was loaded: the publisher .cer bundled in the package renders as
+# 'O=onaiaku, CN=ArtLight Driver Signing', while the same certificate read from
+# an Authenticode signature renders as 'CN=ArtLight Driver Signing, O=onaiaku'.
+# The ordered comparison shipped in 1.5.3 rejected the certificate the package
+# had just been signed with, so the driver never installed. Both renderings
+# must be accepted; the name still has to be exactly the expected one.
+foreach ($rendering in @(
+    'CN=ArtLight Driver Signing, O=onaiaku',
+    'O=onaiaku, CN=ArtLight Driver Signing',
+    'cn=artlight driver signing,  o=ONAIaku'
+)) {
+    if (-not (Test-SubjectMatches -Actual $rendering -Expected $expectedPublisherSignerSubject)) {
+        throw "A valid publisher subject rendering was rejected: $rendering"
+    }
+}
+foreach ($lookalike in @(
+    'CN=ArtLight Driver Signing, O=Somebody Else',
+    'CN=ArtLight Driver Signing',
+    'CN=ArtLight Driver Signing, O=onaiaku, C=US',
+    'CN=ArtLight Driver Signing, O=onaiaku2'
+)) {
+    if (Test-SubjectMatches -Actual $lookalike -Expected $expectedPublisherSignerSubject) {
+        throw "An unexpected publisher subject was accepted: $lookalike"
+    }
+}
+
+# A certificate carrying the expected name but not the pinned thumbprint must
+# be refused before the machine certificate store is touched.
+$lookalikeSignerRejected = $false
+try {
+    Ensure-ProductionPublisherTrusted `
+        -PublisherCertificate ([PSCustomObject]@{
+            Thumbprint = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'
+            Subject = $expectedPublisherSignerSubject
+        }) `
+        -ExpectedSubject $expectedPublisherSignerSubject
+} catch {
+    $lookalikeSignerRejected = $true
+}
+if (-not $lookalikeSignerRejected) {
+    throw 'A certificate with the expected name but an unpinned thumbprint was accepted for publisher trust.'
+}
+
 $trustFunction = @($definitions | Where-Object Name -eq 'Ensure-ProductionPublisherTrusted')
 if ($trustFunction.Count -ne 1) {
     throw 'Ensure-ProductionPublisherTrusted was not found exactly once.'
@@ -136,10 +188,58 @@ foreach ($requiredTrustOperation in @(
         throw "Publisher trust function lacks required operation: $requiredTrustOperation"
     }
 }
-$subjectGuardOffset = $trustText.IndexOf('[string]::Equals', [System.StringComparison]::Ordinal)
+$subjectGuardOffset = $trustText.IndexOf('Test-SubjectMatches', [System.StringComparison]::Ordinal)
+$thumbprintGuardOffset = $trustText.IndexOf('$thumbprint -ne $expectedPublisherThumbprint', [System.StringComparison]::Ordinal)
 $storeConstructionOffset = $trustText.IndexOf("X509Store]::new('TrustedPublisher', 'LocalMachine')", [System.StringComparison]::Ordinal)
 if ($subjectGuardOffset -lt 0 -or $storeConstructionOffset -lt 0 -or $subjectGuardOffset -ge $storeConstructionOffset) {
     throw 'Unexpected publisher identity is not rejected before the machine certificate store is accessed.'
+}
+if ($thumbprintGuardOffset -lt 0 -or $thumbprintGuardOffset -ge $storeConstructionOffset) {
+    throw 'The pinned publisher thumbprint is not checked before the machine certificate store is accessed.'
+}
+
+# The publisher certificate is self-signed, so it is its own root. Windows
+# cannot build a chain for a signature whose root it does not trust: the
+# catalog and setup tool report UnknownError rather than Valid, and the
+# production path then refused them. Both stores must be established, and only
+# after the pinned thumbprint has authorised it.
+$rootStoreOffset = $trustText.IndexOf("X509Store]::new('Root', 'LocalMachine')", [System.StringComparison]::Ordinal)
+if ($rootStoreOffset -lt 0) {
+    throw 'The production publisher certificate is never trusted as a root; a self-signed signer cannot report a valid signature without it.'
+}
+if ($rootStoreOffset -le $thumbprintGuardOffset) {
+    throw 'Root trust is established before the pinned thumbprint is checked.'
+}
+if ($trustText.IndexOf('$rootStore.Add($PublisherCertificate)', [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'The root store block does not add the validated publisher certificate.'
+}
+if ($trustText.IndexOf('Root and LocalMachine\TrustedPublisher', [System.StringComparison]::Ordinal) -lt 0) {
+    throw "The publisher trust report does not name both stores it established."
+}
+
+# Signature objects are snapshots. The production branch reads the catalog and
+# setup tool signatures, then establishes trust, and the snapshots above keep
+# reporting the pre-trust status. They must be re-read before validation, or
+# the guard rejects a package that is in fact now trusted.
+$packageFunction = @($ast.FindAll({
+    param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -eq 'Assert-DriverPackage'
+}, $true))
+if ($packageFunction.Count -ne 1) {
+    throw 'Assert-DriverPackage was not found exactly once.'
+}
+$packageText = $packageFunction[0].Extent.Text
+$trustCallOffset = $packageText.IndexOf('Ensure-ProductionPublisherTrusted', [System.StringComparison]::Ordinal)
+$validationOffset = $packageText.IndexOf('Get-ValidatedSharedPublisherCertificate', [System.StringComparison]::Ordinal)
+if ($trustCallOffset -lt 0 -or $validationOffset -lt 0 -or $trustCallOffset -ge $validationOffset) {
+    throw 'The production branch does not establish publisher trust before validating the signatures.'
+}
+$catalogRereadOffset = $packageText.IndexOf('$catalogSignature = Get-AuthenticodeSignature -LiteralPath $catalogPath', $trustCallOffset, [System.StringComparison]::Ordinal)
+$toolRereadOffset = $packageText.IndexOf('$toolSignature = Get-AuthenticodeSignature -LiteralPath $toolPath', $trustCallOffset, [System.StringComparison]::Ordinal)
+if ($catalogRereadOffset -lt $trustCallOffset -or $catalogRereadOffset -ge $validationOffset -or
+    $toolRereadOffset -lt $trustCallOffset -or $toolRereadOffset -ge $validationOffset) {
+    throw 'The production branch validates signature snapshots taken before publisher trust was established.'
 }
 
 $installFunction = @($ast.FindAll({
@@ -268,12 +368,54 @@ foreach ($requiredPostSignCheck in @(
     "`$expectedSignPathFoundationSigner = '$expectedSignPathFoundationSignerSubject'",
     "`$catalogSignature.SignerCertificate.Subject -ne `$expectedSignPathFoundationSigner",
     "`$vhfCatalogSignature.SignerCertificate.Thumbprint -cne `$vhfToolSignature.SignerCertificate.Thumbprint",
-    "`$vhfCatalogSignature.SignerCertificate.Subject -ne `$expectedSignPathFoundationSigner",
-    "`$vhfToolSignature.SignerCertificate.Subject -ne `$expectedSignPathFoundationSigner"
+    "`$vhfCatalogSignature.SignerCertificate.Subject -ne `$expectedVhfPublisherSigner",
+    "`$vhfToolSignature.SignerCertificate.Subject -ne `$expectedVhfPublisherSigner"
 )) {
     if ($postSignScript.IndexOf($requiredPostSignCheck, [System.StringComparison]::Ordinal) -lt 0) {
         throw "Post-sign VHF verification lacks required signer check: $requiredPostSignCheck"
     }
+}
+
+# The VHF payload is consumer-signed, so its verification must live on the
+# always-running path. The SignPath-gated step cannot be the only place that
+# checks these signatures, because SignPath is not enabled.
+$vhfSourceVerifyScript = Get-WorkflowLiteralRunBlock `
+    -Lines $workflowLines `
+    -StepName 'Verify unsigned MSI contains the pinned VHF package'
+foreach ($requiredSourceCheck in @(
+    "'publisher/ArtLightDriverSigning.cer',",
+    "`$expectedVhfPublisherSubject = '$expectedPublisherSignerSubject'",
+    "`$expectedVhfPublisherThumbprint = '$expectedPublisherThumbprint'",
+    "verify '/v' '/pa' '/c' `$vhfCatalogPath `$payload",
+    'catalog-bound VHF DLL must stay unsigned'
+)) {
+    if ($vhfSourceVerifyScript.IndexOf($requiredSourceCheck, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "The always-running VHF verification lacks a required check: $requiredSourceCheck"
+    }
+}
+
+# The workflow checked above is upstream Vibepollo's copy, staged under the
+# tree. GitHub runs workflows only from the repository root, so that copy never
+# executes - which is how a driverless installer shipped while its tests passed.
+# Guard the gate that actually runs as well.
+$shippingWorkflowPath = Join-Path $repositoryRoot '../.github/workflows/artlight-server-windows.yml'
+if (-not (Test-Path -LiteralPath $shippingWorkflowPath -PathType Leaf)) {
+    throw "The shipping Windows workflow was not found: $shippingWorkflowPath"
+}
+$shippingWorkflowText = Get-Content -LiteralPath $shippingWorkflowPath -Raw
+foreach ($requiredShippingCheck in @(
+    'Assert the pinned virtual gamepad driver is inside the MSI',
+    'publisher/ArtLightDriverSigning.cer',
+    '4EBF1AC9B78D8982DAE701EEAB63A2DE7B5243D6',
+    'osslsigncode verify',
+    'ArtLightDriverSigning.cer'
+)) {
+    if ($shippingWorkflowText.IndexOf($requiredShippingCheck, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "The shipping workflow no longer verifies the driver payload: $requiredShippingCheck"
+    }
+}
+if ($shippingWorkflowText.IndexOf('Re-sign the verified package with the ArtLight publisher certificate', [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'The shipping workflow no longer re-signs the verified producer package.'
 }
 
 $packagingText = Get-Content -LiteralPath $windowsPackagingCmake -Raw

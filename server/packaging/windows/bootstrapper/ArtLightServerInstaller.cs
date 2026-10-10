@@ -86,14 +86,6 @@ namespace ArtLightServerInstaller {
               "USB/IP (USBip): " + (string.IsNullOrWhiteSpace(usbipResult.Message) ? "silent install failed (exit " + usbipResult.ExitCode + ")" : usbipResult.Message));
           }
         }
-        if (internalInstall.Succeeded && parsed.InternalInstallVigem) {
-          var vigemResult = InstallerRunner.InstallVigemPayload(installPath);
-          if (!vigemResult.Succeeded) {
-            internalInstall.ComponentFailures = internalInstall.ComponentFailures ?? new List<string>();
-            internalInstall.ComponentFailures.Add(
-              "Virtual gamepads (ViGEmBus): " + (string.IsNullOrWhiteSpace(vigemResult.Message) ? "silent install failed (exit " + vigemResult.ExitCode + ")" : vigemResult.Message));
-          }
-        }
         InstallerRunner.TryWriteInternalInstallResult(parsed.InternalInstallResultPath, internalInstall);
         return internalInstall.ExitCode;
       }
@@ -147,8 +139,6 @@ namespace ArtLightServerInstaller {
     private readonly CheckBox _virtualGamepadDriverCheckBox;
     private System.Windows.Controls.CheckBox _installUsbipCheckBox;
     private Border _installUsbipSection;
-    private System.Windows.Controls.CheckBox _installVigemCheckBox;
-    private Border _installVigemSection;
     private readonly TextBlock _statusText;
     private readonly TextBlock _statusDetailText;
     private readonly ProgressBar _progressBar;
@@ -193,12 +183,6 @@ namespace ArtLightServerInstaller {
     // which is what CS0103 caught.
     private static bool HasEmbeddedUsbipPayload() {
       return InstallerRunner.HasEmbeddedUsbipPayload();
-    }
-
-    // Same forwarder for the ViGEmBus half. Control and USBip each have one of these; this was
-    // written without it, which is what CS0103 caught on the 1.5.2 build.
-    private static bool HasEmbeddedVigemPayload() {
-      return InstallerRunner.HasEmbeddedVigemPayload();
     }
 
     private readonly InstallerRunner.InstalledProductInfo _legacySunshineProduct;
@@ -794,7 +778,7 @@ namespace ArtLightServerInstaller {
       usbipHeader.Children.Add(_installUsbipCheckBox);
       usbipStack.Children.Add(usbipHeader);
       usbipStack.Children.Add(new TextBlock {
-        Text = "Installs USBip, which lets this PC use a keyboard, mouse or controller plugged into the PC you stream from. Requires Windows to trust its driver - Windows will ask once. Untick to skip; you can install it later by running this setup again.",
+        Text = "Installs USB Sharing, which lets this PC use a keyboard, mouse or controller plugged into the PC you are streaming from.",
         FontSize = 12.5,
         Foreground = new SolidColorBrush(Color.FromRgb(209, 222, 241)),
         Margin = new Thickness(0, 6, 0, 0),
@@ -802,49 +786,6 @@ namespace ArtLightServerInstaller {
       });
       contentStack.Children.Add(_installUsbipSection);
       _installUsbipSection.Visibility = HasEmbeddedUsbipPayload() ? Visibility.Visible : Visibility.Collapsed;
-
-      // ── Virtual gamepad (ViGEmBus) ─────────────────────────────────────
-      //
-      // Third-party, like USBip: ViGEmBus is a separate product under BSD-3-Clause, so its licence
-      // is shipped alongside it. Only offered when its installer is actually embedded, because a
-      // tick box with nothing behind it is worse than none.
-      //
-      // On by default, and this is the one that makes controllers work. The virtual gamepad driver
-      // we build ourselves cannot be installed by anyone who cannot sign a driver catalogue, so for
-      // every user who has never installed ViGEmBus, this box being ticked IS virtual gamepad
-      // support.
-      _installVigemSection = new Border {
-        CornerRadius = new CornerRadius(10),
-        Padding = new Thickness(16),
-        Margin = new Thickness(0, 0, 0, 10),
-        Background = new SolidColorBrush(Color.FromArgb(44, 99, 102, 241)),
-        BorderBrush = new SolidColorBrush(Color.FromArgb(112, 128, 133, 255)),
-        BorderThickness = new Thickness(1)
-      };
-      var vigemStack = new StackPanel { Orientation = Orientation.Vertical };
-      _installVigemSection.Child = vigemStack;
-      var vigemHeader = new StackPanel { Orientation = Orientation.Horizontal };
-      _installVigemCheckBox = new System.Windows.Controls.CheckBox {
-        IsChecked = true,
-        VerticalAlignment = VerticalAlignment.Center,
-        Content = new TextBlock {
-          Text = "Virtual gamepads",
-          FontSize = 13,
-          FontWeight = FontWeights.SemiBold,
-          Foreground = new SolidColorBrush(Color.FromRgb(226, 235, 250))
-        }
-      };
-      vigemHeader.Children.Add(_installVigemCheckBox);
-      vigemStack.Children.Add(vigemHeader);
-      vigemStack.Children.Add(new TextBlock {
-        Text = "Installs ViGEmBus, the driver that lets this PC present an Xbox, PlayStation or Switch controller to the game you are streaming. It is signed by its authors, so Windows installs it without asking. Untick to skip; you can install it later by running this setup again.",
-        FontSize = 12.5,
-        Foreground = new SolidColorBrush(Color.FromRgb(209, 222, 241)),
-        Margin = new Thickness(0, 6, 0, 0),
-        TextWrapping = TextWrapping.Wrap
-      });
-      contentStack.Children.Add(_installVigemSection);
-      _installVigemSection.Visibility = HasEmbeddedVigemPayload() ? Visibility.Visible : Visibility.Collapsed;
 
       var divider = new System.Windows.Shapes.Rectangle {
         Height = 1,
@@ -1311,11 +1252,9 @@ namespace ArtLightServerInstaller {
         var installVirtualGamepadDriver = ShouldInstallVirtualGamepadDriver();
         var installControl = _installControlCheckBox == null || _installControlCheckBox.IsChecked == true;
         var installUsbip = ShouldInstallUsbip();
-        var installVigem = ShouldInstallVigem();
         var serverDir = GetServerDirectoryForRoot(selectedPath);
         _arguments.InternalInstallControl = installControl;
         _arguments.InternalInstallUsbip = installUsbip;
-        _arguments.InternalInstallVigem = installVigem;
         _lastInstallIncludedControl = installControl && HasEmbeddedControlPayload();
         _lastServerInstallDirectory = serverDir;
         var result = await Task.Run(() => InstallerRunner.RunInteractiveInstall(
@@ -1338,10 +1277,6 @@ namespace ArtLightServerInstaller {
 
     private bool ShouldInstallUsbip() {
       return HasEmbeddedUsbipPayload() && _installUsbipCheckBox != null && _installUsbipCheckBox.IsChecked == true;
-    }
-
-    private bool ShouldInstallVigem() {
-      return HasEmbeddedVigemPayload() && _installVigemCheckBox != null && _installVigemCheckBox.IsChecked == true;
     }
 
     private async Task RunUninstallFlow() {
@@ -2529,7 +2464,6 @@ namespace ArtLightServerInstaller {
     private const string InternalInstallResultPathToken = "--internal-install-result-path";
     private const string InternalInstallControlToken = "--internal-install-control";
     private const string InternalInstallUsbipToken = "--internal-install-usbip";
-    private const string InternalInstallVigemToken = "--internal-install-vigem";
     private const string InternalUninstallDeleteInstallDirToken = "--internal-uninstall-delete-install-dir";
     private const string InternalUninstallFactoryResetToken = "--internal-uninstall-factory-reset";
     private const string InternalUninstallRemoveServerToken = "--internal-uninstall-remove-server";
@@ -2549,7 +2483,6 @@ namespace ArtLightServerInstaller {
     public bool InternalInstallSaveLogs { get; set; }
     public bool InternalInstallControl { get; set; }
     public bool InternalInstallUsbip { get; set; }
-    public bool InternalInstallVigem { get; set; }
     public string InternalInstallResultPath { get; set; }
     public bool InternalUninstallFactoryReset { get; set; }
     public bool InternalUninstallRemoveServer { get; set; }
@@ -2565,7 +2498,6 @@ namespace ArtLightServerInstaller {
       InternalInstallVirtualDisplay = true;
       InternalInstallControl = true;
       InternalInstallUsbip = true;
-      InternalInstallVigem = true;
       InternalUninstallRemoveServer = true;
       InternalUninstallRemoveControl = true;
       InternalUninstallRemoveUsbip = true;
@@ -2629,10 +2561,6 @@ namespace ArtLightServerInstaller {
         }
         if (string.Equals(arg, InternalInstallUsbipToken, StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length) {
           parsed.InternalInstallUsbip = ParseBooleanToken(args[++index]);
-          continue;
-        }
-        if (string.Equals(arg, InternalInstallVigemToken, StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length) {
-          parsed.InternalInstallVigem = ParseBooleanToken(args[++index]);
           continue;
         }
         if ((string.Equals(arg, InternalUninstallFactoryResetToken, StringComparison.OrdinalIgnoreCase)
@@ -4264,19 +4192,6 @@ namespace ArtLightServerInstaller {
       }
     }
 
-    /// True when this build carries ViGEmBus's own signed setup.
-    ///
-    /// The virtual gamepad driver we build ourselves is the one we cannot ship: it is a driver
-    /// package, so it installs only when its catalogue is signed, and we have no code-signing
-    /// certificate - the open-source signing programmes we qualify for declined us. ViGEmBus is
-    /// signed by its authors, so bundling their setup is the only route to a working virtual
-    /// gamepad on a machine that has never met us.
-    internal static bool HasEmbeddedVigemPayload() {
-      using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Payload.vigem.exe")) {
-        return stream != null;
-      }
-    }
-
     private static string ExtractEmbeddedUsbipInstaller() {
       using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Payload.usbip.exe")) {
         if (stream == null) {
@@ -4346,11 +4261,17 @@ namespace ArtLightServerInstaller {
       // No /DIR. USBip installs where it chooses, and ArtLight finds it by the location it uses and
       // then by the uninstall record. Redirecting it would put the client somewhere ArtLight is not
       // looking, and the feature would report "not installed" on a machine that plainly has it.
+      // USBip's own installer is Inno Setup, and its desktop shortcut is behind a task:
+      // setup.iss defines "desktopicon" and the {commondesktop} icon carries "Tasks: desktopicon".
+      // The task has no "Flags: unchecked", so it is selected by default and every install leaves a
+      // USBip icon on the public desktop. We do not ask for one. The ! prefix deselects just that
+      // task and leaves every other default (including the vcredist task) exactly as upstream set it.
       var args = new List<string> {
         "/VERYSILENT",
         "/SUPPRESSMSGBOXES",
         "/NORESTART",
-        "/NOCANCEL"
+        "/NOCANCEL",
+        "/MERGETASKS=!desktopicon"
       };
       var startInfo = new ProcessStartInfo {
         FileName = usbipExePath,
@@ -4378,151 +4299,6 @@ namespace ArtLightServerInstaller {
       result.Message = exitCode == 0
         ? "USB device sharing is installed."
         : "The USBip installer exited with code " + exitCode + ".";
-      return result;
-    }
-
-    /// True when a ViGEmBus new enough to use is already on this machine.
-    ///
-    /// Mirrors the check upstream's own bundled script made: 1.17 or newer is fine, so there is
-    /// nothing to do. Reinstalling over a working driver risks breaking it for someone who set it up
-    /// themselves, and ViGEmBus is a driver other software on their machine may already depend on.
-    internal static bool IsVigemBusDriverPresent() {
-      try {
-        var systemRoot = Environment.GetEnvironmentVariable("SystemRoot");
-        if (string.IsNullOrWhiteSpace(systemRoot)) {
-          systemRoot = @"C:\Windows";
-        }
-        var driverPath = Path.Combine(systemRoot, "System32", "drivers", "ViGEmBus.sys");
-        if (!File.Exists(driverPath)) {
-          return false;
-        }
-        var version = FileVersionInfo.GetVersionInfo(driverPath).FileVersion;
-        if (string.IsNullOrWhiteSpace(version)) {
-          // Present but unreadable. Treat it as present: overwriting is the riskier guess.
-          return true;
-        }
-        Version parsed;
-        if (!Version.TryParse(version, out parsed)) {
-          return true;
-        }
-        return parsed >= new Version(1, 17);
-      } catch {
-        return false;
-      }
-    }
-
-    private static string ExtractEmbeddedVigemInstaller() {
-      using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Payload.vigem.exe")) {
-        if (stream == null) {
-          return null;
-        }
-        var extractRoot = GetEmbeddedVigemExtractRoot();
-        Directory.CreateDirectory(extractRoot);
-        var exePath = Path.Combine(extractRoot, "ViGEmBus-x64.exe");
-        WriteStreamAtomically(stream, exePath);
-        return exePath;
-      }
-    }
-
-    private static string GetEmbeddedVigemExtractRoot() {
-      if (IsProcessElevated()) {
-        var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-        if (!string.IsNullOrWhiteSpace(programData)) {
-          return Path.Combine(programData, "ArtLight Server", "InstallerCache", "ViGEmBus");
-        }
-      }
-      return Path.Combine(Path.GetTempPath(), "ArtLight ServerInstaller", "ViGEmBus");
-    }
-
-    /// Writes ViGEmBus's own licence next to the installed server.
-    ///
-    /// BSD-3-Clause requires the notice to travel with a binary redistribution, and the upstream
-    /// setup carries none of its own. Failure to copy must not fail the install: this is a
-    /// compliance file, not a component, and the driver works either way.
-    private static void WriteEmbeddedVigemLicense(string serverInstallDirectory) {
-      try {
-        using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("License.ViGEmBus.txt")) {
-          if (stream == null || string.IsNullOrWhiteSpace(serverInstallDirectory)) {
-            return;
-          }
-          Directory.CreateDirectory(serverInstallDirectory);
-          WriteStreamAtomically(stream, Path.Combine(serverInstallDirectory, "ViGEmBus-LICENSE.txt"));
-        }
-      } catch {
-      }
-    }
-
-    /// Installs the bundled ViGEmBus driver, so virtual gamepads work at all.
-    ///
-    /// Deliberately the third-party setup rather than files we place ourselves. ViGEmBus is a
-    /// kernel driver: it installs as a driver, and it installs only because Nefarius signed it.
-    /// Our own VHF driver remains what the product prefers on a machine that has it, but that
-    /// driver can never be installed by anyone who cannot sign a catalogue - which is us.
-    internal static InstallerResult InstallVigemPayload(string serverInstallDirectory) {
-      var result = new InstallerResult {
-        Operation = InstallerOperation.Install
-      };
-
-      if (!HasEmbeddedVigemPayload()) {
-        result.ExitCode = 0;
-        result.Message = "No ViGEmBus payload embedded; skipping.";
-        return result;
-      }
-
-      if (IsVigemBusDriverPresent()) {
-        result.ExitCode = 0;
-        result.Message = "ViGEmBus is already installed; leaving it alone.";
-        return result;
-      }
-
-      string vigemExePath;
-      try {
-        vigemExePath = ExtractEmbeddedVigemInstaller();
-        if (string.IsNullOrWhiteSpace(vigemExePath) || !File.Exists(vigemExePath)) {
-          result.ExitCode = 1603;
-          result.Message = "The embedded ViGEmBus installer could not be extracted.";
-          return result;
-        }
-      } catch (Exception ex) {
-        result.ExitCode = 1603;
-        result.Message = "Failed to extract the ViGEmBus installer: " + ex.Message;
-        return result;
-      }
-
-      // Advanced Installer switches, both of which the shipped binary carries: /quiet for no UI and
-      // /norestart so a driver install cannot bounce the user's machine mid-setup. Upstream's own
-      // bundled script used /passive /promptrestart; ours runs unattended inside this setup, so
-      // neither the progress window nor the restart prompt belongs here.
-      var args = new List<string> {
-        "/quiet",
-        "/norestart"
-      };
-      var startInfo = new ProcessStartInfo {
-        FileName = vigemExePath,
-        Arguments = BuildCommandLine(args),
-        UseShellExecute = false,
-        CreateNoWindow = true
-      };
-      int exitCode;
-      try {
-        using (var process = Process.Start(startInfo)) {
-          process.WaitForExit();
-          exitCode = process.ExitCode;
-        }
-      } catch (Exception ex) {
-        result.ExitCode = 1603;
-        result.Message = "Failed to launch the ViGEmBus installer: " + ex.Message;
-        return result;
-      }
-
-      if (exitCode == 0) {
-        WriteEmbeddedVigemLicense(serverInstallDirectory);
-      }
-
-      result.ExitCode = exitCode;
-      result.Message = exitCode == 0
-        ? "The virtual gamepad driver is installed."
-        : "The ViGEmBus installer exited with code " + exitCode + ".";
       return result;
     }
 
@@ -9018,8 +8794,6 @@ namespace ArtLightServerInstaller {
         arguments.InternalInstallControl ? "1" : "0",
         "--internal-install-usbip",
         arguments.InternalInstallUsbip ? "1" : "0",
-        "--internal-install-vigem",
-        arguments.InternalInstallVigem ? "1" : "0",
         "--internal-install-result-path",
         resultPath
       };

@@ -17,18 +17,21 @@ endfunction()
 # Nonary/libvirtualgamepad. The application consumes its immutable archive; it
 # must never build the UMDF driver while assembling a consumer MSI.
 #
-# The producer archive is intentionally unsigned. Production signing remains
-# downstream: the same consumer-MSI signing request that deep-signs the MSI
-# signs its VHF catalog and root-device setup tool. See docs/signpath/ for the
-# repository-specific executable signing configuration.
+# The producer archive is intentionally unsigned. The consumer re-signs its
+# catalog and root-device setup tool with the ArtLight driver-signing
+# certificate immediately after verifying the archive, and ships the matching
+# public certificate beside the driver. The runtime installer trusts that
+# certificate into LocalMachine\TrustedPublisher before it validates the two
+# signatures. See docs/signpath/ for the historical SignPath configuration.
 #
 # What that moves, and what it does not:
 #   - Archive integrity is still pinned, by release tag and SHA-256 of the
 #     downloaded asset. That is unchanged and remains the check that the bits
 #     came from the pinned release.
-#   - Ingest proves the CAT, DLL, and setup tool have Authenticode status
-#     NotSigned with no signer. After SignPath, the CAT and setup tool must have
-#     intact signatures while the catalog-bound DLL must remain NotSigned.
+#   - The producer archive's CAT, DLL, and setup tool are still proved NotSigned
+#     when the archive is verified. After consumer re-signing the CAT and setup
+#     tool must carry intact signatures from the pinned publisher certificate,
+#     while the catalog-bound DLL must remain NotSigned.
 #   - The signed catalogue is what makes the driver installable, and it is what
 #     attests to VibeshineVhfGamepad.dll. The driver binary is deliberately
 #     never Authenticode-signed: the catalogue hashes it, so signing it would
@@ -41,7 +44,8 @@ set(SUNSHINE_VHF_GAMEPAD_REQUIRED_FILES
     driver/VibeshineVhfGamepad.cat
     tools/VibeshineVhfGamepadDeviceSetup.exe
     manifest.json
-    release-lock.json)
+    release-lock.json
+    publisher/ArtLightDriverSigning.cer)
 set(SUNSHINE_VHF_GAMEPAD_DRIVER_DESTINATION "drivers/vhf-gamepad")
 set(SUNSHINE_VHF_GAMEPAD_REPOSITORY "Nonary/libvirtualgamepad")
 set(SUNSHINE_VHF_GAMEPAD_RELEASE_TAG "v0.1.0-beta.6" CACHE STRING
@@ -56,13 +60,19 @@ set(SUNSHINE_VHF_GAMEPAD_DRIVER_VER "09/22/2026,0.1.0.39" CACHE STRING
     "DriverVer recorded by the pinned libvirtualgamepad release.")
 set(SUNSHINE_VHF_GAMEPAD_PROTOCOL_VERSION 2 CACHE STRING
     "Protocol version recorded by the pinned libvirtualgamepad release.")
-# Optional. The upstream archive is unsigned, so these are only meaningful for
-# an already-signed package supplied by hand; leave them empty for the normal
-# flow and the ingest-time signature check is skipped.
-set(SUNSHINE_VHF_GAMEPAD_CATALOG_SIGNER_THUMBPRINT "" CACHE STRING
-    "Optional expected Authenticode signer thumbprint for a pre-signed VHF catalog.")
-set(SUNSHINE_VHF_GAMEPAD_DEVICE_SETUP_SIGNER_THUMBPRINT "" CACHE STRING
-    "Optional expected Authenticode signer thumbprint for a pre-signed VHF root-device setup tool.")
+# The consumer re-signs the catalogue and the root-device setup tool with the
+# ArtLight driver-signing certificate after the producer archive has been
+# verified. Both thumbprints are pinned, so the packaging step proves the two
+# signatures carry that exact signer rather than trusting any signature.
+set(SUNSHINE_VHF_GAMEPAD_CATALOG_SIGNER_THUMBPRINT
+    "4EBF1AC9B78D8982DAE701EEAB63A2DE7B5243D6" CACHE STRING
+    "Expected Authenticode signer thumbprint for the consumer-signed VHF catalog.")
+set(SUNSHINE_VHF_GAMEPAD_DEVICE_SETUP_SIGNER_THUMBPRINT
+    "4EBF1AC9B78D8982DAE701EEAB63A2DE7B5243D6" CACHE STRING
+    "Expected Authenticode signer thumbprint for the consumer-signed VHF root-device setup tool.")
+set(SUNSHINE_VHF_GAMEPAD_PUBLISHER_CERTIFICATE
+    "publisher/ArtLightDriverSigning.cer" CACHE STRING
+    "Public publisher certificate shipped beside the driver and trusted by the runtime installer.")
 set(SUNSHINE_VHF_GAMEPAD_PREBUILT_SCOPE "pinned_release")
 # Where the production signature comes from. "msi_request" means the catalogue
 # and the root-device tool are signed inside the consumer MSI signing request
@@ -71,10 +81,11 @@ set(SUNSHINE_VHF_GAMEPAD_SIGNING_MODE "msi_request")
 set(SUNSHINE_VHF_GAMEPAD_LOCAL_SIGNING_MODE "explicit_local_test_only")
 set(SUNSHINE_VHF_GAMEPAD_INSTALLER_POWERSHELL_ARCHITECTURE "system64")
 set(SUNSHINE_VHF_GAMEPAD_REFRESH_BEFORE_MSI ON)
-# Both OFF because the archive is unsigned when it is unpacked. The signature
-# these once demanded is applied later, by the MSI signing request.
-set(SUNSHINE_VHF_GAMEPAD_REQUIRE_VALID_CATALOG_SIGNATURE OFF)
-set(SUNSHINE_VHF_GAMEPAD_REQUIRE_SIGNED_SETUP_TOOL OFF)
+# Both ON: the consumer re-signs the catalogue and the setup tool before the
+# package reaches the MSI, so a package that arrives unsigned is a build
+# failure rather than the expected state.
+set(SUNSHINE_VHF_GAMEPAD_REQUIRE_VALID_CATALOG_SIGNATURE ON)
+set(SUNSHINE_VHF_GAMEPAD_REQUIRE_SIGNED_SETUP_TOOL ON)
 set(SUNSHINE_VHF_GAMEPAD_DRIVER_REBOOT_MARKER "VIRTUAL_GAMEPAD_RESTART_REQUIRED")
 set(SUNSHINE_VHF_GAMEPAD_INSTALLER_BEST_EFFORT ON)
 set(SUNSHINE_VHF_GAMEPAD_REMOVE_ROOT_ON_FINAL_UNINSTALL ON)

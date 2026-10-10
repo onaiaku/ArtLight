@@ -36,6 +36,16 @@
 !src_assets/windows/drivers/vhf-gamepad/driver/*.cat
 !src_assets/windows/drivers/vhf-gamepad/tools/*.exe
 /src_assets/windows/drivers/vhf-gamepad/release-lock.json
+# The consumer-signed virtual gamepad payload: the catalog and root-device setup
+# tool the fetch job copies into the verified producer package, and the public
+# certificate that travels beside them. Signed once on the build host and
+# committed as artifacts; the signing key never leaves it. Without these
+# negations the '*' pattern above silently drops the setup tool, and the build
+# then fails with the payload "missing from the tree" while it sits right there
+# on the developer's disk.
+!packaging/windows/virtual_gamepad_driver/consumer-signed/*.exe
+!packaging/windows/virtual_gamepad_driver/consumer-signed/*.cat
+!packaging/windows/virtual_gamepad_driver/consumer-signed/*.cer
 
 # JetBrains IDE
 .idea/

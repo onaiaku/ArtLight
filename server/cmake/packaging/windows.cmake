@@ -64,11 +64,10 @@ endif()
 
 # Virtual gamepad driver (ViGEmBus).
 #
-# The driver ArtLight builds itself is a driver package, so it installs only when its catalogue is
-# signed - and we have no code-signing certificate. It is therefore not something the user can be
-# given by us. ViGEmBus is signed by its authors, so their setup is what ships, embedded in the
-# bootstrapper as Payload.vigem.exe next to Payload.usbip.exe rather than extracted to an MSI
-# component. Nothing is installed from this tree; packaging/linux and the MSI do not carry it.
+# ViGEmBus (nefarius/ViGEmBus) is retired upstream as of late 2023 and is no longer offered or
+# bundled by the installer. ArtLight's own virtual gamepad driver (VHF, package
+# VibeshineVhfGamepad) is what ships instead. Nothing is installed from this tree; packaging/linux
+# and the MSI do not carry ViGEmBus.
 
 # Adding tools
 install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
@@ -451,6 +450,13 @@ if(SUNSHINE_BUNDLE_VHF_GAMEPAD_DRIVER)
             COMPONENT virtual_gamepad_driver)
     install(FILES ${SUNSHINE_VIRTUAL_GAMEPAD_DRIVER_TOOL_FILES}
             DESTINATION "${SUNSHINE_VHF_GAMEPAD_DRIVER_DESTINATION}/tools"
+            COMPONENT virtual_gamepad_driver)
+    # The public publisher certificate travels with the driver so the runtime
+    # installer can trust it into LocalMachine\TrustedPublisher before it
+    # validates the catalog and the setup tool. Without this file the driver is
+    # refused on every machine, which is the 1.5.0/1.5.1 fault.
+    install(FILES "${SUNSHINE_VIRTUAL_GAMEPAD_DRIVER_SOURCE_DIR}/${SUNSHINE_VHF_GAMEPAD_PUBLISHER_CERTIFICATE}"
+            DESTINATION "${SUNSHINE_VHF_GAMEPAD_DRIVER_DESTINATION}/publisher"
             COMPONENT virtual_gamepad_driver)
     if(SUNSHINE_ALLOW_LOCAL_VHF_GAMEPAD_TEST_PACKAGE)
         install(FILES ${SUNSHINE_VIRTUAL_GAMEPAD_DRIVER_LOCAL_TEST_FILES}

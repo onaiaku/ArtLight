@@ -5,6 +5,25 @@ ArtLight Control - Changelog
 https://github.com/onaiaku/ArtLight
 
 ------------------------------------------------
+Version 1.5.3 (10/10/2026)
+------------------------------------------------
+ArtLight Server 1.5.3 makes the virtual gamepad driver install.
+
+The driver has shipped since 1.5.1 and has never installed, because a
+driver package installs only when its catalogue is signed, and ours was
+not. The driver package now carries its own signing certificate and is
+signed, so it installs and the virtual controller works without depending
+on anything else being present.
+
+The Windows installer no longer offers or bundles ViGEmBus. ViGEmBus is
+retired upstream (end of life late 2023), and ArtLight's own virtual gamepad
+driver provides virtual gamepads.
+
+The USB device sharing option in this installer is now described in one plain
+sentence. The note about Windows having to trust the driver, and the note about
+unticking to skip it, are gone.
+
+------------------------------------------------
 Version 1.5.2 (10/10/2026)
 ------------------------------------------------
 ArtLight Server 1.5.2 ships a working virtual gamepad driver.
