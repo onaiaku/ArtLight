@@ -1,0 +1,52 @@
+#!/bin/sh
+# pre-commit hook - refuse to COMMIT on main.
+#
+# ArtLight's working branch is dev. main is the release branch: it moves when a
+# release is actually cut, not while one is being worked on. Everything committed
+# straight to main is work dev never sees - and a dev that is always three commits
+# behind and empty in front is how it starts to look like a branch worth deleting.
+#
+# Said to me more than once, most recently in these words:
+#   "again already we are doing all the work on main rather than on dev... at this
+#    point we might as well just delete the dev branch because unless i keep
+#    telling you, it doesnt get used."
+# and then, when I answered that the rule was written down:
+#   "just know, the next time you forget (and you will) i will delete the dev repo
+#    before i say anything to you."
+#
+# The rule has been written into skills before and it did not stop it. It cannot: a
+# skill only loads if I decide to load it, and I never decide to consult a rule
+# about a thing I am not aware I am about to do. That is what makes it autopilot.
+# This runs on the commit itself, so it does not depend on being read, agreed with,
+# or remembered.
+#
+# A merge commit and a fast-forward do not fire this hook, so bringing dev forward
+# and cutting a release are unaffected. To commit on main on purpose:
+#     touch ~/.hermes/cache/allow-main-commit
+# run the command, then remove the file.
+set -eu
+
+branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "")
+[ "$branch" = "main" ] || exit 0
+
+SENTINEL="$HOME/.hermes/cache/allow-main-commit"
+[ -e "$SENTINEL" ] && exit 0
+
+cat >&2 <<'EOF'
+
+  refused - this commit is on 'main'
+
+  ArtLight's working branch is dev. main is the release branch: it moves when a
+  release is cut, not while one is being worked on. Work committed here is work
+  dev never sees, and dev falling behind is what makes it look deletable.
+
+      git checkout dev
+
+  If this genuinely is a release commit on main, make it a deliberate act first:
+
+      touch ~/.hermes/cache/allow-main-commit
+
+  run the command, then remove that file.
+
+EOF
+exit 1

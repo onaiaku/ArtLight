@@ -1,0 +1,62 @@
+#!/bin/sh
+# reference-transaction hook - refuse to CREATE a local branch unless deliberate.
+#
+# Nik's rule, said more than once (5 Oct 2026 was one of them): work lands on the
+# branch that already exists - dev or main. A branch opened out of habit puts the
+# work somewhere the release does not read from, and to him it reads as unfinished.
+#
+# The rule has been written into skills before and it did not stop it. It cannot:
+# a skill only loads if I decide to load it, and I never decide to consult a rule
+# about a thing I am not aware I am about to do. That is what makes it autopilot.
+# This runs on the ref write itself, so it does not depend on being read, agreed
+# with, or remembered.
+#
+# To branch on purpose:
+#     touch ~/.hermes/cache/allow-new-branch
+# run the command, then remove the file.
+set -eu
+
+[ "${1:-}" = "prepared" ] || exit 0
+
+SENTINEL="$HOME/.hermes/cache/allow-new-branch"
+
+while read -r old new ref; do
+    case "$ref" in
+        refs/heads/*) ;;
+        *) continue ;;
+    esac
+    # creation only - old is the null oid
+    case "$old" in
+        *[!0]*) continue ;;
+    esac
+    # not a deletion - new is non-null
+    case "$new" in
+        *[!0]*) ;;
+        *) continue ;;
+    esac
+    name=${ref#refs/heads/}
+    case "$name" in
+        main|master|dev) continue ;;
+    esac
+    [ -e "$SENTINEL" ] && continue
+
+    cat >&2 <<EOF
+
+  refused - this would create the branch '$name'
+
+  Nik's rule: work lands on the branch that already exists, dev or main. He has
+  had to say this more than once, and a branch opened out of habit is not where
+  the release reads from.
+
+  If the branch is genuinely required - a release cut from main, an upstream PR -
+  make it a deliberate act first:
+
+      touch ~/.hermes/cache/allow-new-branch
+
+  run the command, then remove that file.
+
+EOF
+    exit 1
+done
+
+exit 0
