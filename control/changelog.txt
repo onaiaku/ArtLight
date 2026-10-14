@@ -5,6 +5,29 @@ ArtLight Control - Changelog
 https://github.com/onaiaku/ArtLight
 
 ------------------------------------------------
+Version 1.5.6 (14/10/2026)
+------------------------------------------------
+ArtLight 1.5.6 adds Fedora support and fixes the display
+failing to come back after a stream on Linux.
+
+ArtLight now installs on Fedora 43 and 44 from our own
+repository, so the server no longer has to be built by
+hand to run on Fedora. Enable the repository once, then
+install it as usual:
+
+  sudo dnf copr enable onaiaku/artlight
+  sudo dnf install artlight
+
+On Linux, ending a stream could leave the desktop in the
+wrong state. The restore step refused the display it had
+been given instead of accepting it, so the display was
+not put back until it was set up again by hand.
+
+The DualSense module check on Linux reported the module
+as unavailable when it was installed and working. It now
+reports what is actually there.
+
+------------------------------------------------
 Version 1.5.5 (13/10/2026)
 ------------------------------------------------
 ArtLight 1.5.5 fixes Control's session list and stops the desktop
