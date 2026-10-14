@@ -1,0 +1,146 @@
+---
+name: Attach Fedora packages to release
+permissions: {}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Published v-less ArtLight release tag, for example 1.5.6
+        required: true
+        type: string
+      allow_draft:
+        description: Attach to a draft release. Only for a release whose assets are still being reviewed.
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: fedora-packages
+  cancel-in-progress: false
+
+jobs:
+  attach:
+    name: Copy the COPR RPMs onto the release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Install verification tools
+        shell: bash
+        # rpm is only used to read the headers of the downloaded packages; it
+        # does not have to match the Fedora release that built them.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends rpm jq
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Resolve the release and the expected package version
+        id: release
+        shell: bash
+        env:
+          ALLOW_DRAFT: ${{ inputs.allow_draft }}
+          REQUESTED_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          source_tag="${REQUESTED_TAG#refs/tags/}"
+          source_tag="${source_tag#v}"
+          if [[ ! "${source_tag}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Unsupported release tag '${REQUESTED_TAG}'."
+            exit 1
+          fi
+
+          # The tags endpoint only resolves published releases. A draft has no tag
+          # ref yet, so with allow_draft fall back to matching tag_name in the list.
+          # gh api prints the error body on stdout, so drop it when the lookup fails.
+          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${source_tag}" 2>/dev/null)" || release_json=""
+          if [[ -z "${release_json}" && "${ALLOW_DRAFT}" == "true" ]]; then
+            release_json="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              | jq -cs --arg tag "${source_tag}" '[.[][] | select(.tag_name == $tag and .draft == true)] | first // empty')"
+          fi
+          if [[ -z "${release_json}" ]]; then
+            echo "::error::No release found for tag ${source_tag}."
+            exit 1
+          fi
+          if [[ "$(jq -r '.draft' <<<"${release_json}")" != false && "${ALLOW_DRAFT}" != "true" ]]; then
+            echo "::error::Release ${source_tag} is still a draft."
+            exit 1
+          fi
+
+          # The spec's own %global rpm_version decides the packaged version, so it
+          # is the single source of truth for what to look for in the COPR repo.
+          rpm_version="$(python3 server/packaging/linux/copr/fetch-copr-rpm.py \
+            --version "${source_tag}" --print-version)"
+          echo "tag=${source_tag}" >>"${GITHUB_OUTPUT}"
+          echo "rpm_version=${rpm_version}" >>"${GITHUB_OUTPUT}"
+          echo "Release ${source_tag} -> RPM version ${rpm_version}"
+
+      - name: Download the RPMs COPR published
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # Fails unless every chroot COPR has enabled published exactly this
+          # version, so a half-finished COPR run cannot half-populate a release.
+          python3 server/packaging/linux/copr/fetch-copr-rpm.py \
+            --version "${RELEASE_TAG}" --output-dir incoming
+
+      - name: Verify every downloaded package against its own header
+        shell: bash
+        env:
+          RPM_VERSION: ${{ steps.release.outputs.rpm_version }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          packages=(incoming/*.rpm)
+          if (( ${#packages[@]} == 0 )); then
+            echo "::error::COPR published no RPMs for ${RPM_VERSION}."
+            exit 1
+          fi
+          for package in "${packages[@]}"; do
+            read -r name version arch < <(rpm -qp \
+              --queryformat '%{NAME} %{VERSION}-%{RELEASE} %{ARCH}\n' "${package}")
+            if [[ "${name}" != artlight ]]; then
+              echo "::error::${package}: package name is ${name}, expected artlight."
+              exit 1
+            fi
+            if [[ "${arch}" != x86_64 ]]; then
+              echo "::error::${package}: architecture is ${arch}, expected x86_64."
+              exit 1
+            fi
+            case "${version}" in
+              "${RPM_VERSION}-1.fc"*) ;;
+              *)
+                echo "::error::${package}: ${name}-${version}.${arch} is not an fc build of ${RPM_VERSION}."
+                exit 1
+                ;;
+            esac
+            echo "verified ${package##*/}: ${name} ${version} ${arch}"
+          done
+
+      - name: Attach the verified RPMs to the release
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          # --clobber keeps a re-run idempotent and repairs a half-finished upload;
+          # the bytes come from the same published COPR build either way.
+          gh release upload "${RELEASE_TAG}" incoming/*.rpm --clobber \
+            --repo "${GITHUB_REPOSITORY}"
+
+      - name: Read the release back
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # A successful upload is not proof the asset is on the release.
+          gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" --json assets \
+            --jq '.assets[] | select(.name | endswith(".rpm")) | "  \(.name)  \(.size) bytes"'

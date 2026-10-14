@@ -137,6 +137,35 @@ A published package is the only proof the source script, the spec, `gcc14` and
 CUDA 12.9-with-Pascal work together — an active build or a green source stage is
 not.
 
+## Attaching the RPMs to a GitHub release
+
+The Fedora packages are built **once**, here on COPR. `fetch-copr-rpm.py` copies
+the finished files onto the matching GitHub release, so a `dnf` user and someone
+downloading by hand get the same bytes from the same compile. Nothing is rebuilt
+for the release, and there is no second place to keep in step.
+
+```bash
+python3 server/packaging/linux/copr/fetch-copr-rpm.py --version 1.5.6 --output-dir incoming
+```
+
+The enabled chroot list comes from the COPR API, so a chroot added or removed in
+COPR needs no change here. It fails unless *every* enabled chroot published that
+exact version — a half-finished COPR run cannot half-populate a release.
+
+`.github/workflows/attach-fedora-packages.yml` wraps it: resolve the release,
+fetch, verify each package's own header with `rpm -qp`, attach, then read the
+release back so the upload is proved rather than assumed. Dispatch it with the
+v-less release tag. It needs no secrets — the COPR repository is public.
+
+The version to ask for is whatever the spec made, not the tag: `1.5.6-rc1` is
+packaged as `1.5.6~rc1` and `1.5.6-stable` as `1.5.6+stable`. `--print-version`
+reports that transform without fetching anything.
+
+Note the published filename keeps the Fedora release inside it
+(`artlight-1.5.6-1.fc44.x86_64.rpm`), which still matches the installer's
+`artlight-[0-9]*.x86_64.rpm` lookup. Each enabled chroot produces its own build,
+so a Fedora 43 machine needs the `fc43` file — the release carries both.
+
 ## Constraints that must not be changed casually
 
 - **The CUDA pin.** `Sunshine.spec` sets `cuda_version 12.9.1` and
