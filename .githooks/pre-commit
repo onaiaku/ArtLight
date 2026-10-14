@@ -27,10 +27,14 @@
 set -eu
 
 branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "")
-[ "$branch" = "main" ] || exit 0
+if [ "$branch" != "main" ]; then
+    exit 0
+fi
 
 SENTINEL="$HOME/.hermes/cache/allow-main-commit"
-[ -e "$SENTINEL" ] && exit 0
+if [ -e "$SENTINEL" ]; then
+    exit 0
+fi
 
 cat >&2 <<'EOF'
 

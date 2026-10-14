@@ -38,7 +38,9 @@ while read -r old new ref; do
     case "$name" in
         main|master|dev) continue ;;
     esac
-    [ -e "$SENTINEL" ] && continue
+    if [ -e "$SENTINEL" ]; then
+        continue
+    fi
 
     cat >&2 <<EOF
 
