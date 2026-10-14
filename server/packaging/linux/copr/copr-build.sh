@@ -40,7 +40,15 @@ git submodule update --init --recursive
 # The tag of this commit, if it has one.
 TAG=$(git tag --points-at HEAD | head -n1)
 if [ -z "$TAG" ]; then
-  TAG="0.0.0"
+  # Untagged tip (main between releases). A bare 0.0.0 is refused by the build's
+  # own version guard, which exists so a package can never sort below a real
+  # release and install over one. Derive a dev version from the newest release
+  # tag instead: still honest, sorts as a prerelease, and still gets past the
+  # guard so packaging can be proved between releases. With no tags at all the
+  # fallback stays 0.0.0, so the guard still refuses -- that fail-safe is kept.
+  LAST=$(git ls-remote --tags --refs origin 2>/dev/null \
+    | sed -n 's#.*refs/tags/v\?\([0-9][0-9.]*\)$#\1#p' | sort -V | tail -n1)
+  TAG="${LAST:-0.0.0}-dev.$(git rev-parse --short=8 HEAD)"
 fi
 TAG=$(echo "$TAG" | sed 's/^v//')  # drop the v prefix
 echo "TAG=$TAG"
