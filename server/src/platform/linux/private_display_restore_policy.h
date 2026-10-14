@@ -55,7 +55,13 @@ namespace platf::linux_private_display::restore_policy {
              std::abs(saved.value("scale", 1.0) - output->value("scale", 1.0)) < 0.01 &&
              saved.value("pos", Configuration::object()) == output->value("pos", Configuration::object()) &&
              saved.value("rotation", 1) == output->value("rotation", 1) &&
-             saved.value("priority", 0) == output->value("priority", 0) &&
+             // A guard activation runs while the private output still holds the primary
+             // slot, so the compositor hands the guard a lower priority than the saved
+             // baseline recorded (verified on the Z13: eDP-2 came back at priority 2
+             // against a saved 1, and the guard was rejected as a result). Priority is a
+             // settled-state property -- only the final check, after the retirement
+             // transaction has run, can require it.
+             (!final || saved.value("priority", 0) == output->value("priority", 0)) &&
              (!saved.contains("hdr") || saved.value("hdr", false) == output->value("hdr", false));
     });
   }
