@@ -437,8 +437,15 @@ if [ -x "@VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR@/vibeshine-drm-install" ]; th
   fi
 fi
 
-if ! "@VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR@/vibeshine-ds5-install" install; then
-  echo "warning: DualSense USB haptics are unavailable or require a reboot; see the module error above." >&2
+if "@VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR@/vibeshine-ds5-install" install; then
+  :
+else
+  vibeshine_ds5_rc=$?
+  if [ "$vibeshine_ds5_rc" -eq 4 ]; then
+    echo "warning: DualSense USB was updated, but the loaded module is stale; reboot before using haptics." >&2
+  else
+    echo "warning: DualSense USB haptics are unavailable; see the module error above." >&2
+  fi
 fi
 
 if [ "$artlight_machine_configured" -eq 1 ]; then

@@ -885,10 +885,19 @@ do_install_vibeshine_drm() {
 }
 
 do_install_vibeshine_ds5() {
-  /usr/libexec/vibeshine/vibeshine-ds5-install install || {
-    echo "==> ACTION REQUIRED: DualSense USB haptics are unavailable or require a reboot; see the module error above." >&2
-    echo "    Retry: sudo /usr/libexec/vibeshine/vibeshine-ds5-install install" >&2
-  }
+  local rc=0
+  /usr/libexec/vibeshine/vibeshine-ds5-install install || rc=$?
+  case "$rc" in
+    0)
+      ;;
+    4)
+      echo "==> ACTION REQUIRED: the DualSense USB module was updated, but the loaded copy is stale. Reboot before testing haptics." >&2
+      ;;
+    *)
+      echo "==> ACTION REQUIRED: DualSense USB haptics are unavailable; see the module error above." >&2
+      echo "    Retry: sudo /usr/libexec/vibeshine/vibeshine-ds5-install install" >&2
+      ;;
+  esac
 }
 
 do_print_next_steps() {

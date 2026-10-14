@@ -79,6 +79,10 @@ install_with_dkms() {
   log "building ${DKMS_NAME}/${MODULE_VERSION} for ${kernel_release}"
   dkms build -m "$DKMS_NAME" -v "$MODULE_VERSION" -k "$kernel_release" --force || return 1
   dkms install -m "$DKMS_NAME" -v "$MODULE_VERSION" -k "$kernel_release" --force || return 1
+  # The direct build path depmods; this one must too. Without it the module index
+  # can still name the previous build, and every later `modinfo <name>` -- ours
+  # and anyone else's -- reads the stale entry.
+  depmod -a "$kernel_release" || true
   dkms_installed_for "$kernel_release"
 }
 
@@ -113,15 +117,81 @@ load_module() {
   module_status
 }
 
+# The srcversion the kernel has loaded, if it exposes one at all.
+loaded_srcversion() {
+  local attribute="$SYS_MODULE_ROOT/$MODULE_NAME/srcversion"
+  [[ -r "$attribute" ]] || return 1
+  cat -- "$attribute" 2>/dev/null
+}
+
+# Where the module for a kernel lives on disk. The DKMS and direct builds both
+# install under updates/dkms; compressed module trees carry a .zst suffix.
+installed_module_file() {
+  local kernel_release=$1 candidate
+  for candidate in \
+      "$MODULES_ROOT/$kernel_release/updates/dkms/${MODULE_NAME}.ko" \
+      "$MODULES_ROOT/$kernel_release/updates/dkms/${MODULE_NAME}.ko.zst" \
+      "$MODULES_ROOT/$kernel_release/updates/${MODULE_NAME}.ko" \
+      "$MODULES_ROOT/$kernel_release/updates/${MODULE_NAME}.ko.zst"; do
+    if [[ -f "$candidate" && ! -L "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# The srcversion of the module installed for a kernel. Ask about the file first:
+# a bare module name resolves through the module index, so a stale index would
+# otherwise read as "not installed" while the file sits right there.
+installed_srcversion() {
+  local kernel_release=$1 file
+  if file=$(installed_module_file "$kernel_release"); then
+    modinfo -F srcversion "$file" 2>/dev/null
+    return $?
+  fi
+  modinfo -F srcversion "$MODULE_NAME" 2>/dev/null
+}
+
+# Report whether the module is installed and whether the loaded copy is current.
+#
+#   0  installed, and the loaded copy matches it (or cannot be compared)
+#   4  installed, but the loaded copy is older than the file; reboot
+#   1  the module is not installed for this kernel
+#
+# An unreadable srcversion is NOT evidence of a failed install. srcversion is
+# absent on kernels built without CONFIG_MODVERSIONS, and its whole purpose here
+# is a staleness comparison. Reporting a query failure as an install failure
+# makes a healthy machine report that haptics are unavailable, so absence of the
+# attribute falls through to what can be observed directly instead.
 module_status() {
+  local kernel_release=${1:-$(current_kernel_release)}
   local installed loaded
-  installed=$(modinfo -F srcversion "$MODULE_NAME") && [[ -n "$installed" ]] || return 1
-  [[ -r "$SYS_MODULE_ROOT/$MODULE_NAME/srcversion" ]] || return 1
-  loaded=$(cat "$SYS_MODULE_ROOT/$MODULE_NAME/srcversion") || return 1
-  if [[ "$installed" != "$loaded" ]]; then
+
+  installed=$(installed_srcversion "$kernel_release") || true
+  loaded=$(loaded_srcversion) || true
+
+  if [[ -n "$installed" && -n "$loaded" && "$installed" != "$loaded" ]]; then
     error "DualSense USB module was updated but the loaded copy is stale; reboot before testing haptics"
     return 4
   fi
+
+  # Loaded by the kernel, or present on disk for this kernel: installed. The
+  # kernel exposes /sys/module/<name>/ for every loaded module; srcversion is
+  # the optional attribute, so test for the module, not for the attribute.
+  if [[ -d "$SYS_MODULE_ROOT/$MODULE_NAME" ]] ||
+     installed_module_file "$kernel_release" >/dev/null; then
+    return 0
+  fi
+
+  # Nothing found where expected. Accept the module index as a last resort so a
+  # module installed somewhere unusual still counts as installed.
+  if modinfo -F srcversion "$MODULE_NAME" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  error "DualSense USB module is not installed for ${kernel_release}"
+  return 1
 }
 
 install_module() {

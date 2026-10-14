@@ -1512,8 +1512,15 @@ if [ ! -x "$(command -v rpm-ostree)" ]; then
       echo "warning: ArtLight DRM installation failed; managed virtual displays are unavailable."
     fi
   fi
-  if ! %{_prefix}/libexec/vibeshine/vibeshine-ds5-install install; then
-    echo "warning: DualSense USB haptics are unavailable or require a reboot; see the module error above." >&2
+  if %{_prefix}/libexec/vibeshine/vibeshine-ds5-install install; then
+    :
+  else
+    vibeshine_ds5_rc=$?
+    if [ "$vibeshine_ds5_rc" -eq 4 ]; then
+      echo "warning: DualSense USB was updated, but the loaded module is stale; reboot before using haptics." >&2
+    else
+      echo "warning: DualSense USB haptics are unavailable; see the module error above." >&2
+    fi
   fi
   artlight_machine_helper=%{_prefix}/libexec/vibeshine/artlight-machine-host
   artlight_privileged_helper_is_safe "$artlight_machine_helper" || {
