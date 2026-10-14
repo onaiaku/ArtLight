@@ -575,9 +575,15 @@ static bool drop_to_session(const struct session_identity *identity) {
 }
 
 static bool display_argument_is_safe(const char *argument) {
+  // Keep this in step with output_activation_arguments() in
+  // src/platform/linux/private_display.cpp: it emits every argument below, and
+  // the restore guard activation re-sends that whole list as one display-apply.
+  // KScreen mode ids look like 2560x1600@60, and rotations are emitted by name.
   static const char pattern[] =
     "^output\\.[A-Za-z0-9_-]+\\.(enable|disable|vrrpolicy\\.always|hdr\\.(enable|disable)|"
-    "mode\\.[A-Za-z0-9_-]+|scale\\.[0-9]+(\\.[0-9]+)?|position\\.-?[0-9]+,-?[0-9]+|"
+    "mode\\.[A-Za-z0-9_@.+-]+|"
+    "rotation\\.(none|left|inverted|right|flipped|flipped90|flipped180|flipped270)|"
+    "scale\\.[0-9]+(\\.[0-9]+)?|position\\.-?[0-9]+,-?[0-9]+|"
     "priority\\.[0-9]+|addCustomMode\\.[1-9][0-9]*\\.[1-9][0-9]*\\.[1-9][0-9]*\\.reduced)$";
   regex_t expression;
   if (!safe_text(argument, 512, false) || regcomp(&expression, pattern, REG_EXTENDED | REG_NOSUB)) return false;
