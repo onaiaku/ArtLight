@@ -7,6 +7,9 @@
 # LizardByte/build-deps release matching third-party/build-deps. The tarball carries no git
 # metadata, so CMake cannot discover it and would otherwise fetch the latest, ABI-mismatched FFmpeg.
 %global build_deps_tag 0
+# SHA-256 of that release's Linux-<arch>-ffmpeg.tar.gz. Set it together with build_deps_tag:
+# the build refuses a pinned tag without it, so the prebuilt FFmpeg is never linked unchecked.
+%global build_deps_sha256 0
 
 # Keep the application-facing version strict SemVer while translating only
 # the RPM package version into RPM ordering syntax. Prereleases sort below the
@@ -342,10 +345,19 @@ cmake_args+=("-DSUNSHINE_ENABLE_PYROWAVE=OFF")
 %endif
 
 if [ "%{build_deps_tag}" != "0" ]; then
+  if ! printf '%%s\n' "%{build_deps_sha256}" | grep -Eqx '[0-9a-f]{64}'; then
+    echo "error: build_deps_tag is %{build_deps_tag} but build_deps_sha256 is not a SHA-256;" >&2
+    echo "error: set it to the checksum of Linux-${architecture}-ffmpeg.tar.gz from that release" >&2
+    exit 1
+  fi
   ffmpeg_dir=%{_builddir}/ffmpeg-%{build_deps_tag}
   mkdir -p "$ffmpeg_dir"
   wget -q --tries=3 -O "$ffmpeg_dir.tar.gz" \
     "https://github.com/LizardByte/build-deps/releases/download/%{build_deps_tag}/Linux-${architecture}-ffmpeg.tar.gz"
+  if ! printf '%%s  %%s\n' "%{build_deps_sha256}" "$ffmpeg_dir.tar.gz" | sha256sum -c -; then
+    echo "error: Linux-${architecture}-ffmpeg.tar.gz from %{build_deps_tag} does not match build_deps_sha256" >&2
+    exit 1
+  fi
   tar -xzf "$ffmpeg_dir.tar.gz" -C "$ffmpeg_dir"
   cmake_args+=("-DFFMPEG_PREPARED_BINARIES=$ffmpeg_dir/ffmpeg")
 fi

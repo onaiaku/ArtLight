@@ -272,7 +272,7 @@ printf 'Retired running kernels require a reboot, not mismatched header installa
 
 # First install must request a reboot even if driver status later reports loaded.
 (
-  pacman() { [[ "$*" == '-Q artlight' ]] && return "$package_status"; }
+  pacman() { [[ "$*" == '-Qq artlight' ]] && return "$package_status"; }
   package_status=1; reboot_required=0
   check_session_restart
   [[ $reboot_required == 1 ]]
@@ -526,3 +526,162 @@ printf 'RPM removal accepts stopped sockets without MainPID.\n'
   [[ -L "$fixture/etc/systemd/system/graphical.target.wants/artlight.service" ]]
 )
 printf 'Arch upgrade retires only matching boot links while runtime masks remain.\n'
+
+# Fedora: the dnf half of the installer. These fixtures stand in for dnf, rpm and
+# curl, so the suite needs neither dnf nor rpm installed. Negative checks use
+# `if ...; then exit 1; fi` because `! cmd` never trips set -e.
+command -v jq >/dev/null || { printf 'jq is required for the release-asset checks\n' >&2; exit 1; }
+dnf_calls="$workdir/dnf-calls"
+# Earlier sections replace some installer functions with stubs; reload the real
+# definitions into a subshell-safe copy before exercising the dnf paths.
+eval "$(sed -n '/^download_release_package() {/,/^}/p' "$repo/scripts/linux_install.sh")"
+
+# Package-manager selection: pacman wins when present, dnf needs rpm beside it,
+# and neither is a hard error. Real binaries are hidden behind an empty PATH.
+(
+  mkdir -p "$workdir/empty-path"
+  PATH="$workdir/empty-path"
+  unset -f pacman
+  dnf() { :; }
+  rpm() { :; }
+  use_repo=1
+  require_package_manager
+  [[ $pkg_mgr == dnf && $use_repo == 0 ]]
+  unset -f rpm
+  if (require_package_manager) 2>/dev/null; then exit 1; fi
+  unset -f dnf
+  if (require_package_manager) 2>/dev/null; then exit 1; fi
+  pacman() { :; }
+  dnf() { :; }
+  rpm() { :; }
+  use_repo=1
+  require_package_manager
+  [[ $pkg_mgr == pacman && $use_repo == 1 ]]
+)
+printf 'Package-manager selection prefers pacman, requires rpm beside dnf, and fails without either.\n'
+
+(
+  pkg_mgr=dnf
+  pacman() { printf 'pacman %s\n' "$*" >> "$dnf_calls"; return 1; }
+  dnf() { printf 'dnf %s\n' "$*" >> "$dnf_calls"; }
+  rpm() {
+    printf 'rpm %s\n' "$*" >> "$dnf_calls"
+    case $1 in
+      -q) return "$rpm_query_status" ;;
+      -qf) [[ -n $rpm_owner ]] && printf '%s\n' "$rpm_owner" ;;
+      -qp) [[ -n $rpm_identity ]] && printf '%s\n' "$rpm_identity" ;;
+    esac
+  }
+  rpm_query_status=0
+  rpm_owner=''
+  rpm_identity=''
+
+  # pkg_install and pkg_is_installed speak dnf and rpm, never pacman.
+  : > "$dnf_calls"
+  dnf_confirm=(-y)
+  pkg_install jq kernel-devel
+  grep -Fxq -- 'dnf install -y -- jq kernel-devel' "$dnf_calls"
+  dnf_confirm=()
+  pkg_install jq
+  grep -Fxq -- 'dnf install -- jq' "$dnf_calls"
+  pkg_is_installed artlight
+  grep -Fxq -- 'rpm -q --quiet -- artlight' "$dnf_calls"
+  rpm_query_status=1
+  if pkg_is_installed artlight; then exit 1; fi
+  rpm_query_status=0
+  if grep -q '^pacman' "$dnf_calls"; then exit 1; fi
+  printf 'dnf package helpers install with dnf and query with rpm.\n'
+
+  # The running kernel's package comes from rpm's owner of vmlinuz, and only a
+  # plain package name is accepted.
+  : > "$dnf_calls"
+  rpm_owner=kernel-core
+  [[ $(kernel_package_for 7.2.7-200.fc44.x86_64 /fixture/modules) == kernel-core ]]
+  grep -Fxq -- 'rpm -qf --qf %{NAME}\n -- /fixture/modules/7.2.7-200.fc44.x86_64/vmlinuz' "$dnf_calls"
+  rpm_owner='kernel-core; reboot'
+  if kernel_package_for 7.2.7-200.fc44.x86_64 /fixture/modules >/dev/null; then exit 1; fi
+  rpm_owner=''
+  if kernel_package_for 7.2.7-200.fc44.x86_64 /fixture/modules >/dev/null; then exit 1; fi
+  if grep -q '^pacman' "$dnf_calls"; then exit 1; fi
+  printf 'dnf kernel lookup asks rpm for the vmlinuz owner and rejects unsafe names.\n'
+
+  # A local RPM is identity-checked with rpm and installed with dnf alone: the
+  # RPM's own %pre quiesces the host, so no pacman hook or driver adoption runs.
+  stage_upgrade_guard() { printf 'stage-upgrade-guard\n' >> "$dnf_calls"; }
+  prepare_driver_replacement() { printf 'prepare-driver-replacement\n' >> "$dnf_calls"; }
+  local_package="$workdir/artlight-1.5.4-1.fc44.x86_64.rpm"
+  : > "$local_package"
+  : > "$dnf_calls"
+  rpm_identity=artlight
+  dnf_confirm=(-y)
+  install_from_package >/dev/null
+  grep -Fxq -- "rpm -qp --qf %{NAME}\n -- $local_package" "$dnf_calls"
+  grep -Fxq -- "dnf install -y -- $local_package" "$dnf_calls"
+  [[ $(grep -c '^dnf' "$dnf_calls") == 1 ]]
+  if grep -q '^pacman\|^stage-upgrade-guard\|^prepare-driver-replacement' "$dnf_calls"; then exit 1; fi
+  : > "$dnf_calls"
+  rpm_identity=artlight-debuginfo
+  if (install_from_package) >/dev/null 2>&1; then exit 1; fi
+  rpm_identity=''
+  if (install_from_package) >/dev/null 2>&1; then exit 1; fi
+  if grep -q '^dnf' "$dnf_calls"; then exit 1; fi
+  rpm_identity=artlight
+  local_package="$workdir/missing.rpm"
+  if (install_from_package) >/dev/null 2>&1; then exit 1; fi
+  if grep -q '^dnf' "$dnf_calls"; then exit 1; fi
+  printf 'Local RPM installs check identity with rpm and use dnf without pacman hooks.\n'
+
+  # Release lookup picks the binary x86_64 RPM, never a source, debuginfo or
+  # Arch package, and honours the pre-release setting.
+  releases_fixture='[
+    {"tag_name":"1.6.0","draft":false,"prerelease":false,"assets":[
+      {"name":"artlight-1.6.0-1-x86_64.pkg.tar.zst","browser_download_url":"https://fixture/arch"}]},
+    {"tag_name":"1.5.9","draft":false,"prerelease":true,"assets":[
+      {"name":"artlight-1.5.9-1.fc44.x86_64.rpm","browser_download_url":"https://fixture/prerelease-rpm"}]},
+    {"tag_name":"1.5.8","draft":false,"prerelease":false,"assets":[
+      {"name":"artlight-debuginfo-1.5.8-1.fc44.x86_64.rpm","browser_download_url":"https://fixture/debuginfo"},
+      {"name":"artlight-1.5.8-1.fc44.src.rpm","browser_download_url":"https://fixture/srpm"},
+      {"name":"artlight-1.5.8-1.fc44.x86_64.rpm","browser_download_url":"https://fixture/rpm"}]}]'
+  curl() {
+    local arg previous='' output='' url=${!#}
+    for arg in "$@"; do
+      [[ $previous == -o ]] && output=$arg
+      previous=$arg
+    done
+    printf 'curl %s\n' "$url" >> "$dnf_calls"
+    case $url in
+      */releases\?per_page=30) printf '%s' "$releases_fixture" ;;
+      */release-provenance.json) return 22 ;;
+      *) [[ -n $output ]] && printf 'fixture\n' > "$output" ;;
+    esac
+  }
+  requested_version=''
+  : > "$dnf_calls"
+  allow_prerelease=0
+  download_release_package >/dev/null
+  [[ $local_package == "$workdir/artlight-1.5.8-1.fc44.x86_64.rpm" ]]
+  grep -Fxq -- 'curl https://fixture/rpm' "$dnf_calls"
+  if grep -q 'fixture/\(arch\|srpm\|debuginfo\|prerelease-rpm\)' "$dnf_calls"; then exit 1; fi
+  allow_prerelease=1
+  download_release_package >/dev/null
+  [[ $local_package == "$workdir/artlight-1.5.9-1.fc44.x86_64.rpm" ]]
+  releases_fixture='[{"tag_name":"1.6.0","draft":false,"prerelease":false,"assets":[
+    {"name":"artlight-1.6.0-1-x86_64.pkg.tar.zst","browser_download_url":"https://fixture/arch"}]}]'
+  if message=$( (download_release_package) 2>&1 >/dev/null); then exit 1; fi
+  [[ $message == *'a Fedora RPM'* && $message == *'--package'* ]]
+  if grep -q '^pacman' "$dnf_calls"; then exit 1; fi
+  printf 'Release lookup on Fedora selects only the binary x86_64 RPM.\n'
+
+  # The same lookup on Arch still finds the Arch package (the pattern is passed
+  # to jq with --arg, so it must not carry the inline program's extra escaping).
+  pkg_mgr=pacman
+  releases_fixture='[{"tag_name":"1.6.0","draft":false,"prerelease":false,"assets":[
+    {"name":"artlight-1.6.0-1.fc44.x86_64.rpm","browser_download_url":"https://fixture/rpm"},
+    {"name":"artlight-1.6.0-1-x86_64.pkg.tar.zst","browser_download_url":"https://fixture/arch"}]}]'
+  : > "$dnf_calls"
+  download_release_package >/dev/null
+  [[ $local_package == "$workdir/artlight-1.6.0-1-x86_64.pkg.tar.zst" ]]
+  grep -Fxq -- 'curl https://fixture/arch' "$dnf_calls"
+  if grep -q 'fixture/rpm' "$dnf_calls"; then exit 1; fi
+  printf 'Release lookup on Arch still selects the Arch package.\n'
+)

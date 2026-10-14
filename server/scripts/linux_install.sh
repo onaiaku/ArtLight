@@ -107,11 +107,6 @@ require_root() {
   fi
 }
 
-require_pacman() {
-  command -v pacman >/dev/null 2>&1 ||
-    die 'pacman was not found. The Linux beta ships as a native package for Arch Linux and CachyOS only.'
-}
-
 require_package_manager() {
   if command -v pacman >/dev/null 2>&1; then
     pkg_mgr=pacman
@@ -476,9 +471,9 @@ download_release_package() {
   fi
   # Releases are listed newest first; pick the first one that carries a package
   # for this package manager.
-  local asset_pattern='^artlight-.*\\.pkg\\.tar\\.zst$' package_kind='an Arch package'
+  local asset_pattern='^artlight-.*\.pkg\.tar\.zst$' package_kind='an Arch package'
   if [[ $pkg_mgr == dnf ]]; then
-    asset_pattern='^artlight-[0-9].*\\.x86_64\\.rpm$'
+    asset_pattern='^artlight-[0-9].*\.x86_64\.rpm$'
     package_kind='a Fedora RPM'
   fi
   read -r tag asset_name asset_url < <(jq -r --arg pattern "$asset_pattern" "
@@ -757,7 +752,7 @@ check_usb_device_sharing() {
 check_session_restart() {
   # First installation adds KWin startup hooks. A running greeter/desktop
   # predates those hooks even when the newly installed DRM module loads.
-  if ! { if [[ $pkg_mgr == dnf ]]; then rpm -q --quiet artlight; else pacman -Q artlight >/dev/null 2>&1; fi; }; then
+  if ! pkg_is_installed artlight; then
     reboot_required=1
     warn 'First installation requires a reboot so the login screen and desktop load the ArtLight display and session integration.'
   fi

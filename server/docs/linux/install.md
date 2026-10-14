@@ -145,7 +145,7 @@ Fedora package yet, so you build the RPM from source and install it with the ins
 the Fedora 43 repositories. It is used only to build and is not a runtime dependency:
 
 ```bash
-sudo dnf install rpm-build rpmdevtools dnf-plugins-core git
+sudo dnf install rpm-build rpmdevtools dnf-plugins-core git jq
 # Download only the two compiler packages. Installing with --releasever=43 directly would
 # downgrade glibc and other core packages to Fedora 43.
 dnf download --releasever=43 --repo=fedora --repo=updates --destdir ~/gcc14 gcc14 gcc14-c++
@@ -153,16 +153,30 @@ sudo dnf install ~/gcc14/gcc14-*.rpm
 git clone --recurse-submodules https://github.com/onaiaku/ArtLight.git
 cd ArtLight
 cp server/packaging/linux/copr/Sunshine.spec ~/artlight.spec
-# Fill in the version, the commit, and the build-deps tag the spec pins FFmpeg to:
+# Fill in the version, the commit, the build-deps tag the spec pins FFmpeg to, and that
+# release's published SHA-256 for the FFmpeg archive (the build refuses a tag without it):
+deps_tag=$(git -C server/third-party/build-deps tag --points-at HEAD | head -1)
+deps_sha=$(curl -fsSL "https://api.github.com/repos/LizardByte/build-deps/releases/tags/${deps_tag}" |
+  jq -r '.assets[] | select(.name == "Linux-x86_64-ffmpeg.tar.gz") | .digest' | sed 's/^sha256://')
 sed -i "s/^%global build_version 0/%global build_version $(git describe --tags --abbrev=0)/; \
         s/^%global commit 0/%global commit $(git rev-parse --short HEAD)/; \
-        s/^%global build_deps_tag 0/%global build_deps_tag $(git -C server/third-party/build-deps tag --points-at HEAD | head -1)/" \
+        s/^%global build_deps_tag 0/%global build_deps_tag ${deps_tag}/; \
+        s/^%global build_deps_sha256 0/%global build_deps_sha256 ${deps_sha}/" \
   ~/artlight.spec
-grep -E '^%global (build_version|commit|build_deps_tag) ' ~/artlight.spec  # none may be 0 or empty
+grep -E '^%global (build_version|commit|build_deps_tag|build_deps_sha256) ' ~/artlight.spec  # none may be 0 or empty
 sudo dnf builddep ~/artlight.spec
 rpmdev-setuptree
 tar -czf ~/rpmbuild/SOURCES/tarball.tar.gz --exclude-vcs .
 rpmbuild -bb ~/artlight.spec
+```
+
+If the GCC 14 download or install fails, for example after Fedora 43 leaves its mirrors, build
+without CUDA instead. This leaves out ArtLight's native CUDA NVENC backend; NVIDIA GPUs fall back
+to FFmpeg's NVENC and the Vulkan encoders, and AMD and Intel are unaffected. Run this on
+`~/artlight.spec` before `dnf builddep`, then continue from there:
+
+```bash
+sed -i '/^%elif 0%{?fedora} >= 44/,/^%endif/{/^BuildRequires: gcc14/d; s/^%global cuda_version .*/%global cuda_version %{nil}/}' ~/artlight.spec
 ```
 
 **Install it** with the installer. It checks the requirements, installs `kernel-devel` for the
