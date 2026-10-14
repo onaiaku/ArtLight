@@ -51,6 +51,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Linux packaging tests
+        # These suites drive the real packaging scriptlets against a mocked
+        # systemctl, so they need root and bsdtar. They guard the install path a
+        # Linux user actually runs, which is why they gate the build instead of
+        # sitting in the tree unexercised.
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libarchive-tools
+          command -v bsdtar
+          sudo bash server/tests/unit/platform/linux/test_linux_installer.sh
+
       - name: Resolve release candidate
         id: release-candidate
         env:

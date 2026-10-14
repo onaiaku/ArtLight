@@ -292,15 +292,19 @@ artlight_prepare_host_upgrade_fence() (
 )
 
 artlight_activate_host_upgrade_fence() {
-  local properties
+  local properties load
   systemctl daemon-reload || exit 1
   properties=$(timeout --signal=KILL 5 systemctl show artlight.service \
     --property=LoadState --property=RefuseManualStart --property=KillMode --property=SendSIGKILL 2>/dev/null) || exit 1
   # A first installation has no artlight.service yet, and a drop-in alone does
-  # not create one, so there is no host to fence.
-  if grep -qx 'LoadState=not-found' <<<"$properties"; then
-    return 0
-  fi
+  # not create one. A masked unit cannot be started either, so there is
+  # nothing to refuse and nothing to stop: a removal that does not reach
+  # artlight_unmask_host_for_controller leaves runtime masks behind, and a
+  # reinstall before a reboot must not fail here.
+  load=$(sed -n 's/^LoadState=//p' <<<"$properties")
+  case "$load" in
+    not-found | masked | masked-runtime) return 0 ;;
+  esac
   grep -qx 'RefuseManualStart=yes' <<<"$properties" && \
     grep -qx "KillMode=$artlight_upgrade_kill_mode" <<<"$properties" && \
     grep -qx 'SendSIGKILL=no' <<<"$properties"

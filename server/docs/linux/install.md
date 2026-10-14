@@ -2,14 +2,15 @@
 
 ArtLight's Linux host is in beta. It ships as a native package for **Arch Linux and CachyOS**,
 and it is developed and tested on **CachyOS with KDE Plasma 6 on Wayland**. Other Arch-based
-distributions should work but get less testing. There is no AppImage, Flatpak, Debian, Fedora, or
-Docker build in this beta.
+distributions should work but get less testing. **Fedora** is community-supported: the RPM is built
+from source (see [Fedora](#fedora)) and no prebuilt Fedora package is published yet. There is no
+AppImage, Flatpak, Debian, or Docker build in this beta.
 
 ## Requirements
 
 | Requirement | Detail |
 | --- | --- |
-| Distribution | Arch Linux or CachyOS, x86_64. ArtLight is tuned for CachyOS. |
+| Distribution | Arch Linux or CachyOS, x86_64. ArtLight is tuned for CachyOS. Fedora 44 is community-supported. |
 | Desktop | KDE Plasma 6 on **Wayland**, started by **SDDM** or **Plasma Login Manager**. GNOME, other compositors, X11 sessions, and remote logins are not streamed. |
 | Kernel | Linux **6.16 or newer**, plus the headers for the kernel you boot (for example `linux-cachyos-headers`). The virtual-display driver is built with DKMS during installation. |
 | GPU | A GPU with a hardware **H.264** encoder. Testing has focused on NVIDIA and modern AMD GPUs; older cards may not work properly. NVIDIA uses NVENC through `nvidia-utils`; AMD needs `libva-mesa-driver`; Intel needs `intel-media-driver`. HEVC and AV1 are used when available. |
@@ -124,6 +125,55 @@ The build takes a while: it compiles the web interface with `npm`, runs the test
 `nodejs`, `npm`, `ninja`, and `gcc14` (the compiler CUDA supports), which the rolling
 repositories no longer carry — take it from the Arch Linux Archive. Pass `--nocheck` to
 `makepkg` to skip the tests.
+
+## Fedora
+
+Fedora support is community-maintained and has been verified on Fedora 44. Upstream publishes no
+Fedora package yet, so you build the RPM from source and install it with the installer script.
+
+**Hardware encoding needs RPM Fusion.** Fedora's own Mesa leaves out H.264 and HEVC encoding. Enable
+[RPM Fusion](https://rpmfusion.org/Configuration) and install the encoder for your GPU first:
+
+| GPU | Packages |
+| --- | --- |
+| NVIDIA | `akmod-nvidia` and `xorg-x11-drv-nvidia-cuda` (RPM Fusion nonfree) |
+| AMD | `mesa-va-drivers-freeworld` (RPM Fusion free) |
+| Intel | `intel-media-driver` (RPM Fusion nonfree) |
+
+**Build the RPM.** The spec is `server/packaging/linux/copr/Sunshine.spec`. NVENC builds use CUDA
+12.9.1, which needs GCC 14 as the host compiler. Fedora 44 ships GCC 15 and 16, so take GCC 14 from
+the Fedora 43 repositories. It is used only to build and is not a runtime dependency:
+
+```bash
+sudo dnf install rpm-build rpmdevtools dnf-plugins-core git
+# Download only the two compiler packages. Installing with --releasever=43 directly would
+# downgrade glibc and other core packages to Fedora 43.
+dnf download --releasever=43 --repo=fedora --repo=updates --destdir ~/gcc14 gcc14 gcc14-c++
+sudo dnf install ~/gcc14/gcc14-*.rpm
+git clone --recurse-submodules https://github.com/onaiaku/ArtLight.git
+cd ArtLight
+cp server/packaging/linux/copr/Sunshine.spec ~/artlight.spec
+# Fill in the version, the commit, and the build-deps tag the spec pins FFmpeg to:
+sed -i "s/^%global build_version 0/%global build_version $(git describe --tags --abbrev=0)/; \
+        s/^%global commit 0/%global commit $(git rev-parse --short HEAD)/; \
+        s/^%global build_deps_tag 0/%global build_deps_tag $(git -C server/third-party/build-deps tag --points-at HEAD | head -1)/" \
+  ~/artlight.spec
+grep -E '^%global (build_version|commit|build_deps_tag) ' ~/artlight.spec  # none may be 0 or empty
+sudo dnf builddep ~/artlight.spec
+rpmdev-setuptree
+tar -czf ~/rpmbuild/SOURCES/tarball.tar.gz --exclude-vcs .
+rpmbuild -bb ~/artlight.spec
+```
+
+**Install it** with the installer. It checks the requirements, installs `kernel-devel` for the
+running kernel, and builds the DKMS modules:
+
+```bash
+sudo bash server/scripts/linux_install.sh --package ~/rpmbuild/RPMS/x86_64/artlight-*.rpm
+```
+
+Upgrade by building and installing the newer RPM the same way. Uninstall with
+`sudo dnf remove artlight`.
 
 ## After installation
 
@@ -251,7 +301,8 @@ If the hook says the kernel still holds the old driver, reboot before streaming 
 ## Uninstall
 
 ```bash
-sudo pacman -R artlight
+sudo pacman -R artlight      # Arch Linux, CachyOS
+sudo dnf remove artlight     # Fedora
 ```
 
 Removal stops the services and removes the DKMS module but keeps `/var/lib/artlight` and

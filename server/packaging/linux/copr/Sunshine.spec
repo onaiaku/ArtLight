@@ -4,6 +4,9 @@
 %global build_version 0
 %global branch 0
 %global commit 0
+# LizardByte/build-deps release matching third-party/build-deps. The tarball carries no git
+# metadata, so CMake cannot discover it and would otherwise fetch the latest, ABI-mismatched FFmpeg.
+%global build_deps_tag 0
 
 # Keep the application-facing version strict SemVer while translating only
 # the RPM package version into RPM ordering syntax. Prereleases sort below the
@@ -12,6 +15,9 @@
 %global rpm_version %{lua:local v=rpm.expand("%{build_semver}"); local p=v:find("-",1,true); if p then if v:sub(p+1,p+6)=="stable" then v=v:sub(1,p-1).."+stable"..v:sub(p+7) else v=v:sub(1,p-1).."~"..v:sub(p+1) end end; print(v)}
 
 %undefine _hardened_build
+
+# Source0 is the whole repository: the server build reaches ../service for the input helper.
+%global srcroot %{_builddir}/Sunshine/server
 
 # Define _metainfodir for OpenSUSE if not already defined
 %if 0%{?suse_version}
@@ -32,6 +38,7 @@ Source0: tarball.tar.gz
 BuildRequires: cmake >= 3.25.0
 BuildRequires: desktop-file-utils
 BuildRequires: git
+BuildRequires: ninja-build
 BuildRequires: libcap-devel
 BuildRequires: libcurl-devel
 BuildRequires: libdrm-devel
@@ -48,6 +55,14 @@ BuildRequires: libXrandr-devel
 BuildRequires: libXtst-devel
 BuildRequires: openssl-devel
 BuildRequires: pipewire-devel
+# PNG, JPEG and WebP enable game-artwork conversion; without all three CMake silently
+# builds without it (ARTLIGHT_STEAM_ARTWORK_IMAGE_LIBS).
+BuildRequires: libjpeg-turbo-devel
+BuildRequires: libpng-devel
+BuildRequires: libwebp-devel
+BuildRequires: nodejs
+BuildRequires: npm
+BuildRequires: sqlite-devel
 BuildRequires: rpm-build
 BuildRequires: systemd-rpm-macros
 BuildRequires: wget
@@ -168,7 +183,8 @@ Requires: libcap >= 2.22
 Requires: libcurl >= 7.0
 Requires: libdrm > 2.4.97
 Requires: libevdev >= 1.5.6
-Requires: libkscreen
+# The display code runs kscreen-doctor; depend on the file, not a library package name.
+Requires: /usr/bin/kscreen-doctor
 Requires: libopusenc >= 0.2.1
 Requires: libva >= 2.14.0
 Requires: libwayland-client >= 1.20.0
@@ -224,8 +240,8 @@ cuda_supported_architectures=("x86_64" "aarch64")
 
 # prepare CMAKE args
 cmake_args=(
-  "-B=%{_builddir}/Sunshine/build"
-  "-G=Unix Makefiles"
+  "-B=%{srcroot}/build"
+  "-G=Ninja"
   "-S=."
   "-DBUILD_DOCS=OFF"
   "-DBUILD_TESTS=ON"
@@ -301,7 +317,7 @@ function install_cuda() {
       --backup \
       --directory="%{cuda_dir}" \
       --verbose \
-      < "%{_builddir}/Sunshine/packaging/linux/patches/${architecture}/${patch_file}"
+      < "%{srcroot}/packaging/linux/patches/${architecture}/${patch_file}"
   fi
 }
 
@@ -325,28 +341,40 @@ cmake_args+=("-DSUNSHINE_ENABLE_VULKAN=OFF")
 cmake_args+=("-DSUNSHINE_ENABLE_PYROWAVE=OFF")
 %endif
 
+if [ "%{build_deps_tag}" != "0" ]; then
+  ffmpeg_dir=%{_builddir}/ffmpeg-%{build_deps_tag}
+  mkdir -p "$ffmpeg_dir"
+  wget -q --tries=3 -O "$ffmpeg_dir.tar.gz" \
+    "https://github.com/LizardByte/build-deps/releases/download/%{build_deps_tag}/Linux-${architecture}-ffmpeg.tar.gz"
+  tar -xzf "$ffmpeg_dir.tar.gz" -C "$ffmpeg_dir"
+  cmake_args+=("-DFFMPEG_PREPARED_BINARIES=$ffmpeg_dir/ffmpeg")
+fi
+
 # cmake
-cd %{_builddir}/Sunshine
+cd %{srcroot}
 echo "cmake args:"
 echo "${cmake_args[@]}"
 cmake "${cmake_args[@]}"
-make -j$(nproc) -C "%{_builddir}/Sunshine/build"
+cmake --build "%{srcroot}/build" %{?_smp_mflags}
 
 %check
 # validate the metainfo file
-appstreamcli validate %{buildroot}%{_metainfodir}/*.metainfo.xml
-appstream-util validate %{buildroot}%{_metainfodir}/*.metainfo.xml
+appstreamcli validate --no-net %{buildroot}%{_metainfodir}/*.metainfo.xml
+appstream-util validate --nonet %{buildroot}%{_metainfodir}/*.metainfo.xml
 desktop-file-validate %{buildroot}%{_datadir}/applications/*.desktop
 
 %install
-cd %{_builddir}/Sunshine/build
-%make_install
+DESTDIR=%{buildroot} cmake --install %{srcroot}/build
 # The shared CMake stage includes ALPM-only pretransaction files. RPM has its
 # own package scriptlets and must not ship files outside its manifest.
 rm -f %{buildroot}%{_prefix}/libexec/vibeshine/artlight-package-preflight
 rm -f %{buildroot}%{_datadir}/libalpm/hooks/00-artlight-quiesce.hook
 rm -f %{buildroot}%{_datadir}/artlight/arch-package-hooks
 rmdir %{buildroot}%{_datadir}/libalpm/hooks %{buildroot}%{_datadir}/libalpm 2>/dev/null || true
+# Build-time marker of the web UI build; nothing reads it at runtime.
+rm -f %{buildroot}%{_datadir}/artlight/web/.build-stamp
+# DKMS source helper ships with a shebang but without the executable bit.
+find %{buildroot}/usr/src -name generate_hdr_edid.py -exec chmod 0755 {} +
 
 %pre
 artlight_controller=%{_prefix}/libexec/vibeshine/artlight-session-controller
@@ -428,8 +456,11 @@ artlight_unit_is_masked() {
 artlight_restore_template_is_masked() {
   artlight_restore_mask=$(timeout --signal=KILL 5 systemctl is-enabled \
     'artlight-session-restore@.service' 2>/dev/null || true)
+  # systemd rejects a bare template name in `systemctl show` ("neither a valid
+  # invocation ID nor unit name"); an instance of a masked template reports
+  # LoadState=masked, so probe one instead (matches the Arch install script).
   artlight_restore_load=$(timeout --signal=KILL 5 systemctl show \
-    'artlight-session-restore@.service' --property=LoadState 2>/dev/null) || return 1
+    'artlight-session-restore@mask-probe.service' --property=LoadState 2>/dev/null) || return 1
   case "$artlight_restore_mask" in
     masked | masked-runtime) [ "$artlight_restore_load" = 'LoadState=masked' ] ;;
     *) return 1 ;;
@@ -713,7 +744,16 @@ artlight_prepare_host_upgrade_fence() (
 artlight_activate_host_upgrade_fence() {
   systemctl daemon-reload || exit 1
   artlight_host_stop_properties=$(timeout --signal=KILL 5 systemctl show artlight.service \
-    --property=RefuseManualStart --property=KillMode --property=SendSIGKILL 2>/dev/null) || exit 1
+    --property=LoadState --property=RefuseManualStart --property=KillMode --property=SendSIGKILL 2>/dev/null) || exit 1
+  # A first installation has no artlight.service yet, and a drop-in alone does
+  # not create one. A masked unit cannot be started either, so there is
+  # nothing to refuse and nothing to stop: a removal that does not reach
+  # artlight_unmask_host_for_controller leaves runtime masks behind, and a
+  # reinstall before a reboot must not fail here.
+  artlight_host_load=$(printf '%%s\n' "$artlight_host_stop_properties" | sed -n 's/^LoadState=//p')
+  case "$artlight_host_load" in
+    not-found | masked | masked-runtime) return 0 ;;
+  esac
   printf '%%s\n' "$artlight_host_stop_properties" | grep -qx 'RefuseManualStart=yes' || exit 1
   printf '%%s\n' "$artlight_host_stop_properties" | \
     grep -qx "KillMode=$artlight_upgrade_kill_mode" || exit 1
@@ -1268,6 +1308,15 @@ EOF
 artlight_brokers_are_quiescent() {
   artlight_stop_brokers
 }
+artlight_unit_is_masked() {
+  artlight_enabled=$(timeout --signal=KILL 5 systemctl is-enabled "$1" 2>/dev/null || true)
+  artlight_load=$(timeout --signal=KILL 5 systemctl show "$1" \
+    --property=LoadState 2>/dev/null) || return 1
+  case "$artlight_enabled" in
+    masked | masked-runtime) [ "$artlight_load" = 'LoadState=masked' ] ;;
+    *) return 1 ;;
+  esac
+}
 artlight_quiesce_machine_host() {
   if ! command -v systemctl >/dev/null 2>&1 || [ ! -d /run/systemd/system ]; then
     [ ! -e "$artlight_broker_socket" ] && [ ! -L "$artlight_broker_socket" ] && \
@@ -1321,8 +1370,15 @@ if ! artlight_quiesce_machine_host; then
   exit 1
 fi
 
+# CMake installs %{_bindir}/artlight as a symlink to the versioned binary
+# (artlight-<version>); harden the real file, as the Arch install script does.
+artlight_main=$(readlink -f -- %{_bindir}/artlight) || exit 1
+case "$artlight_main" in
+  %{_bindir}/artlight | %{_bindir}/artlight-[0-9]*) ;;
+  *) echo "error: %{_bindir}/artlight resolves outside the package: $artlight_main" >&2; exit 1 ;;
+esac
 for artlight_executable in \
-  %{_bindir}/artlight \
+  "$artlight_main" \
   %{_prefix}/libexec/vibeshine/artlight-session-exec; do
   if [ ! -f "$artlight_executable" ] || [ -L "$artlight_executable" ]; then
     echo "error: native executable is missing or unsafe: $artlight_executable" >&2
@@ -1482,6 +1538,10 @@ if [ ! -x "$(command -v rpm-ostree)" ]; then
       exit 1
     fi
   else
+    # Lift the runtime masks that %pre applied so the follow-up command below
+    # can actually start the host without a reboot (mirrors the Arch script).
+    artlight_unmask_host_for_controller || \
+      echo "warning: the ArtLight host units stay masked until the next reboot." >&2
     echo "==> ACTION REQUIRED: ArtLight could not prepare the machine profile; review the preceding setup or migration error." >&2
     echo "    Run:  sudo artlight configure USER" >&2
     echo "    then: sudo systemctl enable --now artlight-session-controller.service" >&2
@@ -1706,9 +1766,14 @@ if [ "$1" -eq 0 ]; then
 fi
 
 %files
+# Package-owned directories, so removal does not leave them behind.
+%dir %{_prefix}/libexec/vibeshine
+%dir %{_datadir}/artlight
 # Executables
 %attr(0755,root,root) %{_prefix}/libexec/vibeshine/artlight-display-power
 %{_bindir}/artlight
+# CMake gives the executable a VERSION, so /usr/bin/artlight is a symlink to artlight-<version>.
+%{_bindir}/artlight-[0-9]*
 %{_bindir}/artlight-mangohud
 %{_prefix}/libexec/vibeshine/vibeshine-drm-install
 %{_prefix}/libexec/vibeshine/vibeshine-ds5-install

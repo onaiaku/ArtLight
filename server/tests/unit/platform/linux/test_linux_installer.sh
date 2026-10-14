@@ -437,6 +437,34 @@ for hook in packaging/linux/vibeshine-preinst.in packaging/linux/Arch/artlight.i
   )
 done
 printf 'Failed pre-upgrade quiesce preserves the early host, prior enablement, and late restart fences.\n'
+# Removal lifts most of the fence but can leave runtime masks on artlight.service
+# and artlight-session-exec.socket behind, and a reinstall before a reboot then
+# reaches this function with the unit masked. A masked unit cannot be started, so
+# there is nothing to fence and the install must not fail there. An unmasked live
+# host without the drop-in must still be refused. All three package formats carry
+# their own copy of the guard.
+for fence_hook in packaging/linux/vibeshine-preinst.in \
+  packaging/linux/Arch/artlight.install \
+  packaging/linux/copr/Sunshine.spec; do
+  (
+    fence_function=$(sed -n '/^artlight_activate_host_upgrade_fence() {$/,/^}$/p' "$repo/$fence_hook")
+    if [[ "$fence_hook" == *.spec ]]; then fence_function=${fence_function//%%/%}; fi
+    eval "$fence_function"
+    systemctl() { :; }
+    timeout() { printf '%s\n' "$property_fixture"; }
+    artlight_upgrade_kill_mode=control-group
+    for load_state in not-found masked masked-runtime; do
+      property_fixture=$'LoadState='"$load_state"$'\nRefuseManualStart=no\nKillMode=control-group\nSendSIGKILL=yes'
+      artlight_activate_host_upgrade_fence
+    done
+    property_fixture=$'LoadState=loaded\nRefuseManualStart=no\nKillMode=control-group\nSendSIGKILL=yes'
+    if ( artlight_activate_host_upgrade_fence ) 2>/dev/null; then exit 1; fi
+    property_fixture=$'LoadState=loaded\nRefuseManualStart=yes\nKillMode=control-group\nSendSIGKILL=no'
+    artlight_activate_host_upgrade_fence
+  )
+done
+printf 'A masked or absent host is never fenced; an unmasked live host still is.\n'
+
 # Socket units have no MainPID property. All package formats must accept a
 # stopped four-property socket while still rejecting a malformed service.
 for package_hook in packaging/linux/vibeshine-preinst.in \

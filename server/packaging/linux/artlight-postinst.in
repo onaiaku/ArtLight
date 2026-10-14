@@ -287,7 +287,13 @@ fi
 # Upgrade away from the former capability-bearing main/client executables.
 # Native packages receive capture capabilities only from the machine unit;
 # only the socket-activated broker ever changes identity.
-artlight_main="@CMAKE_INSTALL_FULL_BINDIR@/artlight"
+# CMake installs bin/artlight as a symlink to the versioned binary
+# (artlight-<version>); harden the real file, as the Arch install script does.
+artlight_main=$(readlink -f -- "@CMAKE_INSTALL_FULL_BINDIR@/artlight") || exit 1
+case "$artlight_main" in
+  @CMAKE_INSTALL_FULL_BINDIR@/artlight | @CMAKE_INSTALL_FULL_BINDIR@/artlight-[0-9]*) ;;
+  *) echo "error: @CMAKE_INSTALL_FULL_BINDIR@/artlight resolves outside the package: $artlight_main" >&2; exit 1 ;;
+esac
 artlight_session_client="@VIBESHINE_PRIVILEGED_LIBEXEC_INSTALL_DIR@/artlight-session-exec"
 for artlight_executable in "$artlight_main" "$artlight_session_client"; do
   if [ ! -f "$artlight_executable" ] || [ -L "$artlight_executable" ]; then
@@ -370,6 +376,12 @@ if artlight_privileged_helper_is_safe "$artlight_machine_host" && \
    "$artlight_machine_host" configure-auto; then
   artlight_machine_configured=1
 else
+  # Lift the runtime masks the pre-install script applied so the follow-up
+  # command below can start the host without a reboot (mirrors the Arch script).
+  if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    artlight_unmask_host_for_controller || \
+      echo "warning: the ArtLight host units stay masked until the next reboot." >&2
+  fi
   echo "==> ACTION REQUIRED: ArtLight could not prepare the machine profile; review the preceding setup or migration error." >&2
   echo "    Run:  sudo artlight configure USER" >&2
   echo "    then: sudo systemctl enable --now artlight-session-controller.service" >&2

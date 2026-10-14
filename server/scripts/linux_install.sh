@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ArtLight installer for Arch Linux and CachyOS.
+# ArtLight installer for Arch Linux, CachyOS and Fedora.
 #
 # ArtLight's Linux beta is developed and tested on CachyOS with KDE Plasma 6
 # on Wayland. Other Arch-based distributions are supported on a best-effort
@@ -8,7 +8,8 @@
 #   1. checks the machine against the documented requirements,
 #   2. installs the kernel headers the virtual-display driver needs,
 #   3. installs the ArtLight package from the signed onaiaku repository, or
-#      from the newest GitHub release when the repository is unavailable,
+#      from the newest GitHub release when the repository is unavailable
+#      (on Fedora: from a local RPM given with --package, or a release RPM),
 #   4. opens the firewall (firewalld or ufw) when one is active, and
 #   5. prints whether a reboot is required and what to do next.
 #
@@ -17,11 +18,12 @@
 #
 # Options:
 #   --version VERSION     Install this exact release (for example 2.0.0).
-#   --package FILE        Install a local artlight-*.pkg.tar.zst instead of downloading.
+#   --package FILE        Install a local artlight-*.pkg.tar.zst (Arch) or artlight-*.rpm
+#                         (Fedora) instead of downloading.
 #   --stable              Ignore pre-releases when picking the newest GitHub release.
 #   --no-repo             Skip the signed pacman repository and use GitHub releases.
 #   --skip-checks         Continue past failed requirement checks (not recommended).
-#   --yes                 Answer yes to pacman prompts.
+#   --yes                 Answer yes to pacman or dnf prompts.
 #   -h, --help            Show this help.
 #
 # Re-running the script is safe; it only installs what is missing.
@@ -49,6 +51,10 @@ allow_prerelease=1
 use_repo=1
 skip_checks=0
 pacman_confirm=()
+dnf_confirm=()
+# Package manager family: pacman (Arch, CachyOS) or dnf (Fedora). Set by
+# require_package_manager; the Arch path keeps its exact pacman commands.
+pkg_mgr=pacman
 replacement_confirm=()
 driver_overwrite=()
 check_failures=0
@@ -88,7 +94,7 @@ parse_args() {
       --stable) allow_prerelease=0; shift ;;
       --no-repo) use_repo=0; shift ;;
       --skip-checks) skip_checks=1; shift ;;
-      --yes) pacman_confirm=(--noconfirm); replacement_confirm=(--noconfirm --ask=4); shift ;;
+      --yes) pacman_confirm=(--noconfirm); replacement_confirm=(--noconfirm --ask=4); dnf_confirm=(-y); shift ;;
       -h | --help) usage; exit 0 ;;
       *) die "unknown option: $1 (see --help)" ;;
     esac
@@ -106,13 +112,42 @@ require_pacman() {
     die 'pacman was not found. The Linux beta ships as a native package for Arch Linux and CachyOS only.'
 }
 
+require_package_manager() {
+  if command -v pacman >/dev/null 2>&1; then
+    pkg_mgr=pacman
+  elif command -v dnf >/dev/null 2>&1 && command -v rpm >/dev/null 2>&1; then
+    pkg_mgr=dnf
+    # No signed Fedora repository exists; packages come from --package or a release RPM.
+    use_repo=0
+  else
+    die 'neither pacman nor dnf was found. The Linux beta supports Arch Linux, CachyOS and Fedora.'
+  fi
+}
+
+pkg_is_installed() {
+  if [[ $pkg_mgr == dnf ]]; then
+    rpm -q --quiet -- "$1" 2>/dev/null
+  else
+    pacman -Qq "$1" >/dev/null 2>&1
+  fi
+}
+
+pkg_install() {
+  if [[ $pkg_mgr == dnf ]]; then
+    dnf install "${dnf_confirm[@]}" -- "$@"
+  else
+    pacman -S --needed "${pacman_confirm[@]}" "$@"
+  fi
+}
+
 check_distribution() {
-  local id='' name='' id_like=''
+  local id='' name='' id_like='' version=''
   if [[ -r /etc/os-release ]]; then
     # shellcheck disable=SC1091
     id=$(. /etc/os-release && printf '%s' "${ID:-}")
     name=$(. /etc/os-release && printf '%s' "${NAME:-}")
     id_like=$(. /etc/os-release && printf '%s' "${ID_LIKE:-}")
+    version=$(. /etc/os-release && printf '%s' "${VERSION_ID:-}")
   fi
   case "$id" in
     cachyos)
@@ -121,8 +156,13 @@ check_distribution() {
     arch)
       ok "Arch Linux detected. ArtLight is optimized for CachyOS; Arch is supported on a best-effort basis."
       ;;
+    fedora)
+      ok "Fedora${version:+ $version} detected. Fedora support is community-maintained; ArtLight is tuned and tested on CachyOS."
+      ;;
     *)
-      if [[ " $id_like " == *' arch '* ]]; then
+      if [[ $pkg_mgr == dnf ]]; then
+        warn "${name:-unknown distribution} uses dnf but is not Fedora. Continuing, but this is untested."
+      elif [[ " $id_like " == *' arch '* ]]; then
         warn "${name:-$id} is an Arch derivative. ArtLight is tested on CachyOS; expect rough edges here."
       else
         warn "${name:-unknown distribution} is not Arch-based. Continuing because pacman exists, but this is untested."
@@ -140,6 +180,12 @@ headers_package=''
 
 kernel_package_for() {
   local release=$1 modules_root=${2:-/usr/lib/modules} path owner
+  if [[ $pkg_mgr == dnf ]]; then
+    owner=$(rpm -qf --qf '%{NAME}\n' -- "$modules_root/$release/vmlinuz" 2>/dev/null) &&
+      [[ "$owner" =~ ^[A-Za-z0-9@._+:-]+$ ]] || return 1
+    printf '%s\n' "$owner"
+    return 0
+  fi
   # Some kernel packages move the image to /boot. Ask pacman about other
   # kernel-owned metadata instead of guessing a package from uname's suffix.
   for path in "$modules_root/$release/vmlinuz" "$modules_root/$release/pkgbase"; do
@@ -185,11 +231,16 @@ check_kernel() {
   fi
 
   check_retired_kernel "$modules_root"
-  if kernel_package=$(kernel_package_for "$kernel_release" "$modules_root"); then
+  if [[ $pkg_mgr == dnf ]]; then
+    # dnf resolves kernel-devel by the exact running release, so no package lookup is needed.
+    headers_package="kernel-devel-${kernel_release}"
+    kernel_package=$(kernel_package_for "$kernel_release" "$modules_root") || kernel_package=kernel
+    ok "Running kernel ${kernel_release} (headers: ${headers_package})"
+  elif kernel_package=$(kernel_package_for "$kernel_release" "$modules_root"); then
     headers_package="${kernel_package}-headers"
     ok "Running kernel package: ${kernel_package} (headers: ${headers_package})"
   else
-    warn "could not map the running kernel to a pacman package; you may need to install its headers manually."
+    warn "could not map the running kernel to a ${pkg_mgr} package; you may need to install its headers manually."
   fi
 }
 
@@ -204,7 +255,7 @@ install_kernel_headers() {
     die "Kernel headers for ${kernel_release} are missing and the package name could not be determined. Install matching headers before retrying."
   fi
   log "Installing ${headers_package} so DKMS can build the virtual-display driver"
-  pacman -S --needed "${pacman_confirm[@]}" "$headers_package"
+  pkg_install "$headers_package"
   if [[ -f "${build_dir}/Makefile" ]]; then
     ok "Kernel headers installed."
   else
@@ -213,12 +264,12 @@ install_kernel_headers() {
 }
 
 check_desktop() {
-  if pacman -Qq plasma-workspace >/dev/null 2>&1 || pacman -Qq plasma-desktop >/dev/null 2>&1; then
+  if pkg_is_installed plasma-workspace || pkg_is_installed plasma-desktop; then
     ok "KDE Plasma is installed."
   else
     fail "KDE Plasma is not installed. ArtLight streams only a KDE Plasma 6 Wayland desktop (install plasma-meta or plasma-desktop)."
   fi
-  if pacman -Qq sddm >/dev/null 2>&1 || pacman -Qq plasma-login-manager >/dev/null 2>&1; then
+  if pkg_is_installed sddm || pkg_is_installed plasma-login-manager; then
     ok "A supported login manager (SDDM or Plasma Login Manager) is installed."
   else
     warn "Neither sddm nor plasma-login-manager is installed. ArtLight only attaches to Plasma sessions started by one of them."
@@ -247,7 +298,11 @@ check_gpu() {
     if [[ -d /sys/module/nvidia ]]; then
       ok "NVIDIA GPU with the proprietary driver loaded (NVENC and pre-login streaming supported)."
     else
-      warn "NVIDIA GPU detected but the nvidia kernel module is not loaded. Install nvidia-utils and the matching driver package before streaming."
+      if [[ $pkg_mgr == dnf ]]; then
+        warn "NVIDIA GPU detected but the nvidia kernel module is not loaded. Install akmod-nvidia and xorg-x11-drv-nvidia-cuda from RPM Fusion (nonfree) before streaming."
+      else
+        warn "NVIDIA GPU detected but the nvidia kernel module is not loaded. Install nvidia-utils and the matching driver package before streaming."
+      fi
     fi
     if [[ -r /sys/module/nvidia_drm/parameters/modeset ]] &&
        [[ "$(cat /sys/module/nvidia_drm/parameters/modeset)" != Y ]]; then
@@ -255,14 +310,23 @@ check_gpu() {
     fi
   fi
   if ((amd)); then
-    if pacman -Qq libva-mesa-driver >/dev/null 2>&1; then
+    if [[ $pkg_mgr == dnf ]]; then
+      # Fedora's own Mesa omits H.264/HEVC encoding; RPM Fusion's freeworld build restores it.
+      if pkg_is_installed mesa-va-drivers-freeworld; then
+        ok "AMD GPU with mesa-va-drivers-freeworld (VAAPI encoding)."
+      else
+        warn "AMD GPU detected without mesa-va-drivers-freeworld. Fedora's Mesa has no H.264/HEVC encoding; install mesa-va-drivers-freeworld from RPM Fusion (free)."
+      fi
+    elif pacman -Qq libva-mesa-driver >/dev/null 2>&1; then
       ok "AMD GPU with libva-mesa-driver (VAAPI encoding)."
     else
       warn "AMD GPU detected without libva-mesa-driver; install it for hardware H.264/HEVC encoding."
     fi
   fi
   if ((intel)) && ! ((nvidia)) && ! ((amd)); then
-    if pacman -Qq intel-media-driver >/dev/null 2>&1; then
+    if [[ $pkg_mgr == dnf ]] && ! pkg_is_installed intel-media-driver; then
+      warn "Intel GPU detected without intel-media-driver; install it from RPM Fusion (nonfree) for hardware encoding."
+    elif pkg_is_installed intel-media-driver; then
       ok "Intel GPU with intel-media-driver (VAAPI encoding)."
     else
       warn "Intel GPU detected without intel-media-driver; install it for hardware encoding."
@@ -394,7 +458,7 @@ download_release_package() {
   log 'Looking up the newest ArtLight release on GitHub'
   command -v curl >/dev/null 2>&1 || die 'curl is required to download the release'
   if ! command -v jq >/dev/null 2>&1; then
-    pacman -S --needed "${pacman_confirm[@]}" jq
+    pkg_install jq
   fi
   if [[ -n "$requested_version" ]]; then
     releases=$(curl -fsSL --max-time 60 -H 'Accept: application/vnd.github+json' \
@@ -410,14 +474,20 @@ download_release_package() {
   else
     selector='.[] | select(.draft == false and .prerelease == false)'
   fi
-  # Releases are listed newest first; pick the first one that carries an Arch package.
-  read -r tag asset_name asset_url < <(jq -r "
+  # Releases are listed newest first; pick the first one that carries a package
+  # for this package manager.
+  local asset_pattern='^artlight-.*\\.pkg\\.tar\\.zst$' package_kind='an Arch package'
+  if [[ $pkg_mgr == dnf ]]; then
+    asset_pattern='^artlight-[0-9].*\\.x86_64\\.rpm$'
+    package_kind='a Fedora RPM'
+  fi
+  read -r tag asset_name asset_url < <(jq -r --arg pattern "$asset_pattern" "
     [${selector} | . as \$r | .assets[]
-      | select(.name | test(\"^artlight-.*\\\\.pkg\\\\.tar\\\\.zst\$\"))
+      | select(.name | test(\$pattern))
       | select(.name | test(\"-debug-\") | not)
       | [\$r.tag_name, .name, .browser_download_url] | @tsv] | first // empty" <<<"$releases")
   [[ -n "${asset_url:-}" ]] ||
-    die "no release with an Arch package was found (see ${REPO_URL}/releases)"
+    die "no release with ${package_kind} was found (see ${REPO_URL}/releases). On Fedora, build the RPM and pass it with --package."
   log "Downloading ${asset_name} from release ${tag}"
   local_package="${workdir}/${asset_name}"
   curl -fL --progress-bar --max-time 900 -o "$local_package" "$asset_url"
@@ -532,6 +602,16 @@ prepare_driver_replacement() {
 install_from_package() {
   [[ -f "$local_package" ]] || die "package file not found: ${local_package}"
   local identity
+  if [[ $pkg_mgr == dnf ]]; then
+    identity=$(rpm -qp --qf '%{NAME}\n' -- "$local_package" 2>/dev/null) ||
+      die 'could not inspect the local package'
+    [[ "$identity" == artlight ]] || die 'local package is not ArtLight'
+    # The RPM's own %pre quiesces a running host and aborts the transaction on failure,
+    # so no pacman-style preflight hook is staged here.
+    log "Installing ${local_package##*/} with dnf"
+    dnf install "${dnf_confirm[@]}" -- "$local_package"
+    return
+  fi
   identity=$(pacman -Qp -- "$local_package") || die 'could not inspect the local package'
   [[ "$identity" == 'artlight '* && "$identity" != *$'\n'* ]] || die 'local package is not ArtLight'
   stage_upgrade_guard "$local_package"
@@ -677,7 +757,7 @@ check_usb_device_sharing() {
 check_session_restart() {
   # First installation adds KWin startup hooks. A running greeter/desktop
   # predates those hooks even when the newly installed DRM module loads.
-  if ! pacman -Q artlight >/dev/null 2>&1; then
+  if ! { if [[ $pkg_mgr == dnf ]]; then rpm -q --quiet artlight; else pacman -Q artlight >/dev/null 2>&1; fi; }; then
     reboot_required=1
     warn 'First installation requires a reboot so the login screen and desktop load the ArtLight display and session integration.'
   fi
@@ -719,7 +799,7 @@ print_summary() {
 main() {
   parse_args "$@"
   require_root
-  require_pacman
+  require_package_manager
   run_checks
   install_kernel_headers
   check_session_restart
