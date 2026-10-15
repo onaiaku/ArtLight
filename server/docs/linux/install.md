@@ -1,22 +1,22 @@
 # Installing ArtLight on Linux (beta)
 
-ArtLight's Linux host is in beta. It ships as a native package for **Arch Linux and CachyOS**,
-and it is developed and tested on **CachyOS with KDE Plasma 6 on Wayland**. Other Arch-based
-distributions should work but get less testing. **Fedora** is community-supported: the RPM is built
-from source (see [Fedora](#fedora)) and no prebuilt Fedora package is published yet. There is no
-AppImage, Flatpak, Debian, or Docker build in this beta.
+ArtLight's Linux host is in beta. It ships as a native package for **Arch Linux and CachyOS**, and for
+**Fedora 43 and 44** from [COPR](https://copr.fedorainfracloud.org/coprs/onaiaku/artlight/) (see
+[Fedora](#fedora)). It is developed and tested on **CachyOS with KDE Plasma 6 on Wayland**; other
+Arch-based distributions should work but get less testing. There is no AppImage, Flatpak, Debian, or
+Docker build in this beta.
 
 ## Requirements
 
 | Requirement | Detail |
 | --- | --- |
-| Distribution | Arch Linux or CachyOS, x86_64. ArtLight is tuned for CachyOS. Fedora 44 is community-supported. |
+| Distribution | Arch Linux or CachyOS, x86_64, or Fedora 43/44, x86_64. ArtLight is tuned for CachyOS; Fedora 44 is the Fedora release that has been verified. |
 | Desktop | KDE Plasma 6 on **Wayland**, started by **SDDM** or **Plasma Login Manager**. GNOME, other compositors, X11 sessions, and remote logins are not streamed. |
-| Kernel | Linux **6.16 or newer**, plus the headers for the kernel you boot (for example `linux-cachyos-headers`). The virtual-display driver is built with DKMS during installation. |
+| Kernel | Linux **6.16 or newer**, plus the headers for the kernel you boot (for example `linux-cachyos-headers`, or `kernel-devel-$(uname -r)` on Fedora). The virtual-display driver is built with DKMS during installation. |
 | GPU | A GPU with a hardware **H.264** encoder. Testing has focused on NVIDIA and modern AMD GPUs; older cards may not work properly. NVIDIA uses NVENC through `nvidia-utils`; AMD needs `libva-mesa-driver`; Intel needs `intel-media-driver`. HEVC and AV1 are used when available. |
 | Pre-login streaming | NVIDIA only. AMD and Intel machines stream after you log in. |
 | Accounts | One interactive desktop account. Machines with several accounts choose the streaming owner once (see [Choosing the streaming user](#choosing-the-streaming-user)). |
-| Secure Boot | Supported. The package signs its kernel module; on kernels that enforce module signatures you approve a one-time MOK enrollment at the next reboot. Do not disable Secure Boot. |
+| Secure Boot | Supported. The package signs its kernel module; on kernels that enforce module signatures you approve a one-time MOK enrollment at the next reboot. Do not disable Secure Boot. On Fedora, install with the script in the Fedora section so the signing key is created. |
 
 ArtLight runs as **machine-wide system services**, not as a per-user service. Do not run it with
 `systemctl --user`, and do not add file capabilities to `/usr/bin/artlight`.
@@ -128,8 +128,30 @@ repositories no longer carry — take it from the Arch Linux Archive. Pass `--no
 
 ## Fedora
 
-Fedora support is community-maintained and has been verified on Fedora 44. Upstream publishes no
-Fedora package yet, so you build the RPM from source and install it with the installer script.
+Fedora **43 and 44** (x86_64) are supported. The packages are built on
+[COPR](https://copr.fedorainfracloud.org/coprs/onaiaku/artlight/) — a build service, not Fedora's official
+repositories — and served as our own dnf repository. Fedora 44 is the release that has been verified
+on real hardware.
+
+```bash
+sudo dnf install kernel-devel-$(uname -r)     # headers for the kernel you are booting
+sudo dnf copr enable onaiaku/artlight
+sudo dnf install artlight
+```
+
+`artlight` recommends `dkms`, `gcc`, `make` and `kernel-devel`, so dnf pulls the module build chain in
+with the package. Installing the headers for your *running* kernel first is what matters when your
+kernel is older than the newest published one.
+
+**On a machine with Secure Boot enabled, install with the script instead** — it creates the module
+signing key and queues the one-time MOK enrollment:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/onaiaku/ArtLight/main/server/scripts/linux_install.sh
+sudo bash linux_install.sh --package artlight-1.5.7-1.fc44.x86_64.rpm
+```
+
+Upgrades then arrive through `dnf upgrade`. Uninstall with `sudo dnf remove artlight`.
 
 **Hardware encoding needs RPM Fusion.** Fedora's own Mesa leaves out H.264 and HEVC encoding. Enable
 [RPM Fusion](https://rpmfusion.org/Configuration) and install the encoder for your GPU first:
@@ -140,7 +162,8 @@ Fedora package yet, so you build the RPM from source and install it with the ins
 | AMD | `mesa-va-drivers-freeworld` (RPM Fusion free) |
 | Intel | `intel-media-driver` (RPM Fusion nonfree) |
 
-**Build the RPM.** The spec is `server/packaging/linux/copr/Sunshine.spec`. NVENC builds use CUDA
+**Build the RPM yourself** — needed only for a Fedora release the published package does not cover.
+The spec is `server/packaging/linux/copr/Sunshine.spec`. NVENC builds use CUDA
 12.9.1, which needs GCC 14 as the host compiler. Fedora 44 ships GCC 15 and 16, so take GCC 14 from
 the Fedora 43 repositories. It is used only to build and is not a runtime dependency:
 
@@ -180,14 +203,14 @@ sed -i '/^%elif 0%{?fedora} >= 44/,/^%endif/{/^BuildRequires: gcc14/d; s/^%globa
 ```
 
 **Install it** with the installer. It checks the requirements, installs `kernel-devel` for the
-running kernel, and builds the DKMS modules:
+running kernel, creates the module signing key if Secure Boot is on, and builds the DKMS modules:
 
 ```bash
 sudo bash server/scripts/linux_install.sh --package ~/rpmbuild/RPMS/x86_64/artlight-*.rpm
 ```
 
-Upgrade by building and installing the newer RPM the same way. Uninstall with
-`sudo dnf remove artlight`.
+Upgrade by building and installing the newer RPM the same way, or by switching to the COPR
+repository above. Uninstall with `sudo dnf remove artlight`.
 
 ## After installation
 
