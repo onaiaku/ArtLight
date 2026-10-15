@@ -842,3 +842,44 @@ printf 'Package-manager selection prefers pacman, requires rpm beside dnf, and f
   if rebooted; then exit 1; fi
   printf 'Reboot is offered only on a terminal, only on Enter, and never on a piped run.\n'
 )
+
+# An upgrade must not send someone who already has a Web UI login and paired
+# clients back through setup, and must not claim a reboot is needed.
+(
+  notice_dir="$workdir/notice-state"
+  mkdir -p "$notice_dir"
+  systemctl() { printf '%s\n' "$notice_dir"; }
+  warnings=()
+
+  # Never configured, no reboot needed: the original wording, and no reboot step.
+  reboot_required=0
+  out=$(print_summary)
+  grep -Fq 'create the Web UI login' <<<"$out"
+  grep -Fq 'Reboot now' <<<"$out" && exit 1
+
+  # Never configured and a reboot really is required: still asks for it.
+  reboot_required=1
+  out=$(print_summary)
+  grep -Fq 'Reboot now.' <<<"$out"
+  grep -Fq 'create the Web UI login' <<<"$out"
+  reboot_required=0
+
+  # Login, nothing paired yet: sign in, then pair.
+  printf '{"username":"nik"}\n' > "$notice_dir/sunshine_state.json"
+  out=$(print_summary)
+  grep -Fq 'sign in with the Web UI login you already have, then pair ArtMoon' <<<"$out"
+  grep -Fq 'create the Web UI login' <<<"$out" && exit 1
+
+  # Login and paired clients: nothing to set up at all.
+  mkdir -p "$notice_dir/credentials"
+  printf 'cert\n' > "$notice_dir/credentials/client.pem"
+  out=$(print_summary)
+  grep -Fq 'ArtMoon is already paired' <<<"$out"
+  grep -Fq 'create the Web UI login' <<<"$out" && exit 1
+
+  # A state file with no username is still an unconfigured host.
+  printf '{"foo":"bar"}\n' > "$notice_dir/sunshine_state.json"
+  out=$(print_summary)
+  grep -Fq 'create the Web UI login' <<<"$out"
+  printf 'The next-step summary only asks for setup and a reboot when the machine still needs them.\n'
+)
