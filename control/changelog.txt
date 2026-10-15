@@ -5,6 +5,33 @@ ArtLight Control - Changelog
 https://github.com/onaiaku/ArtLight
 
 ------------------------------------------------
+Version 1.5.7 (15/10/2026)
+------------------------------------------------
+ArtLight 1.5.7 fixes the Linux installer and an
+update that could leave the graphics card unusable.
+
+Updating ArtLight on Linux could leave the display
+driver holding the graphics card in a state the
+next boot was unable to recover from, so the GPU
+failed to start and the machine fell back to
+integrated graphics until it was restarted again.
+
+The Linux installer now fetches the ArtLight
+package repository's own database when it sets the
+repository up, so the repository works on a first
+install instead of quietly falling back to a
+downloaded package.
+
+On systems with Secure Boot, the display driver's
+signing key is now offered to the machine, so the
+driver is signed with a key it trusts.
+
+When an install leaves the machine needing a
+reboot, the installer now says so and reboots on
+Enter. Anything other than Enter leaves the
+machine alone.
+
+------------------------------------------------
 Version 1.5.6 (14/10/2026)
 ------------------------------------------------
 ArtLight 1.5.6 adds Fedora support and fixes the display

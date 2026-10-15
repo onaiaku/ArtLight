@@ -3,7 +3,7 @@
 ; WinUI 3 (Windows App SDK 2.4) unpackaged deployment
 ; =====================================================
 #define MyAppName "ArtLight Control"
-#define MyAppVersion "1.5.6"
+#define MyAppVersion "1.5.7"
 #define MyAppPublisher "onaiaku"
 #define MyAppExeName "ArtLightControl.exe"
 #define MyAppURL "https://github.com/onaiaku/ArtLight"
