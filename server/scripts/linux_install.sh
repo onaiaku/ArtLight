@@ -898,6 +898,34 @@ check_services() {
   fi
 }
 
+# Where the host keeps its state (sunshine_state.json) and its paired clients
+# (credentials/). Read from the unit, so moving StateDirectory later cannot
+# silently bring back the "create the Web UI login" advice for upgraders.
+artlight_state_dir() {
+  local dir=
+  if command -v systemctl >/dev/null 2>&1; then
+    dir=$(systemctl show artlight -p StateDirectory --value 2>/dev/null || true)
+  fi
+  [[ -n "$dir" ]] || dir=artlight
+  [[ "$dir" == /* ]] || dir="/var/lib/${dir}"
+  printf '%s\n' "$dir"
+}
+
+# The Web UI login lives in the host's state file; a state file with no username
+# is what a machine that has never been configured looks like. http_auth.cpp
+# stores the credentials in sunshine_state.json.
+web_ui_login_configured() {
+  local state_file=$1
+  [[ -s "$state_file" ]] || return 1
+  grep -qE '"username"[[:space:]]*:[[:space:]]*"[^"]' -- "$state_file" 2>/dev/null
+}
+
+artmoon_paired() {
+  local credentials_dir=$1
+  [[ -d "$credentials_dir" ]] || return 1
+  [[ -n "$(command ls -A -- "$credentials_dir" 2>/dev/null)" ]]
+}
+
 print_summary() {
   printf '\n'
   log 'ArtLight is installed. Next steps:'
@@ -906,8 +934,23 @@ print_summary() {
     printf '    %d. Reboot now. The display/session integration, virtual-display driver, Secure Boot key, or service state requires it.\n' "$step"
     step=$((step + 1))
   fi
-  printf '    %d. Open https://localhost:47990 on this machine, create the Web UI login, then pair ArtMoon with the PIN.\n' "$step"; step=$((step + 1))
-  printf '       Pairing works at the login screen; enter the PIN in the Web UI from another device.\n'
+  # An upgrade keeps the Web UI login and the paired clients; do not send someone
+  # who already has both through setup again.
+  local state_dir state_file
+  state_dir=$(artlight_state_dir)
+  state_file="${state_dir}/sunshine_state.json"
+  if web_ui_login_configured "$state_file"; then
+    if artmoon_paired "${state_dir}/credentials"; then
+      printf '    %d. Open https://localhost:47990 on this machine and sign in with the Web UI login you already have.\n' "$step"; step=$((step + 1))
+      printf '       ArtMoon is already paired; pair another device with a PIN from the Web UI when you need one.\n'
+    else
+      printf '    %d. Open https://localhost:47990 on this machine and sign in with the Web UI login you already have, then pair ArtMoon with the PIN.\n' "$step"; step=$((step + 1))
+      printf '       Pairing works at the login screen; enter the PIN in the Web UI from another device.\n'
+    fi
+  else
+    printf '    %d. Open https://localhost:47990 on this machine, create the Web UI login, then pair ArtMoon with the PIN.\n' "$step"; step=$((step + 1))
+    printf '       Pairing works at the login screen; enter the PIN in the Web UI from another device.\n'
+  fi
   printf '    %d. Log in to your KDE Plasma (Wayland) desktop to stream the desktop.\n' "$step"; step=$((step + 1))
   printf '    %d. Log out and back in once (or restart PipeWire) so the audio quantum drop-in takes effect.\n' "$step"; step=$((step + 1))
   printf '\n    Status:  sudo systemctl status artlight-session-controller.service artlight.service\n'

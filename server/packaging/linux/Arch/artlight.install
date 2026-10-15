@@ -916,18 +916,62 @@ do_install_vibeshine_ds5() {
   esac
 }
 
+# Where the host keeps its state (sunshine_state.json) and its paired clients
+# (credentials/). Mirrors the same helpers in scripts/linux_install.sh, which is
+# the live copy: this one only runs when the package itself changes.
+artlight_state_dir() {
+  local dir=
+  if command -v systemctl >/dev/null 2>&1; then
+    dir=$(systemctl show artlight -p StateDirectory --value 2>/dev/null || true)
+  fi
+  [[ -n "$dir" ]] || dir=artlight
+  [[ "$dir" == /* ]] || dir="/var/lib/${dir}"
+  printf '%s\n' "$dir"
+}
+
+# http_auth.cpp stores the Web UI credentials in sunshine_state.json; a state
+# file with no username is what an unconfigured host looks like.
+artlight_web_ui_login_configured() {
+  local state_file=${1:-}
+  [[ -n "$state_file" && -s "$state_file" ]] || return 1
+  grep -qE '"username"[[:space:]]*:[[:space:]]*"[^"]' -- "$state_file" 2>/dev/null
+}
+
+artlight_clients_paired() {
+  local credentials_dir=${1:-}
+  [[ -n "$credentials_dir" && -d "$credentials_dir" ]] || return 1
+  [[ -n "$(ls -A -- "$credentials_dir" 2>/dev/null)" ]]
+}
+
+# Called on install and on upgrade, so it must not tell someone who already has
+# a Web UI login and paired clients to set them up again, and it must only ask
+# for a reboot when the package was not already installed.
 do_print_next_steps() {
-  cat <<'NEXT_STEPS'
-==> ArtLight next steps
-    1. On first installation, reboot so the login screen and desktop load the new display/session integration.
-    2. Open https://localhost:47990 on this machine, create the Web UI login, then pair Moonlight.
-       Pairing works at the login screen; enter the PIN in the Web UI from another device.
-    3. Log in to a KDE Plasma (Wayland) desktop as the configured user to stream the desktop.
-    4. If a firewall is enabled, allow the ArtLight ports:
-         firewalld:  sudo firewall-cmd --permanent --add-service=artlight && sudo firewall-cmd --reload
-         ufw:        sudo ufw allow ArtLight
-    Status: sudo systemctl status artlight-session-controller.service artlight.service
-NEXT_STEPS
+  local first_install=${1:-}
+  local state_dir state_file step=1
+  state_dir=$(artlight_state_dir)
+  state_file="${state_dir}/sunshine_state.json"
+  printf '%s\n' '==> ArtLight next steps'
+  if [[ "$first_install" == first_install ]]; then
+    printf '    %d. Reboot so the login screen and desktop load the new display/session integration.\n' "$step"; step=$((step + 1))
+  fi
+  if artlight_web_ui_login_configured "$state_file"; then
+    if artlight_clients_paired "${state_dir}/credentials"; then
+      printf '    %d. Open https://localhost:47990 on this machine and sign in with the Web UI login you already have.\n' "$step"; step=$((step + 1))
+      printf '       Your paired clients are unchanged; pair another device with a PIN from the Web UI when you need one.\n'
+    else
+      printf '    %d. Open https://localhost:47990 on this machine and sign in with the Web UI login you already have, then pair ArtMoon with the PIN.\n' "$step"; step=$((step + 1))
+      printf '       Pairing works at the login screen; enter the PIN in the Web UI from another device.\n'
+    fi
+  else
+    printf '    %d. Open https://localhost:47990 on this machine, create the Web UI login, then pair ArtMoon with the PIN.\n' "$step"; step=$((step + 1))
+    printf '       Pairing works at the login screen; enter the PIN in the Web UI from another device.\n'
+  fi
+  printf '    %d. Log in to a KDE Plasma (Wayland) desktop as the configured user to stream the desktop.\n' "$step"; step=$((step + 1))
+  printf '    %d. If a firewall is enabled, allow the ArtLight ports:\n' "$step"; step=$((step + 1))
+  printf '         firewalld:  sudo firewall-cmd --permanent --add-service=artlight && sudo firewall-cmd --reload\n'
+  printf '         ufw:        sudo ufw allow ArtLight\n'
+  printf '    Status: sudo systemctl status artlight-session-controller.service artlight.service\n'
 }
 
 do_restore_kwin_capability() {
@@ -1083,7 +1127,7 @@ post_install() {
   do_install_vibeshine_drm
   do_install_vibeshine_ds5
   do_install_prelogin || true
-  do_print_next_steps
+  do_print_next_steps first_install
 }
 
 post_upgrade() {
@@ -1095,7 +1139,7 @@ post_upgrade() {
   do_install_vibeshine_drm
   do_install_vibeshine_ds5
   do_install_prelogin || true
-  do_print_next_steps
+  do_print_next_steps upgrade
 }
 
 pre_remove() {
