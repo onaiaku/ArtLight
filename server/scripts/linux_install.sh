@@ -11,7 +11,8 @@
 #      from the newest GitHub release when the repository is unavailable
 #      (on Fedora: from a local RPM given with --package, or a release RPM),
 #   4. opens the firewall (firewalld or ufw) when one is active, and
-#   5. prints whether a reboot is required and what to do next.
+#   5. offers to reboot when one is required, and says what to do next (skip
+#      the offer with --no-reboot).
 #
 # Usage:
 #   sudo bash linux_install.sh [options]
@@ -24,6 +25,7 @@
 #   --no-repo             Skip the signed pacman repository and use GitHub releases.
 #   --skip-checks         Continue past failed requirement checks (not recommended).
 #   --yes                 Answer yes to pacman or dnf prompts.
+#   --no-reboot           Never offer to reboot at the end of the install.
 #   -h, --help            Show this help.
 #
 # Re-running the script is safe; it only installs what is missing.
@@ -44,6 +46,11 @@ readonly INPUT_SERVICE='/usr/libexec/vibeshine/artlight-input-service'
 readonly INPUT_SOCKET_UNIT='/usr/lib/systemd/system/artlight-input-service.socket'
 readonly DS5_INSTALL='/usr/libexec/vibeshine/vibeshine-ds5-install'
 readonly MACHINE_HOST='/usr/libexec/vibeshine/artlight-machine-host'
+# The key the virtual-display module is signed with. Nothing in the project ever
+# imported it into firmware, which is why a signed module could still taint the
+# kernel: a signature only clears the taint once the key is in the MOK list.
+readonly MOK_SIGNING_KEY='/var/lib/dkms/mok.key'
+readonly MOK_CERTIFICATE='/var/lib/dkms/mok.pub'
 
 requested_version=''
 local_package=''
@@ -56,6 +63,7 @@ dnf_confirm=()
 # require_package_manager; the Arch path keeps its exact pacman commands.
 pkg_mgr=pacman
 replacement_confirm=()
+no_reboot=0
 driver_overwrite=()
 check_failures=0
 warnings=()
@@ -95,6 +103,7 @@ parse_args() {
       --no-repo) use_repo=0; shift ;;
       --skip-checks) skip_checks=1; shift ;;
       --yes) pacman_confirm=(--noconfirm); replacement_confirm=(--noconfirm --ask=4); dnf_confirm=(-y); shift ;;
+      --no-reboot) no_reboot=1; shift ;;
       -h | --help) usage; exit 0 ;;
       *) die "unknown option: $1 (see --help)" ;;
     esac
@@ -386,6 +395,34 @@ EOF
   fi
 }
 
+refresh_repo_database() {
+  # Fetch ONLY the [artlight] database. pacman knows nothing about a repository
+  # until something refreshes its database, so on a first install the check below
+  # used to fail every time, the repo install path never ran, and the repository
+  # was left configured but empty - looking installed while updating nothing.
+  #
+  # A system-wide `pacman -Sy` followed by an install is the partial-upgrade
+  # hazard Arch warns about, and this script never upgrades the host. Pointing
+  # pacman at a config that names our repository alone drops artlight.db into the
+  # sync directory and leaves every other database exactly as it was.
+  [[ -n "$workdir" ]] || return 1
+  local scoped="${workdir}/artlight-sync.conf"
+  install -Dm600 /dev/stdin "$scoped" <<EOF
+[options]
+Architecture = auto
+Include = ${PACMAN_REPO_CONF}
+EOF
+  # The fragment carries SigLevel = Required, so the fetched database is verified.
+  if ! pacman -Sy --noconfirm --config "$scoped" >/dev/null 2>&1; then
+    rm -f -- "$scoped"
+    warn "Could not refresh the [${PACMAN_REPO_NAME}] package database."
+    return 1
+  fi
+  rm -f -- "$scoped"
+  ok "Refreshed the [${PACMAN_REPO_NAME}] package database on its own; no other repository was touched."
+  return 0
+}
+
 stage_upgrade_guard() {
   local candidate=$1 library="$workdir/arch-package-hooks" preflight="$workdir/preflight"
   local hook_dir="$workdir/hooks"
@@ -419,7 +456,12 @@ EOF
 install_from_repo() {
   configure_pacman_repo
   if ! pacman -Si artlight >/dev/null 2>&1; then
-    warn 'ArtLight repository metadata is unavailable locally; using a release package without refreshing system databases.'
+    # Expected on a first install rather than an outage: pacman cannot describe a
+    # repository whose database has never been fetched. Refresh ours, ours only.
+    refresh_repo_database || true
+  fi
+  if ! pacman -Si artlight >/dev/null 2>&1; then
+    warn 'The ArtLight repository does not offer a package yet; using a signed release package without refreshing system databases.'
     download_release_package
     install_from_package
     return
@@ -651,6 +693,63 @@ open_firewall() {
 
 reboot_required=0
 
+ensure_secure_boot_key() {
+  # Signing the module is only half of it. A signature clears the kernel taint
+  # only when the key is in the firmware's MOK list, and nothing in this project
+  # ever imported it - so a machine with Secure Boot on signed every module with
+  # a key it was never going to trust, and tainted on every boot. It also has to
+  # happen HERE, before the driver installers run, because they sign with it.
+  #
+  # The key paths are parameters so the installer test can drive this against a
+  # fixture; the real ones live under root-owned /var/lib/dkms.
+  local signing_key=${1:-$MOK_SIGNING_KEY} certificate=${2:-$MOK_CERTIFICATE}
+  command -v mokutil >/dev/null 2>&1 || return 0
+  if ! LC_ALL=C mokutil --sb-state 2>/dev/null | grep -q 'SecureBoot enabled'; then
+    return 0
+  fi
+
+  if [[ ! -f "$signing_key" || ! -f "$certificate" ]]; then
+    if ! command -v openssl >/dev/null 2>&1; then
+      warn 'Secure Boot is enabled but openssl is missing, so no module signing key could be created. Install openssl and reinstall ArtLight.'
+      return 0
+    fi
+    log 'Creating the ArtLight module signing key'
+    install -d -m 700 -- "$(dirname -- "$signing_key")" || return 0
+    if ! openssl req -new -x509 -newkey rsa:2048 -nodes -days 3650 \
+      -keyout "$signing_key" -out "$certificate" \
+      -subj '/CN=ArtLight module signing/' >/dev/null 2>&1; then
+      warn "Could not create the module signing key at ${signing_key}; the driver will install unsigned."
+      return 0
+    fi
+    chmod 600 -- "$signing_key"
+    chmod 644 -- "$certificate"
+    ok 'Created the ArtLight module signing key.'
+  fi
+
+  if mokutil --test-key "$certificate" >/dev/null 2>&1; then
+    ok 'The ArtLight module signing key is already enrolled in firmware.'
+    return 0
+  fi
+
+  # Either way a reboot is now required: the key is pending, or it was already
+  # queued by something else and is waiting for the same MOK Manager screen.
+  reboot_required=1
+  if LC_ALL=C mokutil --list-new 2>/dev/null | grep -q 'Subject'; then
+    warn 'A Secure Boot key enrollment is already queued. Reboot, choose "Enroll MOK" in the blue MOK Manager screen, and confirm once.'
+    return 0
+  fi
+
+  # --root-pw uses the root password as the one-time MOK password, so this works
+  # in a non-interactive install. It is answering a prompt that would otherwise
+  # appear at the next boot; it does not weaken Secure Boot.
+  if mokutil --import "$certificate" --root-pw >/dev/null 2>&1; then
+    ok 'Queued the ArtLight signing key for Secure Boot enrollment.'
+    warn 'Approve the pending Secure Boot key at the next reboot: choose "Enroll MOK" in the blue MOK Manager screen and enter your root password once.'
+  else
+    warn "Could not queue the signing key for enrollment. Import it by hand: sudo mokutil --import ${certificate} --root-pw"
+  fi
+}
+
 install_virtual_driver() {
   local helper=${1:-$DRM_INSTALL} result=0 installed
   [[ -x "$helper" ]] || die "the package is missing the virtual-display installer: $helper"
@@ -791,12 +890,47 @@ print_summary() {
   fi
 }
 
+prompt_is_interactive() {
+  # Kept as a function so the installer test can drive the prompt without a tty.
+  [[ -t 0 ]]
+}
+
+offer_reboot() {
+  ((reboot_required)) || return 0
+  if ((no_reboot)); then
+    printf '    Reboot skipped (--no-reboot). When you are ready: sudo systemctl reboot\n'
+    return 0
+  fi
+  # Only ever prompt on a real terminal. This script is driven by the installer
+  # tests and by piped runs, and a read that hit end-of-file under `set -e` would
+  # abort at the last step of an install that had already succeeded.
+  prompt_is_interactive || return 0
+
+  printf '\n'
+  printf '    Reboot required. Press Enter to reboot now, or Ctrl-C to stay. '
+  local reply=''
+  if ! IFS= read -r reply; then
+    printf '\n'
+    warn 'No answer was read, so nothing was rebooted. When you are ready: sudo systemctl reboot'
+    return 0
+  fi
+  if [[ -n "$reply" ]]; then
+    printf '    Not rebooting. When you are ready: sudo systemctl reboot\n'
+    return 0
+  fi
+  log 'Rebooting now'
+  systemctl reboot
+}
+
 main() {
   parse_args "$@"
   require_root
   require_package_manager
   run_checks
   install_kernel_headers
+  # Before the drivers: they sign the kernel module with this key, and a key that
+  # does not exist yet cannot sign anything.
+  ensure_secure_boot_key
   check_session_restart
   install_artlight
   install_virtual_driver
@@ -806,6 +940,7 @@ main() {
   check_usb_device_sharing
   check_services
   print_summary
+  offer_reboot
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then

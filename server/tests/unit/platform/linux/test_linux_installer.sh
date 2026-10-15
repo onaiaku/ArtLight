@@ -685,3 +685,150 @@ printf 'Package-manager selection prefers pacman, requires rpm beside dnf, and f
   if grep -q 'fixture/rpm' "$dnf_calls"; then exit 1; fi
   printf 'Release lookup on Arch still selects the Arch package.\n'
 )
+
+# A first install has no [artlight] database, so pacman cannot describe the
+# repository at all and the repo path never ran. Fetch ours, and only ours: a
+# system-wide refresh followed by an install is the partial upgrade Arch warns
+# about, and this script never upgrades the host.
+(
+  scoped_root="$workdir/scoped"
+  mkdir -p "$scoped_root"
+  workdir="$scoped_root"
+  refresh_calls="$scoped_root/calls"
+  captured_conf="$scoped_root/captured.conf"
+  : > "$refresh_calls"
+  refresh_rc=0
+  pacman() {
+    printf '%s\n' "$*" >> "$refresh_calls"
+    local previous='' argument
+    for argument in "$@"; do
+      if [[ $previous == --config ]]; then command cp -- "$argument" "$captured_conf"; fi
+      previous=$argument
+    done
+    return "$refresh_rc"
+  }
+  refresh_repo_database
+  [[ $(grep -c -- '-Sy' "$refresh_calls") == 1 ]]
+  grep -Fxq 'Include = /etc/pacman.d/artlight.conf' "$captured_conf"
+  # The safety property: the scoped config names our repository and no other, so
+  # no official database is fetched and a partial upgrade cannot happen.
+  if grep -qE 'mirrorlist|\[core\]|\[extra\]|\[multilib\]' "$captured_conf"; then exit 1; fi
+  refresh_rc=1
+  if (refresh_repo_database); then exit 1; fi
+  [[ $(grep -c -- '-Sy' "$refresh_calls") == 2 ]]
+  printf 'Repository refresh fetches the ArtLight database alone, and a failed refresh is reported rather than fatal.\n'
+)
+
+# Signing the module is only half of it. A key that is never imported into
+# firmware cannot clear the kernel taint, which is what the blue MOK screen is
+# for - and nothing in this project ever imported it.
+(
+  mok_root="$workdir/mok"
+  mkdir -p "$mok_root"
+  mok_calls="$mok_root/calls"
+  signing_key="$mok_root/mok.key"
+  certificate="$mok_root/mok.pub"
+  sb_state='SecureBoot enabled'
+  mokutil() {
+    printf '%s\n' "$*" >> "$mok_calls"
+    case "$1" in
+      --sb-state)
+        printf '%s\n' "$sb_state"
+        ;;
+      --test-key)
+        return "${key_enrolled:-1}"
+        ;;
+      --list-new)
+        if [[ -n "${pending_new:-}" ]]; then printf '%s\n' "$pending_new"; fi
+        ;;
+      --import)
+        return "${import_rc:-0}"
+        ;;
+    esac
+    return 0
+  }
+  imported() { grep -q -- '--import' "$mok_calls"; }
+
+  # Secure Boot off: no key made, nothing queued.
+  : > "$mok_calls"
+  sb_state='SecureBoot disabled'
+  ensure_secure_boot_key "$signing_key" "$certificate"
+  if imported; then exit 1; fi
+  [[ ! -f "$signing_key" ]]
+
+  # Secure Boot on with no key: create it and queue it, and require the reboot.
+  : > "$mok_calls"
+  sb_state='SecureBoot enabled'
+  reboot_required=0
+  ensure_secure_boot_key "$signing_key" "$certificate"
+  [[ -f "$signing_key" && -f "$certificate" ]]
+  grep -q -- "--import $certificate --root-pw" "$mok_calls"
+  [[ $reboot_required == 1 ]]
+
+  # Already in firmware: never queue the same key twice.
+  : > "$mok_calls"
+  key_enrolled=0
+  ensure_secure_boot_key "$signing_key" "$certificate"
+  if imported; then exit 1; fi
+
+  # Someone else already queued it: say so, do not queue again, still reboot.
+  : > "$mok_calls"
+  unset key_enrolled
+  pending_new='Subject: CN=ArtLight module signing/'
+  reboot_required=0
+  ensure_secure_boot_key "$signing_key" "$certificate"
+  if imported; then exit 1; fi
+  [[ $reboot_required == 1 ]]
+
+  # A refused import is reported with the manual command, and is never fatal.
+  : > "$mok_calls"
+  unset pending_new
+  import_rc=1
+  reboot_required=0
+  ensure_secure_boot_key "$signing_key" "$certificate"
+  [[ $reboot_required == 1 ]]
+  printf 'Module signing key is created before the drivers sign, and queued for Secure Boot enrollment.\n'
+)
+
+# The install ends by offering the reboot it just asked for, instead of printing
+# a step and leaving the user sitting there. It must never fire on a piped run:
+# a read that hit end-of-file under `set -e` would abort a finished install.
+(
+  reboot_calls="$workdir/reboot-calls"
+  systemctl() { printf '%s\n' "$*" >> "$reboot_calls"; }
+  rebooted() { grep -Fxq 'reboot' "$reboot_calls"; }
+
+  # Nothing required: silent.
+  : > "$reboot_calls"
+  reboot_required=0; no_reboot=0
+  offer_reboot
+  if rebooted; then exit 1; fi
+
+  # Required but no terminal: silent, and must exit 0 rather than abort.
+  reboot_required=1
+  prompt_is_interactive() { return 1; }
+  offer_reboot
+  if rebooted; then exit 1; fi
+
+  # Terminal, Enter: reboots.
+  prompt_is_interactive() { return 0; }
+  printf '\n' | offer_reboot
+  if ! rebooted; then exit 1; fi
+
+  # Terminal, anything typed: does not reboot.
+  : > "$reboot_calls"
+  printf 'no\n' | offer_reboot
+  if rebooted; then exit 1; fi
+
+  # Terminal, end-of-file: does not reboot, and does not abort the install.
+  : > "$reboot_calls"
+  offer_reboot < /dev/null
+  if rebooted; then exit 1; fi
+
+  # --no-reboot wins even on a terminal.
+  : > "$reboot_calls"
+  no_reboot=1
+  printf '\n' | offer_reboot
+  if rebooted; then exit 1; fi
+  printf 'Reboot is offered only on a terminal, only on Enter, and never on a piped run.\n'
+)
