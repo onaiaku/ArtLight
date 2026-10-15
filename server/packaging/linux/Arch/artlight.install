@@ -792,6 +792,22 @@ do_quiesce_machine_host() {
     vq artlight_unit_is_quiescent artlight-session-controller.service || return 1
     artlight_stop_exact_unit artlight-prelogin.service
     artlight_stop_exact_unit artlight-machine-prepare.service
+
+    # Release the private-display pool and unload our DRM module while the
+    # machine is still up. The shutdown path deliberately preserves a live pool
+    # across the reboot to dodge the systemd-shutdown wedge; a pool carried
+    # across a module change is what leaves the GPU unusable on the next boot's
+    # probe. Every ArtLight unit is stopped and masked above, so nothing can
+    # take the card back here. Best effort and bounded: if the pool will not
+    # release (a stream is still connected) keep the previous behaviour and let
+    # the module mismatch warning stand. This step must never block the package.
+    if lsmod 2>/dev/null | grep -q '^vibeshine_drm[[:space:]]'; then
+      timeout --signal=KILL 20 systemctl stop vibeshine-vkms.service 2>/dev/null || true
+      timeout --signal=KILL 20 modprobe -r vibeshine_drm 2>/dev/null || true
+      if lsmod 2>/dev/null | grep -q '^vibeshine_drm[[:space:]]'; then
+        echo 'note: the private-display module is still loaded; the next boot will load the new one.' >&2
+      fi
+    fi
   fi
 
   ((have_systemd)) || artlight_disable_legacy_handoff || return 1

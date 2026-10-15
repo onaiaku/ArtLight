@@ -1132,4 +1132,23 @@ for lifecycle in (arch_install, postinst):
 require(special_packaging, 'SUNSHINE_SERVICE_READINESS_COMMAND "ExecStartPre=/bin/sleep 5"', "ordinary user service")
 forbid(special_packaging, "artlight-session-ready", "ordinary user service")
 
+# An upgrade must not carry a live private-display pool across the reboot. The
+# next boot's NVIDIA probe runs before any of our units, so a pool preserved
+# across a module change takes the GPU down with no chance to recover. The
+# release has to happen while the machine is still up, and only once every
+# ArtLight unit is already stopped and masked.
+for lifecycle_label, lifecycle_path in (
+    ("Arch scriptlet", linux / "Arch" / "artlight.install"),
+    ("Debian preinst", linux / "vibeshine-preinst.in"),
+):
+    lifecycle_text = lifecycle_path.read_text()
+    require(lifecycle_text, "Release the private-display pool",
+            f"{lifecycle_label}: private-display release before replacement")
+    require(lifecycle_text, "modprobe -r vibeshine_drm",
+            f"{lifecycle_label}: private-display release before replacement")
+    require(lifecycle_text,
+            "artlight_stop_exact_unit artlight-machine-prepare.service\n\n"
+            "    # Release the private-display pool",
+            f"{lifecycle_label}: release runs only after ArtLight is down")
+
 print("PASS: least-privilege Linux machine-session controller contract")
