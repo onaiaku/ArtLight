@@ -62,6 +62,10 @@ jobs:
           sudo apt-get install -y -qq libarchive-tools
           command -v bsdtar
           sudo bash server/tests/unit/platform/linux/test_linux_installer.sh
+          # Text-level contract over the packaged scriptlets: cheap, needs no
+          # root, and the only thing that keeps the Arch scriptlet and the
+          # Debian preinst from drifting apart on the install path.
+          python3 server/tests/unit/platform/linux/test_machine_service_contract.py server
 
       - name: Resolve release candidate
         id: release-candidate
