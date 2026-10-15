@@ -23,6 +23,16 @@ stat() {
   # Our fixture's /tmp ancestor is intentionally the only mocked metadata.
   if [[ "${!#}" == /tmp ]]; then printf '%s 755\n' "$EUID"; else command stat "$@"; fi
 }
+# Regression: pacman's download user must be able to write the private cache, or
+# the signed-repository download fails with "Permission denied" on the .part file.
+pacman_conf_download_user() { printf 'nobody'; }
+chown() { printf '%s\n' "$*" >> "$workdir/chown-calls"; }
+prepare_private_cache
+[[ $(command stat -c '%a' "$workdir") == 711 ]] ||
+  { echo 'private cache: workdir is not traversable by the download user' >&2; exit 1; }
+grep -q -- "nobody $workdir/cache" "$workdir/chown-calls" ||
+  { echo 'private cache: cache was not handed to the download user' >&2; exit 1; }
+
 package_name=artlight
 directory_owner=artlight
 ownership_error=0

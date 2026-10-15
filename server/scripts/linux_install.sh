@@ -453,6 +453,38 @@ EOF
   chmod 0600 "$hook_dir/00-artlight-quiesce.hook" || die 'could not protect the transaction hook'
 }
 
+# The user pacman switches to for downloading files, if any. Empty means downloads
+# run as the invoking user (root here), which can write a root-only cache.
+pacman_conf_download_user() {
+  command -v pacman-conf >/dev/null 2>&1 || return 0
+  local user
+  user=$(pacman-conf DownloadUser 2>/dev/null) || return 0
+  user=${user%%[[:space:]]*}
+  [[ -n "$user" ]] || return 0
+  printf '%s' "$user"
+}
+
+# Stage the private cache the signed repository package is downloaded into.
+#
+# pacman 7 downloads as an unprivileged user when `DownloadUser` is set (`alpm` on
+# Arch and CachyOS), and pacman(8) states the requirement for a custom cache:
+# "If DownloadUser is set in pacman.conf(5), then the specified user must have
+# permission to access the cache directory." A root-only cache is not writable by
+# that user, and the download dies with "Permission denied" on the .part file -
+# after the repository database has already been refreshed, so it looks like a
+# repository fault. Hand the cache to the download user and let it traverse the
+# workdir: the cache stays private to the installer and the downloader, and the
+# identity check below still proves the staged bytes are ArtLight's.
+prepare_private_cache() {
+  mkdir -p -m 700 -- "$workdir/cache" || return 1
+  local download_user
+  download_user=$(pacman_conf_download_user) || return 1
+  if [[ -n "$download_user" && "$download_user" != root ]]; then
+    chmod 0711 -- "$workdir" || return 1
+    chown -- "$download_user" "$workdir/cache" || return 1
+  fi
+}
+
 install_from_repo() {
   configure_pacman_repo
   if ! pacman -Si artlight >/dev/null 2>&1; then
@@ -474,7 +506,7 @@ install_from_repo() {
   else
     repo_target=(artlight)
   fi
-  mkdir -p -m 700 -- "$workdir/cache" || die 'could not stage the signed repository package'
+  prepare_private_cache || die 'could not stage the signed repository package'
   # Download and verify the exact signed candidate before executing its hook
   # under the package manager's transaction lock.
   pacman -Sw "${replacement_confirm[@]}" --cachedir "$workdir/cache" "${repo_target[@]}"

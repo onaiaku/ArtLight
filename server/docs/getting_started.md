@@ -20,10 +20,11 @@ Binaries can be found in the [latest release][latest-release].
 
 ### Linux
 
-Linux support is in **beta** and ships as a native package for **Arch Linux and CachyOS** (x86_64).
+Linux support is in **beta** and ships as a native package for **Arch Linux and CachyOS** (x86_64), and
+for **Fedora 43 and 44** (x86_64) from [COPR](https://copr.fedorainfracloud.org/coprs/onaiaku/artlight/).
 ArtLight is developed and tested on **CachyOS with KDE Plasma 6 on Wayland**; other Arch-based
-distributions are supported on a best-effort basis. AppImage, Flatpak, Debian/Ubuntu,
-Fedora/openSUSE, Homebrew, and Docker builds are not produced for this beta.
+distributions are supported on a best-effort basis. AppImage, Flatpak, Debian/Ubuntu, openSUSE,
+Homebrew, and Docker builds are not produced for this beta.
 
 The complete guide, including manual installation, verification, troubleshooting, and the file
 layout, is [docs/linux/install.md](linux/install.md).
@@ -90,6 +91,22 @@ sudo journalctl -u artlight-session-controller.service -u artlight.service -b
 sudo pacman -R artlight
 ```
 
+#### Fedora 43 and 44
+
+Packages are built on [COPR](https://copr.fedorainfracloud.org/coprs/onaiaku/artlight/) and serve as our own dnf
+repository. The requirements are the same as above, with RPM Fusion for hardware encoding and the
+headers for your running kernel:
+
+```bash
+sudo dnf install kernel-devel-$(uname -r)
+sudo dnf copr enable onaiaku/artlight
+sudo dnf install artlight
+```
+
+On a machine with Secure Boot enabled, use the [Linux install guide](linux/install.md#fedora)'s
+script route instead — the script creates the module signing key and queues the one-time MOK
+enrollment. Uninstall with `sudo dnf remove artlight`.
+
 ### Windows
 
 > [!NOTE]
@@ -120,7 +137,7 @@ After installation, some initial setup is required.
 
 #### Services
 
-The Arch/CachyOS package installs ArtLight as machine-wide system services.
+The Arch/CachyOS and Fedora packages install ArtLight as machine-wide system services.
 The session controller is enabled during installation and starts the streaming host whenever the
 configured user's KDE Plasma Wayland session is active:
 

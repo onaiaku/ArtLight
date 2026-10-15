@@ -47,7 +47,7 @@ Both are designed to be set up once and forgotten: install, pair your client, pl
 - **Game library sync** — Playnite integration so your library is stream-ready
 - **Web UI** — configure the server from a browser, phone included. The v2 interface is now the default, with a changelog panel so you can see what changed without leaving the dashboard
 - **Works with Moonlight clients** — including our own [ArtMoon](https://github.com/onaiaku/ArtMoon)
-- **Runs on Linux too** — Arch Linux and CachyOS are supported, with the virtual display driver built as a kernel module for the kernel you are running
+- **Runs on Linux too** — Arch Linux and CachyOS are supported, with the virtual display driver built as a kernel module for the kernel you are running. Fedora 43 and 44 install from [COPR](https://copr.fedorainfracloud.org/coprs/onaiaku/artlight/)
 
 ## Requirements
 
@@ -60,6 +60,7 @@ Both are designed to be set up once and forgotten: install, pair your client, pl
 **Linux (beta)**
 
 - Arch Linux or CachyOS, x86_64
+- Fedora 43 or 44, x86_64 (from [COPR](https://copr.fedorainfracloud.org/coprs/onaiaku/artlight/))
 - KDE Plasma 6 on **Wayland**, started by SDDM or Plasma Login Manager
 - Linux 6.16 or newer, plus the headers for the kernel you boot
 - A GPU with a hardware H.264 encoder. Pre-login streaming is NVIDIA only
@@ -83,6 +84,18 @@ sudo bash linux_install.sh
 It checks the requirements, installs the headers your running kernel needs, installs the package, opens the firewall if one is active, and tells you whether a reboot is needed. Re-running it is safe.
 
 To read the script before running it, use `less linux_install.sh` — press `q` to exit, then run the `sudo` line. Run those two separately: `less` holds the terminal until you quit.
+
+**Fedora 43 and 44** install from COPR instead:
+
+```bash
+sudo dnf install kernel-devel-$(uname -r)
+sudo dnf copr enable onaiaku/artlight
+sudo dnf install artlight
+```
+
+On a machine with Secure Boot enabled, use the script above with `--package` and the RPM from the
+[releases page](https://github.com/onaiaku/ArtLight/releases) — it creates the module signing key
+and queues the one-time MOK enrollment.
 
 Manual installation, verification and troubleshooting are in the [**Linux install guide**](server/docs/linux/install.md).
 
