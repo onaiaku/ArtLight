@@ -36,6 +36,7 @@
   #include "display_helper_integration.h"
   #include "src/globals.h"
   #include "src/logging.h"
+  #include "src/platform/windows/display_diagnostics.h"
   #include "src/platform/windows/display_helper_coordinator.h"
   #include "src/platform/windows/display_helper_request_helpers.h"
   #include "src/platform/windows/frame_limiter_nvcp.h"
@@ -534,18 +535,24 @@ namespace {
         const bool already_matches = ctx->display->isTopologyTheSame(current_topology, topology.topology);
         if (!already_matches) {
           BOOST_LOG(info) << "Display helper: applying requested topology (" << label << ").";
+          display_diagnostics::breadcrumb(std::string {"setTopology before apply ("} + label + "); requested nodes=" + std::to_string(topology.topology.size()));
           topology_ok = ctx->display->setTopology(topology.topology);
           if (!topology_ok) {
             BOOST_LOG(warning) << "Display helper: requested topology apply failed (" << label << ").";
+            display_diagnostics::snapshot(
+              "topology-apply-failed", label, &topology.topology, &topology.monitor_positions,
+              "setTopology returned false; the OS rejected the composed topology");
           }
         } else {
           BOOST_LOG(debug) << "Display helper: requested topology already active (" << label << ").";
         }
       } catch (const std::exception &ex) {
         BOOST_LOG(warning) << "Display helper: topology inspection failed (" << label << "): " << ex.what();
+        display_diagnostics::snapshot("topology-apply-threw", label, &topology.topology, &topology.monitor_positions, ex.what());
         topology_ok = false;
       } catch (...) {
         BOOST_LOG(warning) << "Display helper: topology inspection failed (" << label << ") with an unknown error.";
+        display_diagnostics::snapshot("topology-apply-threw", label, &topology.topology, &topology.monitor_positions, "unknown exception");
         topology_ok = false;
       }
     }
