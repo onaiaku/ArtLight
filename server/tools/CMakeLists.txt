@@ -74,6 +74,8 @@ target_compile_definitions(playnite-launcher PRIVATE SUNSHINE_PLAYNITE_LAUNCHER)
 target_link_libraries(playnite-launcher
         ${Boost_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT}
+        # Interface-only: the include dirs for display_device/types.h, which display_diagnostics.h uses.
+        libdisplaydevice::display_device
         nlohmann_json::nlohmann_json
         user32
         userenv
@@ -103,6 +105,7 @@ target_compile_definitions(sunshine_wgc_capture PRIVATE
 target_link_libraries(sunshine_wgc_capture
         ${Boost_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT}
+        libdisplaydevice::display_device
         nlohmann_json::nlohmann_json
         d3d11
         dxgi
