@@ -1,7 +1,6 @@
 #include "src/platform/windows/display_helper_v2/win_display_settings.h"
 
 #include "src/logging.h"
-#include "src/platform/windows/display_diagnostics.h"
 #include "src/platform/windows/display_helper_v2/snapshot_codec.h"
 #include "src/platform/windows/display_helper_v2/topology_policy.h"
 
@@ -694,9 +693,6 @@ namespace display_helper::v2 {
     }
     if (result != ERROR_SUCCESS) {
       BOOST_LOG(warning) << "Display helper v2: topology validation failed: " << result;
-      display_diagnostics::snapshot(
-        "topology-validation-failed", "v2-validate", &topology, nullptr,
-        "SetDisplayConfig(SDC_VALIDATE) returned " + std::to_string(result) + " with flags=" + std::to_string(flags));
       return ApplyStatus::InvalidRequest;
     }
     return ApplyStatus::Ok;

@@ -42,7 +42,6 @@
 // local includes
 #include "misc_utils.h"
 #include "pipes.h"
-#include "src/platform/windows/display_diagnostics.h"
 #include "src/utility.h"
 
 namespace platf::dxgi {
@@ -1082,9 +1081,6 @@ namespace platf::dxgi {
             overlappedErr == ERROR_PIPE_NOT_CONNECTED ||
             overlappedErr == ERROR_NO_DATA) {
           BOOST_LOG(warning) << "IPC pipe connection to helper process was lost.";
-          display_diagnostics::snapshot(
-            "helper-pipe-lost", "ipc-receive", std::vector<std::string> {},
-            "ERROR " + std::to_string(overlappedErr) + " while reading a frame from the display helper; the helper process ended mid-operation");
           _connected.store(false, std::memory_order_release);
           return BrokenPipe;
         }
