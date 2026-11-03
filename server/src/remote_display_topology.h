@@ -15,6 +15,15 @@ namespace remote_display_topology {
   inline constexpr unsigned int layout_version = 1;
   inline constexpr std::size_t max_client_identities = 4;
 
+  // The stable id the Remote Monitor role derives its own virtual display from. One paired
+  // client can hold a game role and a monitor role at the same time, and each role owns a
+  // separate display, so the id the display identity is hashed from has to carry the role.
+  // Without the suffix both roles hash to the same GUID: the monitor's activation then finds
+  // the game session's display, decides it must be replaced, cannot release it while it is
+  // being captured, and fails closed with a 503 (3 Nov 2026, second screen on the same machine
+  // that was already streaming).
+  std::string remote_monitor_stable_id(const std::string &client_uuid);
+
   enum class lifecycle_e { desired, leased, applying, ready, retryable, released };
 
   struct mode_t {

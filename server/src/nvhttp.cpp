@@ -369,7 +369,10 @@ namespace nvhttp {
       remote_display_topology::instance().set_runtime_callbacks({
         .create_or_reclaim = [](const std::string &client_uuid, const std::string &client_label, const remote_display_topology::mode_t &mode) {
           if (!VDISPLAY::ensure_driver_is_ready()) return false;
-          const auto stable_uuid = VDISPLAY::virtualDisplayUuidFromStableId(client_uuid);
+          // Monitor role, not the bare client uuid: the same client may already own a game
+          // display under that uuid, and two roles must never share one display identity.
+          const auto stable_uuid = VDISPLAY::virtualDisplayUuidFromStableId(
+            remote_display_topology::remote_monitor_stable_id(client_uuid));
           GUID guid {};
           std::memcpy(&guid, stable_uuid.b8, sizeof(guid));
           return VDISPLAY::createVirtualDisplay(
@@ -382,7 +385,8 @@ namespace nvhttp {
         .apply_composed_topology = apply_remote_monitor_composition,
         .exact_target_has_current_mode_and_dxgi = remote_monitor_exact_capture_output,
         .remove_owned_display = [](const std::string &client_uuid) {
-          const auto stable_uuid = VDISPLAY::virtualDisplayUuidFromStableId(client_uuid);
+          const auto stable_uuid = VDISPLAY::virtualDisplayUuidFromStableId(
+            remote_display_topology::remote_monitor_stable_id(client_uuid));
           GUID guid {};
           std::memcpy(&guid, stable_uuid.b8, sizeof(guid));
           return VDISPLAY::removeVirtualDisplay(guid);

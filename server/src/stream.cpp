@@ -3248,7 +3248,8 @@ namespace stream {
         std::memcpy(&guid, shared_runtime_virtual_display_guid_bytes->data(), sizeof(guid));
         const auto monitors = topology.protected_remote_monitor_client_ids();
         const bool monitor_owned = std::any_of(monitors.begin(), monitors.end(), [&](const auto &uuid) {
-          const auto monitor_uuid = VDISPLAY::virtualDisplayUuidFromStableId(uuid);
+          const auto monitor_uuid = VDISPLAY::virtualDisplayUuidFromStableId(
+            remote_display_topology::remote_monitor_stable_id(uuid));
           return std::memcmp(&guid, monitor_uuid.b8, sizeof(guid)) == 0;
         });
         if (!monitor_owned) {

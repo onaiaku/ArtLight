@@ -5,6 +5,16 @@
 #include <unordered_set>
 
 namespace remote_display_topology {
+
+  std::string remote_monitor_stable_id(const std::string &client_uuid) {
+    if (client_uuid.empty()) {
+      return {};
+    }
+    // A role suffix, not a second uuid: the game role keeps hashing the bare client uuid, so
+    // every existing game display and its recovery journal entry stays valid, and only the
+    // monitor moves to an identity of its own.
+    return client_uuid + ":remote-monitor";
+  }
   namespace {
     constexpr int max_gap_px = 100000;
 
