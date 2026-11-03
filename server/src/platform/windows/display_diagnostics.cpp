@@ -102,13 +102,15 @@ namespace {
       out["kind"] = "source";
       out["width"] = entry.sourceMode.width;
       out["height"] = entry.sourceMode.height;
-      out["pixel_rate"] = entry.sourceMode.pixelRate;
+      // A source mode carries no pixel rate - that lives on the target's signal info.
+      out["pixel_format"] = static_cast<int>(entry.sourceMode.pixelFormat);
       out["position"] = {entry.sourceMode.position.x, entry.sourceMode.position.y};
     } else if (entry.infoType == DISPLAYCONFIG_MODE_INFO_TYPE_TARGET) {
       out["kind"] = "target";
       out["width"] = entry.targetMode.targetVideoSignalInfo.activeSize.cx;
       out["height"] = entry.targetMode.targetVideoSignalInfo.activeSize.cy;
       out["hz"] = rational_to_double(entry.targetMode.targetVideoSignalInfo.vSyncFreq);
+      out["pixel_rate"] = entry.targetMode.targetVideoSignalInfo.pixelRate;
       out["total_size"] = {
         entry.targetMode.targetVideoSignalInfo.totalSize.cx,
         entry.targetMode.targetVideoSignalInfo.totalSize.cy,
@@ -263,7 +265,7 @@ namespace display_diagnostics {
   // does not depend on the platform layer to find it.
   std::filesystem::path appdata_directory() {
     WCHAR exe_path[MAX_PATH] {};
-    const auto length = GetModuleFileNameW(nullptr, exe_path, static_cast<DWORD>(std::size(exe_path)));
+    const auto length = GetModuleFileNameW(nullptr, exe_path, static_cast<DWORD>(MAX_PATH));
     if (length == 0) {
       return {};
     }
