@@ -581,12 +581,20 @@ namespace remote_display_topology {
       const auto state_it = clients_.find(uuid);
       if (state_it == clients_.end() || (!state_it->second.remote_monitor && !state_it->second.normal_game)) return;
 
+      /*
+       * Per role, not per client: effective_mode is a single field and the monitor's activation
+       * overwrites it, so the game node was wearing the monitor's mode. Each role's own request is
+       * what belongs on its node.
+       */
+      const auto role_mode = state_it->second.remote_monitor && state_it->second.normal_game
+                                 ? state_it->second.normal_requested_mode.value_or(state_it->second.effective_mode)
+                                 : state_it->second.effective_mode;
       node_t node {
         .id = uuid,
         .label = state_it->second.label,
         .active = true,
-        .configured_mode = state_it->second.effective_mode,
-        .last_requested_mode = state_it->second.effective_mode,
+        .configured_mode = role_mode,
+        .last_requested_mode = role_mode,
       };
       const auto append_right = [&](const std::string &warning) {
         node.x = rightmost;

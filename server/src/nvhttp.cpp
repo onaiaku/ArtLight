@@ -246,6 +246,16 @@ namespace nvhttp {
       return !lhs.empty() && !rhs.empty() && boost::iequals(lhs, rhs);
     }
 
+    /*
+     * launch_session->fps is millihertz — the unit the client speaks, 60000 for 60 Hz — while
+     * mode_t is hertz. Passing it through unconverted asked the host to create a virtual display
+     * at 138000 Hz, which SetDisplayConfig rejects as ERROR_INVALID_PARAMETER during forced mode
+     * enumeration, so every topology containing that display failed validation.
+     */
+    int refresh_hz_from_session_fps(int fps) {
+      return fps >= 1000 ? static_cast<int>(std::lround(fps / 1000.0)) : fps;
+    }
+
     int remote_refresh_hz(const display_device::FloatingPoint &refresh) {
       if (const auto *ratio = std::get_if<display_device::Rational>(&refresh)) {
         return ratio->m_denominator == 0 ? 0 : static_cast<int>(std::lround(static_cast<double>(ratio->m_numerator) / ratio->m_denominator));
@@ -557,7 +567,7 @@ namespace nvhttp {
         {
           .width = launch_session->width,
           .height = launch_session->height,
-          .refresh_hz = launch_session->fps,
+          .refresh_hz = refresh_hz_from_session_fps(launch_session->fps),
           .hdr = rtsp_stream::effective_hdr_requested(*launch_session),
         }
       );
@@ -1147,7 +1157,7 @@ namespace nvhttp {
         const remote_display_topology::mode_t mode {
           .width = launch_session->width,
           .height = launch_session->height,
-          .refresh_hz = launch_session->fps,
+          .refresh_hz = refresh_hz_from_session_fps(launch_session->fps),
           .hdr = rtsp_stream::effective_hdr_requested(*launch_session),
         };
         const auto reservation = remote_display_topology::instance().reserve_normal_game_identity(
