@@ -135,6 +135,7 @@ add_executable(sunshine_display_helper
         ${CMAKE_SOURCE_DIR}/src/platform/windows/display_helper_v2/win_platform_workarounds.cpp
         ${CMAKE_SOURCE_DIR}/src/platform/windows/display_helper_shell_refresh_policy.cpp
         ${CMAKE_SOURCE_DIR}/src/platform/windows/display_helper_v2/win_scheduled_task_manager.cpp
+        ${CMAKE_SOURCE_DIR}/src/platform/windows/display_diagnostics.cpp
         ${CMAKE_SOURCE_DIR}/src/platform/windows/ipc/pipes.cpp
         ${CMAKE_SOURCE_DIR}/src/platform/windows/ipc/misc_utils.cpp
         ${CMAKE_SOURCE_DIR}/src/logging.cpp
@@ -146,6 +147,7 @@ target_link_libraries(sunshine_display_helper
         ${Boost_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT}
         libdisplaydevice::display_device
+        nlohmann_json::nlohmann_json
         user32
         wtsapi32
         advapi32
