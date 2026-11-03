@@ -589,8 +589,16 @@ namespace remote_display_topology {
       const auto role_mode = state_it->second.remote_monitor && state_it->second.normal_game
                                  ? state_it->second.normal_requested_mode.value_or(state_it->second.effective_mode)
                                  : state_it->second.effective_mode;
+      /*
+       * The monitor role's display is created under "<uuid>:remote-monitor", never the bare uuid,
+       * so a client holding only the monitor role must carry that identity on its node or the
+       * compose step looks the display up under an identity nothing was ever created with. Before
+       * the per-role identity existed the monitor borrowed the client's display, which is why a
+       * second device used to work and stopped once the role got its own display.
+       */
+      const bool monitor_only = state_it->second.remote_monitor && !state_it->second.normal_game;
       node_t node {
-        .id = uuid,
+        .id = monitor_only ? remote_monitor_stable_id(uuid) : uuid,
         .label = state_it->second.label,
         .active = true,
         .configured_mode = role_mode,
@@ -627,7 +635,11 @@ namespace remote_display_topology {
         }
       }
 
-      const auto anchor = std::find_if(nodes.begin(), nodes.end(), [&](const node_t &candidate) { return candidate.id == anchor_id; });
+      // Saved anchors are client uuids, but a monitor-only node carries the role suffix, so match
+      // the anchor on either form or an existing placement stops resolving.
+      const auto anchor = std::find_if(nodes.begin(), nodes.end(), [&](const node_t &candidate) {
+        return candidate.id == anchor_id || candidate.id == remote_monitor_stable_id(anchor_id);
+      });
       if (anchor == nodes.end()) {
         append_right("Saved anchor '" + anchor_id + "' is unavailable; the client display was appended to the right for this activation.");
         visiting.erase(uuid);
