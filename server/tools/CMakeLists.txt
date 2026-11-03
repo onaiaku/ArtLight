@@ -63,7 +63,6 @@ set_target_properties(playnite-launcher PROPERTIES CXX_STANDARD 23)
 set_target_properties(playnite-launcher PROPERTIES WIN32_EXECUTABLE TRUE)
 target_include_directories(playnite-launcher PRIVATE ${CMAKE_SOURCE_DIR}/tools/playnite_launcher)
 target_sources(playnite-launcher PRIVATE
-        ${CMAKE_SOURCE_DIR}/src/platform/windows/display_diagnostics.cpp
         ${CMAKE_SOURCE_DIR}/src/logging.cpp
         ${CMAKE_SOURCE_DIR}/src/logging_policy.cpp
         ${CMAKE_SOURCE_DIR}/src/platform/windows/playnite_ipc.cpp
@@ -88,7 +87,6 @@ target_compile_options(playnite-launcher PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
 # Add sunshine_wgc_capture executable
 add_executable(sunshine_wgc_capture
         sunshine_wgc_capture.cpp
-        ${CMAKE_SOURCE_DIR}/src/platform/windows/display_diagnostics.cpp
         ${CMAKE_SOURCE_DIR}/src/platform/windows/ipc/pipes.cpp
         ${CMAKE_SOURCE_DIR}/src/platform/windows/ipc/misc_utils.cpp
         ${CMAKE_SOURCE_DIR}/src/logging.cpp
@@ -103,7 +101,6 @@ target_compile_definitions(sunshine_wgc_capture PRIVATE
 target_link_libraries(sunshine_wgc_capture
         ${Boost_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT}
-        nlohmann_json::nlohmann_json
         d3d11
         dxgi
         ole32
