@@ -413,16 +413,32 @@ namespace nvhttp {
       const std::string &client_uuid,
       const remote_display_topology::mode_t &mode
     ) {
-      const auto expected_device = VDISPLAY::resolveActiveVirtualDisplayDeviceIdForStableId(client_uuid, {}, {}, false);
-      if (!expected_device) return std::nullopt;
+      // The monitor role's display is created under "<uuid>:remote-monitor" - never under the bare
+      // client uuid, which is the game role's identity. Looking it up under the client uuid finds
+      // either nothing (monitor-only client, i.e. a second device) or the game display, whose mode
+      // is not the monitor's, and either way this check answers "not capture-ready" and the launch
+      // is refused with a 503. Ask for the identity the display was actually created with.
+      const auto expected_device = VDISPLAY::resolveActiveVirtualDisplayDeviceIdForStableId(
+        remote_display_topology::remote_monitor_stable_id(client_uuid), {}, {}, false
+      );
+      if (!expected_device) {
+        BOOST_LOG(warning) << "Remote Monitor capture check: no active virtual display for client '" << client_uuid
+                           << "' under its monitor identity; the display was not created or was already released.";
+        return std::nullopt;
+      }
       const auto devices = display_helper_integration::enumerate_devices(display_device::DeviceEnumerationDetail::Minimal);
       if (!devices) return std::nullopt;
       const auto capture_outputs = platf::display_names(platf::mem_type_e::dxgi);
       for (const auto &device : *devices) {
         if (!remote_device_id_equals(device.m_device_id, *expected_device) || !device.m_info || device.m_display_name.empty()) continue;
         const auto refresh = remote_refresh_hz(device.m_info->m_refresh_rate);
-        if (static_cast<int>(device.m_info->m_resolution.m_width) != mode.width ||
-            static_cast<int>(device.m_info->m_resolution.m_height) != mode.height || refresh != mode.refresh_hz) {
+        const auto have_width = static_cast<int>(device.m_info->m_resolution.m_width);
+        const auto have_height = static_cast<int>(device.m_info->m_resolution.m_height);
+        if (have_width != static_cast<int>(mode.width) || have_height != static_cast<int>(mode.height) ||
+            refresh != static_cast<int>(mode.refresh_hz)) {
+          BOOST_LOG(warning) << "Remote Monitor capture check: display '" << device.m_display_name << "' is "
+                             << have_width << "x" << have_height << "x" << refresh << " but the client asked for "
+                             << mode.width << "x" << mode.height << "x" << mode.refresh_hz << ".";
           return std::nullopt;
         }
         const auto output = std::find_if(capture_outputs.begin(), capture_outputs.end(), [&](const auto &candidate) {
