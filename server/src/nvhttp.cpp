@@ -330,9 +330,22 @@ namespace nvhttp {
         std::string device_id = node.device_id.empty() ? node.id : node.device_id;
         if (!node.physical && !node.preexisting) {
           const auto resolved = VDISPLAY::resolveActiveVirtualDisplayDeviceIdForStableId(node.id, {}, {}, false);
-          if (!resolved) return false;
+          if (!resolved) {
+            // Silent before now, and a silent false here is indistinguishable from a Windows refusal
+            // three layers down. Name the node that could not be resolved.
+            BOOST_LOG(warning) << "Remote monitor composition: no active virtual display for stable id '"
+                               << node.id << "' (label '" << node.label << "', " << node.x << "," << node.y
+                               << ", " << node.configured_mode.width << "x" << node.configured_mode.height
+                               << "x" << node.configured_mode.refresh_hz << "); topology cannot be built.";
+            return false;
+          }
           device_id = *resolved;
         }
+        BOOST_LOG(info) << "Remote monitor composition node: id='" << node.id << "' device_id='" << device_id
+                        << "' physical=" << node.physical << " preexisting=" << node.preexisting
+                        << " mode=" << node.configured_mode.width << "x" << node.configured_mode.height
+                        << "x" << node.configured_mode.refresh_hz << " at " << node.x << "," << node.y
+                        << (node.primary ? " primary" : "");
         if (!has_device(device_id)) topology.topology.push_back({device_id});
         topology.monitor_positions.emplace(device_id, display_device::Point {node.x, node.y});
         if (node.primary) topology.primary_device = device_id;
