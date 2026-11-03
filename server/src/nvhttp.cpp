@@ -4640,12 +4640,16 @@ namespace nvhttp {
             );
           }
           if (!monitor.ready || monitor.output.empty()) {
+            const auto refusal = monitor.error.empty() ? std::string {"Remote Monitor exact capture target is not ready"} : monitor.error;
+            // A refusal that exists only in the HTTP response leaves nothing behind on the host: the
+            // client shows a 503 and the log reads clean, which is exactly how a failed test gets
+            // mistaken for a quiet one. Say it here, with the role and the stage that refused.
+            BOOST_LOG(warning) << "Remote Monitor refused for client '" << request_client_identity.uuid
+                               << "' (role=" << (is_remote_input ? "input" : "monitor")
+                               << ", retryable=" << monitor.retryable << "): " << refusal;
             tree.put("root.resume", 0);
             tree.put("root.<xmlattr>.status_code", monitor.retryable ? 503 : 500);
-            tree.put(
-              "root.<xmlattr>.status_message",
-              monitor.error.empty() ? "Remote Monitor exact capture target is not ready" : monitor.error
-            );
+            tree.put("root.<xmlattr>.status_message", refusal);
             return;
           }
           launch_session->virtual_display_hdr_enabled = monitor.hdr_enabled;
