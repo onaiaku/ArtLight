@@ -21,9 +21,10 @@
 
   // local
   #include "display_diagnostics.h"
-  #include "src/globals.h"
   #include "src/logging.h"
-  #include "src/platform/common.h"
+
+  // Deliberately no platform/common.h or globals.h: those drag in video_colorspace.h and FFmpeg,
+  // and this unit is also built into the display helper, which links neither.
 
 namespace {
   using json = nlohmann::json;
@@ -258,9 +259,20 @@ namespace {
 }  // namespace
 
 namespace display_diagnostics {
+  // Same rule the server uses (the executable's own config folder), written out here so this unit
+  // does not depend on the platform layer to find it.
+  std::filesystem::path appdata_directory() {
+    WCHAR exe_path[MAX_PATH] {};
+    const auto length = GetModuleFileNameW(nullptr, exe_path, static_cast<DWORD>(std::size(exe_path)));
+    if (length == 0) {
+      return {};
+    }
+    return std::filesystem::path {std::wstring {exe_path, length}}.remove_filename() / L"config";
+  }
+
   std::filesystem::path output_directory() {
     std::error_code ec;
-    auto directory = platf::appdata() / "logs";
+    auto directory = appdata_directory() / "logs";
     std::filesystem::create_directories(directory, ec);
     return directory;
   }
