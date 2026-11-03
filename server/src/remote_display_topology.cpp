@@ -646,6 +646,34 @@ namespace remote_display_topology {
     };
 
     for (const auto &uuid : active_ids) emit(uuid);
+
+    // A paired client can hold a game role and a Remote Monitor role at once, and each role owns
+    // a separate display. The list above carries one node per client, so the monitor's display
+    // had no place in the model at all - the composer kept the game's node and the capture was
+    // refused ("capture will wait rather than mirror another screen") instead of being aimed at
+    // the wrong screen. Give the monitor its own node, on its own stable identity, beside its
+    // owner's. Two-device setups are untouched by construction: each client there holds a single
+    // role, so this loop never runs and the node list is byte-identical to before.
+    for (const auto &uuid : active_ids) {
+      const auto state_it = clients_.find(uuid);
+      if (state_it == clients_.end()) continue;
+      const auto &state = state_it->second;
+      if (!state.remote_monitor || !state.normal_game) continue;
+
+      const auto monitor_mode = state.monitor_requested_mode.value_or(state.effective_mode);
+      node_t monitor {
+        .id = remote_monitor_stable_id(uuid),
+        .label = state.label,
+        .active = true,
+        .configured_mode = monitor_mode,
+        .last_requested_mode = monitor_mode,
+      };
+      monitor.x = rightmost;
+      rightmost += layout_width(monitor);
+      nodes.push_back(std::move(monitor));
+      warnings.push_back("Client '" + uuid + "' owns both a game display and a Remote Monitor display; the monitor was placed to the right for this activation.");
+    }
+
     return nodes;
   }
 
