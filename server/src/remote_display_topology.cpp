@@ -6,6 +6,8 @@
 
 #include <boost/log/trivial.hpp>
 
+#include "logging.h"
+
 namespace remote_display_topology {
 
   std::string_view remote_monitor_suffix() { return ":remote-monitor"; }
