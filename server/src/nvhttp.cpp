@@ -436,11 +436,16 @@ namespace nvhttp {
             remote_display_topology::remote_monitor_stable_id(client_uuid));
           GUID guid {};
           std::memcpy(&guid, stable_uuid.b8, sizeof(guid));
+          // HDR was hardcoded off here, so a client that asked for HDR got an SDR display and an
+          // SDR encode on its second screen while its main screen stayed HDR. The driver enables
+          // HDR itself when the request is true; the profile only supplies luminance metadata, so
+          // a null profile still yields a real HDR10 display.
           return VDISPLAY::createVirtualDisplay(
             client_uuid.c_str(), client_label.c_str(), nullptr,
             static_cast<std::uint32_t>(mode.width), static_cast<std::uint32_t>(mode.height),
             static_cast<std::uint32_t>(mode.refresh_hz * 1000), guid,
-            static_cast<std::uint32_t>(mode.refresh_hz * 1000), false, 1, false, false, true, true
+            static_cast<std::uint32_t>(mode.refresh_hz * 1000), false, 1,
+            mode.hdr, false, true, true
           ).has_value();
         },
         .apply_composed_topology = apply_remote_monitor_composition,
@@ -457,12 +462,15 @@ namespace nvhttp {
         return rtsp_stream::plaintext_route_warning();
       });
       remote_session::register_monitor_runtime_hooks({
-        .activate_or_resume = [](std::string_view uuid, std::string_view label, std::string_view requested_mode, bool, std::uint64_t generation) -> remote_session::monitor_runtime_state_t {
+        .activate_or_resume = [](std::string_view uuid, std::string_view label, std::string_view requested_mode, const bool hdr_requested, std::uint64_t generation) -> remote_session::monitor_runtime_state_t {
           remote_display_topology::mode_t mode;
           if (std::sscanf(std::string {requested_mode}.c_str(), "%dx%d@%d", &mode.width, &mode.height, &mode.refresh_hz) != 3 ||
               mode.width <= 0 || mode.height <= 0 || mode.refresh_hz <= 0) {
             return remote_session::monitor_runtime_state_t {.retryable = true, .error = "Remote Monitor requested an invalid display mode."};
           }
+          // The client's HDR request used to be dropped here (the parameter was unnamed), so the
+          // monitor display was always created SDR and the session was forced to SDR to match.
+          mode.hdr = hdr_requested;
           refresh_remote_monitor_baseline(has_stream_session_activity());
           const auto state = remote_display_topology::instance().activate_or_resume(std::string {uuid}, std::string {label}, mode, generation);
           return {.accepted = state.accepted, .ready = state.ready, .retryable = state.retryable, .output = state.output, .error = state.error};
