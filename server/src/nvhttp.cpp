@@ -336,14 +336,17 @@ namespace nvhttp {
       // configuration Windows rejects with ERROR_INVALID_PARAMETER - after which the recovery path
       // jogs the desktop, the helper loses its pipe and the live stream dies with it. So ask whether
       // the display is really there, and wait a bounded moment for it, before composing at all.
+      // Size only, deliberately. The virtual display driver publishes this display at a refresh rate
+      // that does not round-trip the requested one (the host log reports 552 Hz for a 138 Hz
+      // request), so requiring a matching refresh makes the check unsatisfiable and refuses a
+      // display that is in fact up and capturing.
       const auto display_is_published = [](const std::string &device_id, const remote_display_topology::mode_t &mode) {
         const auto devices = display_helper_integration::enumerate_devices(display_device::DeviceEnumerationDetail::Minimal);
         if (!devices) return false;
         return std::any_of(devices->begin(), devices->end(), [&](const auto &device) {
           if (!device.m_info || !remote_device_id_equals(device.m_device_id, device_id)) return false;
           return static_cast<int>(device.m_info->m_resolution.m_width) == static_cast<int>(mode.width) &&
-                 static_cast<int>(device.m_info->m_resolution.m_height) == static_cast<int>(mode.height) &&
-                 remote_refresh_hz(device.m_info->m_refresh_rate) == static_cast<int>(mode.refresh_hz);
+                 static_cast<int>(device.m_info->m_resolution.m_height) == static_cast<int>(mode.height);
         });
       };
 
@@ -372,7 +375,11 @@ namespace nvhttp {
                         << " mode=" << node.configured_mode.width << "x" << node.configured_mode.height
                         << "x" << node.configured_mode.refresh_hz << " at " << node.x << "," << node.y
                         << (node.primary ? " primary" : "");
-        if (!node.physical && !node.preexisting) {
+        // Only the monitor role's own display is waited for. The game display is created before the
+        // stream starts and is already capturing by now; waiting on it blocks a composition that had
+        // nothing wrong with it, which is what happened on 3 Nov at 23:57.
+        const bool role_monitor_display = node.id.ends_with(remote_display_topology::remote_monitor_suffix());
+        if (!node.physical && !node.preexisting && role_monitor_display) {
           // Bounded wait, not a fixed sleep: a display usually publishes within a few hundred
           // milliseconds, so the common case costs one enumeration and no delay at all.
           constexpr auto publish_budget = std::chrono::milliseconds {4000};

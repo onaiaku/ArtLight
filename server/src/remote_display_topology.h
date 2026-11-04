@@ -7,6 +7,7 @@
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -23,6 +24,9 @@ namespace remote_display_topology {
   // being captured, and fails closed with a 503 (3 Nov 2026, second screen on the same machine
   // that was already streaming).
   std::string remote_monitor_stable_id(const std::string &client_uuid);
+
+  /// The role suffix that separates a client's monitor display from its game display.
+  std::string_view remote_monitor_suffix();
 
   enum class lifecycle_e { desired, leased, applying, ready, retryable, released };
 

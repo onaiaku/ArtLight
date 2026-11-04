@@ -4,7 +4,11 @@
 #include <set>
 #include <unordered_set>
 
+#include <boost/log/trivial.hpp>
+
 namespace remote_display_topology {
+
+  std::string_view remote_monitor_suffix() { return ":remote-monitor"; }
 
   std::string remote_monitor_stable_id(const std::string &client_uuid) {
     if (client_uuid.empty()) {
@@ -13,7 +17,7 @@ namespace remote_display_topology {
     // A role suffix, not a second uuid: the game role keeps hashing the bare client uuid, so
     // every existing game display and its recovery journal entry stays valid, and only the
     // monitor moves to an identity of its own.
-    return client_uuid + ":remote-monitor";
+    return client_uuid + std::string {remote_monitor_suffix()};
   }
   namespace {
     constexpr int max_gap_px = 100000;
@@ -560,6 +564,16 @@ namespace remote_display_topology {
   }
 
   std::vector<node_t> coordinator_t::compose_locked(std::vector<std::string> &warnings) const {
+    // Name the roster every time a topology is built. A compose that silently carries one client
+    // fewer than the caller expected is indistinguishable from one that was correct, and the log
+    // of a refusal then reads like a clean run - which is exactly how a missing node stayed
+    // invisible for a night.
+    for (const auto &[uuid, state] : clients_) {
+      BOOST_LOG(info) << "Remote monitor compose roster: client '" << uuid << "' game=" << state.normal_game
+                      << " monitor=" << state.remote_monitor << " lifecycle=" << static_cast<int>(state.lifecycle)
+                      << " mode=" << state.effective_mode.width << "x" << state.effective_mode.height << "x"
+                      << state.effective_mode.refresh_hz;
+    }
     auto nodes = physical_baseline_;
     int rightmost = 0;
     for (const auto &node : nodes) rightmost = std::max(rightmost, node.x + layout_width(node));
