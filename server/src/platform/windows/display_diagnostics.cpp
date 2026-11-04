@@ -358,6 +358,13 @@ namespace display_diagnostics {
     const std::vector<std::string> &requested_devices,
     std::string_view detail
   ) {
+    if (requested_devices.empty()) {
+      // Nothing claimed a device set here. Writing an empty group would read
+      // back as a real one-node topology with no monitors, which is exactly
+      // how a pipe-lost event was mistaken for the topology that failed to
+      // apply. Say "no topology" instead.
+      return snapshot(reason, label, nullptr, nullptr, detail);
+    }
     const std::vector<std::vector<std::string>> nested {requested_devices};
     return snapshot(reason, label, &nested, nullptr, detail);
   }
