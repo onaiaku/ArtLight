@@ -6704,12 +6704,44 @@ namespace nvhttp {
   }
 
   bool find_and_stop_session(const std::string &uuid, bool graceful) {
-    auto session = rtsp_stream::find_session(uuid);
-    if (session) {
+    // "Stop this stream" is one intention, not one session. A client can hold a game stream and
+    // a Remote Monitor stream at the same time under the same identity, and find_session returns
+    // whichever comes first in the list - so stopping "the" session could stop either one and
+    // leave the other running with no window open anywhere. Stop the game session(s), then the
+    // monitor's own session by role, then release the monitor role so the display it owns goes
+    // with it: the same three steps the Disconnect Monitor control already takes, in the same
+    // order disconnect_client() uses (2026-11-04 23:38, monitor streaming on after its game had
+    // gone). The Remote Monitor's own resume window is untouched - this only runs on an explicit
+    // stop, never on a transport that merely went quiet.
+    bool stopped = false;
+    for (const auto &session : rtsp_stream::get_sessions_snapshot()) {
+      if (!stream::session::uuid_match(*session, uuid)) continue;
+      if (session->remote_role == remote_session::role_e::monitor) continue;
       stop_session(*session, graceful);
-      return true;
+      stopped = true;
     }
-    return false;
+
+    const auto monitor_generation = remote_owner_generation(uuid, remote_session::role_e::monitor);
+    if (monitor_generation) {
+      // End the monitor's transport first, outside the lifecycle gate, exactly as
+      // disconnect_client() does; only the ownership release below runs under it.
+      (void) rtsp_stream::disconnect_remote_role_session(
+        uuid,
+        remote_session::role_e::monitor,
+        *monitor_generation,
+        false
+      );
+      std::unique_lock lifecycle_lock {stream_lifecycle_mutex()};
+      if (remote_owner_generation(uuid, remote_session::role_e::monitor) == monitor_generation) {
+        remote_session::release_monitor(uuid, *monitor_generation, "Stopped with its game stream");
+        forget_remote_owner(uuid, remote_session::role_e::monitor, *monitor_generation);
+#if defined(_WIN32) || defined(__linux__)
+        cleanup_virtual_display_if_idle_locked();
+#endif
+        stopped = true;
+      }
+    }
+    return stopped;
   }
 
   bool disconnect_client(const std::string &uuid) {
