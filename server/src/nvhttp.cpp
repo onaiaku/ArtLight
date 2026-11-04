@@ -367,7 +367,25 @@ namespace nvhttp {
                         << "x" << node.configured_mode.refresh_hz << " at " << node.x << "," << node.y
                         << (node.primary ? " primary" : "");
         if (!has_device(device_id)) topology.topology.push_back({device_id});
-        topology.monitor_positions.emplace(device_id, display_device::Point {node.x, node.y});
+
+        /*
+         * Where the user last left this display wins over where the layout says it goes.
+         *
+         * The composer places a new display edge-on to what is already there, and it has no
+         * idea the user dragged this panel somewhere else last session. Windows cannot help:
+         * the arrangement is stored against a monitor that stopped existing when the last
+         * stream ended, so every session starts from the computed position again.
+         */
+        auto placed = display_device::Point {node.x, node.y};
+        if (!node.physical) {
+          if (const auto saved = statefile::load_virtual_display_position(device_id)) {
+            placed = display_device::Point {saved->m_x, saved->m_y};
+            BOOST_LOG(info) << "Remote monitor composition: placing '" << node.id << "' at its remembered "
+                            << placed.m_x << "," << placed.m_y << " instead of the composed "
+                            << node.x << "," << node.y << ".";
+          }
+        }
+        topology.monitor_positions.emplace(device_id, placed);
         if (node.primary) topology.primary_device = device_id;
       }
       // A group with no device in it is not a topology, it is a rejection waiting to happen.

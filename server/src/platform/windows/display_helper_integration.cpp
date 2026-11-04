@@ -1760,22 +1760,27 @@ namespace {
     return j.dump();
   }
 
-  // Ask the desktop where the streaming display actually is, and keep it.
+  // Ask the desktop where the streamed displays actually are, and keep it.
   //
-  // The user drags the virtual display where they want it and Windows applies it, but
-  // the position is stored against a monitor that will not exist anymore in five
-  // minutes. Reading it back while the session is live is the only moment it can be
-  // captured; the next session hands it straight back.
+  // The user drags a virtual display where they want it and Windows applies it, but the
+  // position is stored against a monitor that will not exist anymore in five minutes.
+  // Reading it back while the session is live is the only moment it can be captured; the
+  // next session hands it straight back.
+  //
+  // Every streamed display, not just the one this session captures: a client can hold a game
+  // and a Remote Monitor at once, each with its own display, and the second screen is the one
+  // that gets moved most often. The display ids come from the same remembered list the helper
+  // already keeps so its snapshots never treat a virtual display as part of the desktop.
   static void remember_virtual_display_position() {
-    std::string device_id;
+    auto wanted = statefile::load_virtual_display_devices();
     {
       std::lock_guard<std::mutex> lg(g_session_mutex);
-      if (!g_active_session_dd || !g_active_session_dd->virtual_display) {
-        return;
+      if (g_active_session_dd && g_active_session_dd->virtual_display &&
+          !g_active_session_dd->virtual_display_device_id.empty()) {
+        wanted.push_back(g_active_session_dd->virtual_display_device_id);
       }
-      device_id = g_active_session_dd->virtual_display_device_id;
     }
-    if (device_id.empty()) {
+    if (wanted.empty()) {
       return;
     }
 
@@ -1784,24 +1789,31 @@ namespace {
       return;
     }
 
+    static std::mutex remembered_mutex;
+    static std::map<std::string, display_device::Point> remembered;
+
     for (const auto &device : *devices) {
-      if (!device.m_info || device.m_device_id.empty() || !boost::iequals(device.m_device_id, device_id)) {
+      if (!device.m_info || device.m_device_id.empty()) {
         continue;
       }
+      const bool is_ours = std::any_of(wanted.begin(), wanted.end(), [&](const auto &id) {
+        return boost::iequals(id, device.m_device_id);
+      });
+      if (!is_ours) {
+        continue;
+      }
+
       const auto origin = device.m_info->m_origin_point;
 
-      // Only write when it has actually moved, so a steady session does not rewrite
-      // the state file every five seconds.
-      static std::mutex remembered_mutex;
-      static std::map<std::string, display_device::Point> remembered;
+      // Only write when it has actually moved, so a steady session does not rewrite the
+      // state file every five seconds.
       std::lock_guard<std::mutex> lg(remembered_mutex);
-      if (const auto it = remembered.find(device_id);
+      if (const auto it = remembered.find(device.m_device_id);
           it != remembered.end() && it->second.m_x == origin.m_x && it->second.m_y == origin.m_y) {
-        return;
+        continue;
       }
-      statefile::save_virtual_display_position(device_id, origin.m_x, origin.m_y);
-      remembered[device_id] = origin;
-      return;
+      statefile::save_virtual_display_position(device.m_device_id, origin.m_x, origin.m_y);
+      remembered[device.m_device_id] = origin;
     }
   }
 
