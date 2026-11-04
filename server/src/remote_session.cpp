@@ -170,9 +170,17 @@ namespace remote_session {
     // is happening on it. What an active game is doing is a fact about the HOST, not about
     // the caller, so it is not the owner's private information.
     //
-    // Kept unexposed: no game running, a caller holding a role of its own (a retained
-    // Remote Monitor follows its own path), and a caller without view permission.
-    if (owner.role != role_e::none) return false;
+    // Kept unexposed: no game running, a caller without view permission, and a caller holding
+    // a role that is IN the session it would be told about.
+    //
+    // A retained Remote Monitor is the exception, and it is not a small one: the monitor is a
+    // second session beside the game, so its holder is exactly the person most likely to be
+    // looking at the list while something runs. Excluding it meant the badge vanished at the
+    // moment the second screen came up - the one row you needed to read, with no way to read
+    // it. The monitor owns no part of the game (that is what role_e::game is), so telling it
+    // what the game is doing leaks nothing it cannot already see: the whole catalogue, and
+    // Resume.
+    if (owner.role != role_e::none && owner.role != role_e::monitor) return false;
     return caller.paired && caller.may_view;
   }
 
