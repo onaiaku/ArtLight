@@ -658,6 +658,81 @@ TEST(RemoteDisplayTopology, ReleaseAppliesReplacementBeforeDisconnectingDepartin
   EXPECT_TRUE(coordinator.generic_virtual_display_cleanup_allowed());
 }
 
+TEST(RemoteDisplayTopology, MonitorReleaseRetiresItsOwnDisplayWhileGameKeepsStreaming) {
+  remote_display_topology::coordinator_t coordinator;
+  std::vector<std::string> events;
+  std::vector<remote_display_topology::node_t> composed;
+  coordinator.set_runtime_callbacks({
+    .create_or_reclaim = [](const auto &, const auto &, const auto &) {
+      return true;
+    },
+    .apply_composed_topology = [&](const auto &nodes) {
+      composed = nodes;
+      events.push_back("apply:" + std::to_string(nodes.size()));
+      return true;
+    },
+    .exact_target_has_current_mode_and_dxgi = [](const auto &uuid, const auto &) {
+      return std::optional<std::string> {uuid};
+    },
+    .remove_owned_display = [&](const auto &uuid) {
+      events.push_back("remove:" + uuid);
+      return true;
+    },
+  });
+
+  const auto game = coordinator.reserve_normal_game_identity("same", "Same", {2560, 1440, 120, false});
+  ASSERT_TRUE(game.accepted);
+  ASSERT_TRUE(coordinator.activate_or_resume("same", "Same", {1920, 1080, 60, false}, 3).ready);
+  events.clear();
+
+  coordinator.explicit_release("same", 3, "Remote Monitor disconnected while the game kept streaming");
+
+  // Both roles own their own VDD, so ending the monitor role retires the monitor's display even
+  // though the game role is still live. Retiring nothing here left the display active on the
+  // desktop with no target mode, and every later setDisplayConfig call failed validation with
+  // ERROR_INVALID_PARAMETER until the machine was rebooted.
+  EXPECT_EQ(events, (std::vector<std::string> {"apply:1", "remove:same"}));
+  ASSERT_EQ(composed.size(), 1u);
+  EXPECT_EQ(composed.front().id, "same");
+
+  coordinator.release_normal_game_identity("same", game.token);
+}
+
+TEST(RemoteDisplayTopology, ReleaseRetiresDepartingDisplayWhenShrinkingApplyRejectsIt) {
+  remote_display_topology::coordinator_t coordinator;
+  std::vector<std::string> events;
+  bool reject_apply = false;
+  int applies = 0;
+  coordinator.set_runtime_callbacks({
+    .create_or_reclaim = [](const auto &, const auto &, const auto &) {
+      return true;
+    },
+    .apply_composed_topology = [&](const auto &nodes) {
+      events.push_back("apply:" + std::to_string(nodes.size()));
+      return !(reject_apply && ++applies == 1);
+    },
+    .exact_target_has_current_mode_and_dxgi = [](const auto &uuid, const auto &) {
+      return std::optional<std::string> {uuid};
+    },
+    .remove_owned_display = [&](const auto &uuid) {
+      events.push_back("remove:" + uuid);
+      return true;
+    },
+  });
+
+  ASSERT_TRUE(coordinator.activate_or_resume("one", "One", {}, 1).ready);
+  events.clear();
+  reject_apply = true;
+  coordinator.explicit_release("one", 1, "Remote Monitor disconnected");
+
+  // The shrinking apply is refused - an already-departed display still held active with no mode is
+  // exactly how Windows answers with ERROR_INVALID_PARAMETER - so the departing display is retired
+  // and the same request is repeated, which now succeeds. The release completes instead of rolling
+  // back on top of a display nobody owns any more.
+  EXPECT_EQ(events, (std::vector<std::string> {"apply:0", "remove:one", "apply:0"}));
+  EXPECT_TRUE(coordinator.generic_virtual_display_cleanup_allowed());
+}
+
 TEST(RemoteDisplayTopology, FailedReplacementOrDisconnectRetainsOwnership) {
   remote_display_topology::coordinator_t coordinator;
   bool reject_empty = false;
@@ -682,13 +757,15 @@ TEST(RemoteDisplayTopology, FailedReplacementOrDisconnectRetainsOwnership) {
   ASSERT_TRUE(coordinator.activate_or_resume("one", "One", {}, 1).ready);
   reject_empty = true;
   coordinator.explicit_release("one", 1, "failed topology handoff");
-  EXPECT_EQ(removals, 0);
+  // The departing display is retired before the apply is repeated - that is the point of the
+  // rescue - but the repeat is refused too, so ownership is retained as before.
+  EXPECT_EQ(removals, 1);
   EXPECT_TRUE(coordinator.snapshot("one", 1).accepted);
 
   reject_empty = false;
   reject_remove = true;
   coordinator.explicit_release("one", 1, "failed connector release");
-  EXPECT_EQ(removals, 1);
+  EXPECT_EQ(removals, 2);
   EXPECT_TRUE(coordinator.snapshot("one", 1).accepted);
   EXPECT_FALSE(coordinator.generic_virtual_display_cleanup_allowed());
 }

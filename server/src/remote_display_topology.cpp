@@ -526,9 +526,16 @@ namespace remote_display_topology {
     const auto previous_lease = state.lease_held;
     const auto previous_lifecycle = state.lifecycle;
     const auto previous_warning = state.warning;
-    // A normal game and Remote Monitor for one paired client share the same
-    // deterministic VDD. Ending either role cannot remove the other's display.
-    const bool remove_display = !state.normal_game;
+    /*
+     * Each role owns its own VDD identity - the monitor's display is created under
+     * "<uuid>:remote-monitor", the game's under the bare uuid - so ending the monitor role must
+     * retire the monitor's display whether or not the same client's game role is still streaming.
+     * The old rule ("ending either role cannot remove the other's display") was true while the two
+     * roles shared one connector. Since the split it retires nothing and leaves the monitor's
+     * display behind, which is the ghost that makes every later setDisplayConfig call fail.
+     */
+    const bool remove_display = callbacks_.remove_owned_display != nullptr;
+    bool display_removed = false;
     state.remote_monitor = false;
     state.monitor_requested_mode.reset();
     if (state.normal_game) {
@@ -545,7 +552,22 @@ namespace remote_display_topology {
     // not restore a saved/global topology or remove any peer identity.
     if (callbacks_.apply_composed_topology) {
       std::vector<std::string> ignored;
-      if (!callbacks_.apply_composed_topology(compose_locked(ignored))) {
+      bool applied = callbacks_.apply_composed_topology(compose_locked(ignored));
+      if (!applied && remove_display) {
+        /*
+         * A departing display whose own session has ended can still sit in Windows' database as an
+         * active path with no target mode. setDisplayConfig then rejects the request during
+         * validation with ERROR_INVALID_PARAMETER before it looks at it at all (2026-11-04
+         * 15:20:34: one requested node, game display on DISPLAY15, monitor display left active on
+         * DISPLAY16 with target_mode absent), so shrinking the topology first can never succeed
+         * while that ghost exists. Retire the display this role owns - the other role's display has
+         * a different identity and is not touched - and ask once more: with the ghost gone the
+         * request is valid and the handoff completes.
+         */
+        display_removed = callbacks_.remove_owned_display(client_uuid);
+        applied = display_removed && callbacks_.apply_composed_topology(compose_locked(ignored));
+      }
+      if (!applied) {
         state.remote_monitor = true;
         state.monitor_requested_mode = monitor_mode;
         state.lease_held = previous_lease;
@@ -563,7 +585,7 @@ namespace remote_display_topology {
       resolve_effective_mode_locked(client_uuid, state);
       return;
     }
-    if (remove_display && callbacks_.remove_owned_display && !callbacks_.remove_owned_display(client_uuid)) {
+    if (remove_display && !display_removed && !callbacks_.remove_owned_display(client_uuid)) {
       state.remote_monitor = true;
       state.monitor_requested_mode = monitor_mode;
       state.lease_held = previous_lease;
