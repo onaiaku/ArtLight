@@ -331,25 +331,6 @@ namespace nvhttp {
       if (!physical) return false;
       topology.topology = *physical;
 
-      // A display that Windows has not published yet cannot be named in a topology. It is created on
-      // request and takes a moment to appear as an output, and composing in that window produces a
-      // configuration Windows rejects with ERROR_INVALID_PARAMETER - after which the recovery path
-      // jogs the desktop, the helper loses its pipe and the live stream dies with it. So ask whether
-      // the display is really there, and wait a bounded moment for it, before composing at all.
-      // Size only, deliberately. The virtual display driver publishes this display at a refresh rate
-      // that does not round-trip the requested one (the host log reports 552 Hz for a 138 Hz
-      // request), so requiring a matching refresh makes the check unsatisfiable and refuses a
-      // display that is in fact up and capturing.
-      const auto display_is_published = [](const std::string &device_id, const remote_display_topology::mode_t &mode) {
-        const auto devices = display_helper_integration::enumerate_devices(display_device::DeviceEnumerationDetail::Minimal);
-        if (!devices) return false;
-        return std::any_of(devices->begin(), devices->end(), [&](const auto &device) {
-          if (!device.m_info || !remote_device_id_equals(device.m_device_id, device_id)) return false;
-          return static_cast<int>(device.m_info->m_resolution.m_width) == static_cast<int>(mode.width) &&
-                 static_cast<int>(device.m_info->m_resolution.m_height) == static_cast<int>(mode.height);
-        });
-      };
-
       auto has_device = [&topology](const std::string &id) {
         return std::any_of(topology.topology.begin(), topology.topology.end(), [&id](const auto &group) {
           return std::any_of(group.begin(), group.end(), [&id](const auto &candidate) { return remote_device_id_equals(candidate, id); });
@@ -375,43 +356,6 @@ namespace nvhttp {
                         << " mode=" << node.configured_mode.width << "x" << node.configured_mode.height
                         << "x" << node.configured_mode.refresh_hz << " at " << node.x << "," << node.y
                         << (node.primary ? " primary" : "");
-        // Only the monitor role's own display is waited for. The game display is created before the
-        // stream starts and is already capturing by now; waiting on it blocks a composition that had
-        // nothing wrong with it, which is what happened on 3 Nov at 23:57.
-        const bool role_monitor_display = node.id.ends_with(remote_display_topology::remote_monitor_suffix());
-        if (!node.physical && !node.preexisting && role_monitor_display) {
-          // Bounded wait, not a fixed sleep: a display usually publishes within a few hundred
-          // milliseconds, so the common case costs one enumeration and no delay at all.
-          constexpr auto publish_budget = std::chrono::milliseconds {4000};
-          constexpr auto publish_interval = std::chrono::milliseconds {50};
-          const auto give_up_at = std::chrono::steady_clock::now() + publish_budget;
-          if (!display_is_published(device_id, node.configured_mode)) {
-            while (!display_is_published(device_id, node.configured_mode)) {
-              if (std::chrono::steady_clock::now() >= give_up_at) {
-                BOOST_LOG(warning) << "Remote monitor composition: display '" << device_id << "' (stable id '"
-                                   << node.id << "') never appeared in the output list within "
-                                   << publish_budget.count() << " ms; keeping the current topology so the live "
-                                   << "stream is not torn down for a display Windows has not published.";
-                // Name what Windows does see. Otherwise the next run cannot distinguish a display
-                // that is missing from one that is present at the wrong size or under a different
-                // identity, and the answer costs another build.
-                if (const auto seen = display_helper_integration::enumerate_devices(display_device::DeviceEnumerationDetail::Minimal)) {
-                  for (const auto &device : *seen) {
-                    if (!device.m_info) continue;
-                    BOOST_LOG(warning) << "Remote monitor composition: output '" << device.m_display_name
-                                       << "' id='" << device.m_device_id << "' "
-                                       << device.m_info->m_resolution.m_width << "x"
-                                       << device.m_info->m_resolution.m_height << "x"
-                                       << remote_refresh_hz(device.m_info->m_refresh_rate);
-                  }
-                }
-                return false;
-              }
-              std::this_thread::sleep_for(publish_interval);
-            }
-            BOOST_LOG(info) << "Remote monitor composition: display '" << device_id << "' published after waiting.";
-          }
-        }
         if (!has_device(device_id)) topology.topology.push_back({device_id});
         topology.monitor_positions.emplace(device_id, display_device::Point {node.x, node.y});
         if (node.primary) topology.primary_device = device_id;
