@@ -5,8 +5,25 @@
 #include <unordered_set>
 
 #include <boost/log/trivial.hpp>
+#include <sstream>
 
-#include "logging.h"
+// The composer is built on its own by a component test, which links no logging backend. So the
+// lines are compiled out there and go to the project loggers in the product: this file stays
+// dependency-free enough to be tested, and still says what it is doing on a real host.
+#ifdef SUNSHINE_TESTS
+  namespace {
+    // Swallows the stream without naming a logger, so a component test can build this file
+    // without a logging backend.
+    struct discarded_log_t {
+      template <typename T>
+      discarded_log_t &operator<<(const T &) { return *this; }
+    };
+  }  // namespace
+  #define REMOTE_MONITOR_LOG(level) discarded_log_t {}
+#else
+  #include "logging.h"
+  #define REMOTE_MONITOR_LOG(level) BOOST_LOG(level)
+#endif
 
 namespace remote_display_topology {
 
@@ -350,7 +367,7 @@ namespace remote_display_topology {
     std::lock_guard lock(mutex_);
     const auto it = clients_.find(client_uuid);
     if (it == clients_.end() || !it->second.remote_monitor) {
-      BOOST_LOG(warning) << "Remote Monitor resume refused: client '" << client_uuid << "' does not hold the monitor role.";
+      REMOTE_MONITOR_LOG(warning) << "Remote Monitor resume refused: client '" << client_uuid << "' does not hold the monitor role.";
       return {false, false, "Remote Monitor is not owned by this paired client."};
     }
     return activate_locked(client_uuid, it->second);
@@ -359,7 +376,7 @@ namespace remote_display_topology {
   monitor_runtime_state_t coordinator_t::activate_or_resume(const std::string &client_uuid, const std::string &label, mode_t mode, uint64_t generation) {
     std::lock_guard lock(mutex_);
     if (!clients_.contains(client_uuid) && clients_.size() >= max_client_identities) {
-      BOOST_LOG(warning) << "Remote Monitor refused: capacity reached (" << clients_.size() << "/"
+      REMOTE_MONITOR_LOG(warning) << "Remote Monitor refused: capacity reached (" << clients_.size() << "/"
                          << max_client_identities << " client identities).";
       return {false, false, true, {}, "Remote display capacity is four paired-client identities."};
     }
@@ -416,7 +433,7 @@ namespace remote_display_topology {
       state.lifecycle = lifecycle_e::leased;
       if (!callbacks_.create_or_reclaim(client_uuid, state.label, desired_mode(state))) {
         const auto want = desired_mode(state);
-        BOOST_LOG(warning) << "Remote monitor activation: create_or_reclaim failed for client '" << client_uuid
+        REMOTE_MONITOR_LOG(warning) << "Remote monitor activation: create_or_reclaim failed for client '" << client_uuid
                            << "' (label '" << state.label << "') mode=" << want.width << "x" << want.height << "x"
                            << want.refresh_hz << "; ownership retained for Resume.";
         state.lifecycle = lifecycle_e::retryable;
@@ -430,7 +447,7 @@ namespace remote_display_topology {
     std::vector<std::string> warnings;
     const auto composed = compose_locked(warnings);
     if (!callbacks_.apply_composed_topology(composed)) {
-      BOOST_LOG(warning) << "Remote monitor activation: composed topology did not apply for client '" << client_uuid
+      REMOTE_MONITOR_LOG(warning) << "Remote monitor activation: composed topology did not apply for client '" << client_uuid
                          << "' (" << composed.size() << " node(s)); ownership retained for Resume.";
       state.lifecycle = lifecycle_e::retryable;
       state.warning = "The composed display topology did not apply; existing owners and their displays were retained.";
@@ -439,7 +456,7 @@ namespace remote_display_topology {
     if (!warnings.empty()) state.warning = warnings.front();
     const auto exact_output = callbacks_.exact_target_has_current_mode_and_dxgi(client_uuid, state.effective_mode);
     if (!exact_output || exact_output->empty()) {
-      BOOST_LOG(warning) << "Remote monitor activation: no exact capture output for client '" << client_uuid
+      REMOTE_MONITOR_LOG(warning) << "Remote monitor activation: no exact capture output for client '" << client_uuid
                          << "' mode=" << state.effective_mode.width << "x" << state.effective_mode.height << "x"
                          << state.effective_mode.refresh_hz << "; ownership retained for Resume.";
       state.lifecycle = lifecycle_e::retryable;
@@ -585,7 +602,7 @@ namespace remote_display_topology {
     // of a refusal then reads like a clean run - which is exactly how a missing node stayed
     // invisible for a night.
     for (const auto &[uuid, state] : clients_) {
-      BOOST_LOG(info) << "Remote monitor compose roster: client '" << uuid << "' game=" << state.normal_game
+      REMOTE_MONITOR_LOG(info) << "Remote monitor compose roster: client '" << uuid << "' game=" << state.normal_game
                       << " monitor=" << state.remote_monitor << " lifecycle=" << static_cast<int>(state.lifecycle)
                       << " mode=" << state.effective_mode.width << "x" << state.effective_mode.height << "x"
                       << state.effective_mode.refresh_hz;
@@ -728,9 +745,9 @@ namespace remote_display_topology {
     // One place that says what the topology will actually ask Windows for. A refusal is otherwise
     // read against the roster and the node list guessed at, and a node that never got emitted looks
     // exactly like a node that was emitted and rejected.
-    BOOST_LOG(info) << "Remote monitor compose result: " << nodes.size() << " node(s)";
+    REMOTE_MONITOR_LOG(info) << "Remote monitor compose result: " << nodes.size() << " node(s)";
     for (const auto &node : nodes) {
-      BOOST_LOG(info) << "Remote monitor compose result: node id='" << node.id << "' label='" << node.label
+      REMOTE_MONITOR_LOG(info) << "Remote monitor compose result: node id='" << node.id << "' label='" << node.label
                       << "' device_id='" << node.device_id << "' physical=" << node.physical
                       << " preexisting=" << node.preexisting << " mode=" << node.configured_mode.width << "x"
                       << node.configured_mode.height << "x" << node.configured_mode.refresh_hz << " at " << node.x

@@ -419,11 +419,8 @@ endif()
 sunshine_register_component(NAME test_component_hdr_request_policy TEST_SOURCE unit/test_hdr_request_policy.cpp)
 sunshine_register_component(NAME test_component_single_flight TEST_SOURCE unit/test_single_flight.cpp)
 sunshine_register_component(NAME test_component_remote_display_topology TEST_SOURCE unit/test_remote_display_topology.cpp
-    # The composer logs the roster and the node list it hands on, so the component needs the
-    # project loggers it now names. logging.cpp is already built this way by the logging test.
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/remote_display_topology.cpp"
-                    "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/logging.cpp"
-    LINK_LIBRARIES nlohmann_json::nlohmann_json Boost::log)
+    LINK_LIBRARIES nlohmann_json::nlohmann_json)
 sunshine_register_component(NAME test_component_config_parse TEST_SOURCE unit/test_config_parse.cpp
     PRODUCT_SOURCES)
 sunshine_register_component(NAME test_component_config_playnite TEST_SOURCE test_config_playnite.cpp
