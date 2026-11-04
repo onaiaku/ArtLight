@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <map>
 
 #include "src/remote_display_topology.h"
 #include "src/platform/linux/private_display_resume_policy.h"
@@ -9,6 +10,12 @@ namespace {
   using remote_display_topology::mode_t;
 
   nlohmann::json layout(nlohmann::json placements) { return {{"version", 1}, {"placements", std::move(placements)}}; }
+
+  // A client's monitor role owns "<uuid>:remote-monitor" and its game role owns the bare uuid: one
+  // suffix is what stops the second screen from hashing onto the display the game is capturing.
+  // Every test that names a monitor node goes through the product's own function, so the scheme
+  // can change in one place.
+  std::string monitor_id(const std::string &uuid) { return remote_display_topology::remote_monitor_stable_id(uuid); }
   const std::vector<std::string> clients {"one", "two", "three", "four", "five"};
 }
 
@@ -193,7 +200,7 @@ TEST(RemoteDisplayTopology, RemoteMonitorExtendsExistingPhysicalDesktop) {
   EXPECT_TRUE(composed[0].physical);
   EXPECT_EQ(composed[0].id, "physical-one");
   EXPECT_FALSE(composed[1].physical);
-  EXPECT_EQ(composed[1].id, "client");
+  EXPECT_EQ(composed[1].id, monitor_id("client"));
   EXPECT_EQ(composed[1].x, 2020);
 }
 
@@ -342,7 +349,7 @@ TEST(RemoteDisplayTopology, LinuxCrossClientResumeRetainsOneAppOwnedDisplay) {
   ASSERT_EQ(composed.size(), 2);
   coordinator.release_normal_game_identity("deck", app.token);
   ASSERT_EQ(composed.size(), 1);
-  EXPECT_EQ(composed.front().id, "mac");
+  EXPECT_EQ(composed.front().id, monitor_id("mac"));
   EXPECT_EQ(removed, std::vector<std::string> {"deck"});
 }
 
@@ -365,23 +372,29 @@ TEST(RemoteDisplayTopology, NormalReservationResolvesHdrCapabilityBeforeRecompos
 
 TEST(RemoteDisplayTopology, SharedNormalAndMonitorIdentityCountsOnceAndReleasesIndependently) {
   remote_display_topology::coordinator_t coordinator;
-  std::vector<remote_display_topology::mode_t> applied;
-  coordinator.set_runtime_callbacks({.create_or_reclaim = [](const auto &, const auto &, const auto &) { return true; }, .apply_composed_topology = [&applied](const auto &nodes) { if (!nodes.empty()) applied.push_back(nodes.front().configured_mode); return true; }, .exact_target_has_current_mode_and_dxgi = [](const auto &uuid, const auto &) { return std::optional<std::string> {uuid}; }});
+  // Two roles on one client: the game keeps the bare uuid and its own mode, the monitor owns the
+  // suffixed identity and its own mode. Neither may read the other's mode out of the composition.
+  std::map<std::string, remote_display_topology::mode_t> modes;
+  coordinator.set_runtime_callbacks({.create_or_reclaim = [](const auto &, const auto &, const auto &) { return true; }, .apply_composed_topology = [&modes](const auto &nodes) { modes.clear(); for (const auto &node : nodes) modes[node.id] = node.configured_mode; return true; }, .exact_target_has_current_mode_and_dxgi = [](const auto &uuid, const auto &) { return std::optional<std::string> {uuid}; }});
   const auto normal = coordinator.reserve_normal_game_identity("same", "Same", {2560, 1440, 120, true});
   ASSERT_TRUE(normal.accepted);
   ASSERT_TRUE(coordinator.reapply_composed_topology());
   EXPECT_TRUE(coordinator.activate_or_resume("same", "Same", {1920, 1080, 60, false}, 7).accepted);
   EXPECT_EQ(coordinator.snapshot({})["capacity"]["used"], 1);
-  ASSERT_GE(applied.size(), 2u);
-  EXPECT_EQ(applied.back().width, 1920);
-  EXPECT_FALSE(applied.back().hdr);
+  ASSERT_EQ(modes.count(monitor_id("same")), 1u);
+  EXPECT_EQ(modes.at(monitor_id("same")).width, 1920);
+  EXPECT_FALSE(modes.at(monitor_id("same")).hdr);
+  EXPECT_EQ(modes.at("same").width, 2560);
+  EXPECT_EQ(modes.at("same").height, 1440);
+  EXPECT_TRUE(modes.at("same").hdr);
 
   coordinator.explicit_release("same", 7, "monitor done");
   EXPECT_EQ(coordinator.snapshot({})["capacity"]["used"], 1);
-  EXPECT_EQ(applied.back().width, 2560);
-  EXPECT_EQ(applied.back().height, 1440);
-  EXPECT_EQ(applied.back().refresh_hz, 120);
-  EXPECT_TRUE(applied.back().hdr);
+  EXPECT_EQ(modes.count(monitor_id("same")), 0u);
+  EXPECT_EQ(modes.at("same").width, 2560);
+  EXPECT_EQ(modes.at("same").height, 1440);
+  EXPECT_EQ(modes.at("same").refresh_hz, 120);
+  EXPECT_TRUE(modes.at("same").hdr);
 
   coordinator.release_normal_game_identity("same", normal.token);
   EXPECT_EQ(coordinator.snapshot({})["capacity"]["used"], 0);
@@ -533,7 +546,7 @@ TEST(RemoteDisplayTopology, DrainedGameRetiresWhileIndependentMonitorRemainsOwne
   coordinator.release_drained_normal_game_identities();
   EXPECT_EQ(removed, (std::vector<std::string> {"game"}));
   ASSERT_EQ(composed.size(), 1u);
-  EXPECT_EQ(composed.front().id, "monitor");
+  EXPECT_EQ(composed.front().id, monitor_id("monitor"));
   EXPECT_TRUE(coordinator.is_ready("monitor", 1));
 }
 
@@ -976,9 +989,9 @@ TEST(RemoteDisplayTopology, FailedPeerApplyKeepsExistingRemoteOwnerComposed) {
   EXPECT_TRUE(second.retryable);
   const auto state = coordinator.snapshot({{{"uuid", "one"}, {"name", "One"}}, {{"uuid", "two"}, {"name", "Two"}}});
   EXPECT_EQ(state["capacity"]["used"], 2);
-  EXPECT_NE(std::find_if(state["nodes"].begin(), state["nodes"].end(), [](const auto &node) { return node["id"] == "one"; }), state["nodes"].end());
+  EXPECT_NE(std::find_if(state["nodes"].begin(), state["nodes"].end(), [&](const auto &node) { return node["id"] == monitor_id("one"); }), state["nodes"].end());
   ASSERT_FALSE(applied.empty());
-  EXPECT_EQ(applied.back(), std::vector<std::string>({"one", "two"}));
+  EXPECT_EQ(applied.back(), (std::vector<std::string> {monitor_id("one"), monitor_id("two")}));
 }
 
 TEST(RemoteDisplayTopology, ClientAnchorCompositionIsIndependentOfMapIterationOrder) {
@@ -1011,8 +1024,8 @@ TEST(RemoteDisplayTopology, ClientAnchorCompositionIsIndependentOfMapIterationOr
     });
     return it == state["nodes"].end() ? -1 : (*it)["desired_position"]["x"].get<int>();
   };
-  EXPECT_EQ(find_x("two"), 1920);
-  EXPECT_EQ(find_x("one"), 3840);
+  EXPECT_EQ(find_x(monitor_id("two")), 1920);
+  EXPECT_EQ(find_x(monitor_id("one")), 3840);
   EXPECT_TRUE(state["warnings"].empty());
 }
 
@@ -1039,7 +1052,7 @@ TEST(RemoteDisplayTopology, RemoteMonitorExtendsActiveNormalGameVirtualDisplayBy
     });
   };
   const auto existing = find_node("z-existing");
-  const auto added = find_node("a-new");
+  const auto added = find_node(monitor_id("a-new"));
   ASSERT_NE(existing, applied.end());
   ASSERT_NE(added, applied.end());
   EXPECT_FALSE(existing->physical);
@@ -1059,8 +1072,8 @@ TEST(RemoteDisplayTopology, MissingAnchorAppendsAndReleasingOnePeerPreservesTheO
   coordinator.explicit_release("one", 3, "Disconnect Monitor");
   const auto state = coordinator.snapshot({{{"uuid", "one"}, {"name", "One"}}, {{"uuid", "two"}, {"name", "Two"}}});
   EXPECT_EQ(state["capacity"]["used"], 1);
-  EXPECT_NE(std::find_if(state["nodes"].begin(), state["nodes"].end(), [](const auto &node) { return node["id"] == "two"; }), state["nodes"].end());
+  EXPECT_NE(std::find_if(state["nodes"].begin(), state["nodes"].end(), [&](const auto &node) { return node["id"] == monitor_id("two"); }), state["nodes"].end());
   EXPECT_TRUE(state["warnings"].empty());
   ASSERT_FALSE(applied.empty());
-  EXPECT_EQ(applied.back(), std::vector<std::string>({"two"}));
+  EXPECT_EQ(applied.back(), std::vector<std::string> {monitor_id("two")});
 }
