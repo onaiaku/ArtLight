@@ -387,6 +387,47 @@ TEST(RemoteDisplayTopology, SharedNormalAndMonitorIdentityCountsOnceAndReleasesI
   EXPECT_EQ(coordinator.snapshot({})["capacity"]["used"], 0);
 }
 
+TEST(RemoteDisplayTopology, LastReleaseAcceptsTheEmptyTopologyItsCallerRefusesToPlace) {
+  // nvhttp's composition callback deliberately refuses to build a topology from zero nodes
+  // ("nothing left to place"). That refusal is correct for a request that must place something,
+  // and wrong for the last release, whose whole job is to leave nothing behind. Reporting it as
+  // a failed apply made the release roll its identity back: normal_game stayed set for the life
+  // of the process, generic_virtual_display_cleanup_allowed() answered false, every teardown
+  // deferred, and the physical outputs were never restored (2026-11-04 16:24:36, black KVM).
+  remote_display_topology::coordinator_t coordinator;
+  int applies = 0;
+  int empty_applies = 0;
+  std::string removed;
+  coordinator.set_runtime_callbacks({
+    .apply_composed_topology =
+      [&](const auto &nodes) {
+        ++applies;
+        if (nodes.empty()) {
+          ++empty_applies;
+          return false;  // exactly what the real callback does with nothing to place
+        }
+        return true;
+      },
+    .remove_owned_display =
+      [&](const auto &uuid) {
+        removed = uuid;
+        return true;
+      },
+  });
+
+  const auto game = coordinator.reserve_normal_game_identity("game", "Game", {1920, 1080, 60});
+  ASSERT_TRUE(game.accepted);
+  coordinator.release_normal_game_identity("game", game.token);
+
+  // The callback is still asked, and still refuses - that refusal is correct in general. What
+  // must change is the coordinator's reading of it: nothing was left to place, so the release
+  // completes instead of rolling its identity back.
+  EXPECT_EQ(empty_applies, 1);
+  EXPECT_EQ(removed, "game");
+  EXPECT_EQ(coordinator.snapshot({})["capacity"]["used"], 0);
+  EXPECT_TRUE(coordinator.generic_virtual_display_cleanup_allowed());
+}
+
 TEST(RemoteDisplayTopology, AppExitWaitsForEveryCaptureBeforeMutatingTopology) {
   remote_display_topology::coordinator_t coordinator;
   std::vector<std::string> operations;
@@ -721,6 +762,10 @@ TEST(RemoteDisplayTopology, ReleaseRetiresDepartingDisplayWhenShrinkingApplyReje
   });
 
   ASSERT_TRUE(coordinator.activate_or_resume("one", "One", {}, 1).ready);
+  // A second owner, so the shrinking composition still carries a node: that is the real shape of
+  // the 15:20 failure, where the departing monitor display sat beside a live game display.
+  const auto keep = coordinator.reserve_normal_game_identity("keep", "Keep", {1920, 1080, 60});
+  ASSERT_TRUE(keep.accepted);
   events.clear();
   reject_apply = true;
   coordinator.explicit_release("one", 1, "Remote Monitor disconnected");
@@ -729,21 +774,21 @@ TEST(RemoteDisplayTopology, ReleaseRetiresDepartingDisplayWhenShrinkingApplyReje
   // exactly how Windows answers with ERROR_INVALID_PARAMETER - so the departing display is retired
   // and the same request is repeated, which now succeeds. The release completes instead of rolling
   // back on top of a display nobody owns any more.
-  EXPECT_EQ(events, (std::vector<std::string> {"apply:0", "remove:one", "apply:0"}));
-  EXPECT_TRUE(coordinator.generic_virtual_display_cleanup_allowed());
+  EXPECT_EQ(events, (std::vector<std::string> {"apply:1", "remove:one", "apply:1"}));
+  EXPECT_EQ(coordinator.snapshot({})["capacity"]["used"], 1);
 }
 
 TEST(RemoteDisplayTopology, FailedReplacementOrDisconnectRetainsOwnership) {
   remote_display_topology::coordinator_t coordinator;
-  bool reject_empty = false;
+  bool reject_apply = false;
   bool reject_remove = false;
   int removals = 0;
   coordinator.set_runtime_callbacks({
     .create_or_reclaim = [](const auto &, const auto &, const auto &) {
       return true;
     },
-    .apply_composed_topology = [&reject_empty](const auto &nodes) {
-      return !(reject_empty && nodes.empty());
+    .apply_composed_topology = [&reject_apply](const auto &) {
+      return !reject_apply;
     },
     .exact_target_has_current_mode_and_dxgi = [](const auto &uuid, const auto &) {
       return std::optional<std::string> {uuid};
@@ -755,14 +800,17 @@ TEST(RemoteDisplayTopology, FailedReplacementOrDisconnectRetainsOwnership) {
   });
 
   ASSERT_TRUE(coordinator.activate_or_resume("one", "One", {}, 1).ready);
-  reject_empty = true;
+  // A real failure needs something to place: with a second owner the composition carries a node,
+  // so a refusal is a genuine rejection rather than the empty end state of the last release.
+  ASSERT_TRUE(coordinator.reserve_normal_game_identity("keep", "Keep", {1920, 1080, 60}).accepted);
+  reject_apply = true;
   coordinator.explicit_release("one", 1, "failed topology handoff");
   // The departing display is retired before the apply is repeated - that is the point of the
   // rescue - but the repeat is refused too, so ownership is retained as before.
   EXPECT_EQ(removals, 1);
   EXPECT_TRUE(coordinator.snapshot("one", 1).accepted);
 
-  reject_empty = false;
+  reject_apply = false;
   reject_remove = true;
   coordinator.explicit_release("one", 1, "failed connector release");
   EXPECT_EQ(removals, 2);

@@ -322,7 +322,7 @@ namespace remote_display_topology {
     // compositor with zero outputs and force a physical-link retrain.
     if (callbacks_.apply_composed_topology) {
       std::vector<std::string> ignored;
-      if (!callbacks_.apply_composed_topology(compose_locked(ignored))) {
+      if (!apply_composed_or_accept_empty_locked(ignored)) {
         state.normal_game = true;
         state.normal_requested_mode = requested_mode;
         state.normal_game_token = token;
@@ -552,7 +552,7 @@ namespace remote_display_topology {
     // not restore a saved/global topology or remove any peer identity.
     if (callbacks_.apply_composed_topology) {
       std::vector<std::string> ignored;
-      bool applied = callbacks_.apply_composed_topology(compose_locked(ignored));
+      bool applied = apply_composed_or_accept_empty_locked(ignored);
       if (!applied && remove_display) {
         /*
          * A departing display whose own session has ended can still sit in Windows' database as an
@@ -565,7 +565,7 @@ namespace remote_display_topology {
          * request is valid and the handoff completes.
          */
         display_removed = callbacks_.remove_owned_display(client_uuid);
-        applied = display_removed && callbacks_.apply_composed_topology(compose_locked(ignored));
+        applied = display_removed && apply_composed_or_accept_empty_locked(ignored);
       }
       if (!applied) {
         state.remote_monitor = true;
@@ -616,6 +616,25 @@ namespace remote_display_topology {
   void coordinator_t::resolve_effective_mode_locked(const std::string &client_uuid, client_state_t &state) {
     state.effective_mode = desired_mode(state);
     if (callbacks_.resolve_mode) callbacks_.resolve_mode(client_uuid, state.effective_mode);
+  }
+
+  bool coordinator_t::apply_composed_or_accept_empty_locked(std::vector<std::string> &warnings) {
+    const auto composed = compose_locked(warnings);
+    const bool nothing_to_place = composed.empty();
+    const bool applied = callbacks_.apply_composed_topology ? callbacks_.apply_composed_topology(composed) : false;
+    if (!applied && nothing_to_place) {
+      // No role wants a display: there is no topology to apply, and asking for one would be a
+      // request to place nothing rather than a request that failed. Reported as a refusal, the
+      // last release rolled its identity back (release_locked and release_normal_game_identity_
+      // locked both undo on a false return), which kept normal_game set for the life of the
+      // process: generic_virtual_display_cleanup_allowed() then answered false forever, every
+      // teardown deferred, and the physical outputs were never restored - the black KVM after a
+      // session ended (2026-11-04 16:24:36: three deferrals in thirty-one milliseconds, with the
+      // roster already reading game=false monitor=false).
+      REMOTE_MONITOR_LOG(info) << "Remote monitor composition: no role wants a display; accepting the refusal.";
+      return true;
+    }
+    return applied;
   }
 
   std::vector<node_t> coordinator_t::compose_locked(std::vector<std::string> &warnings) const {

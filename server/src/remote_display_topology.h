@@ -172,6 +172,11 @@ namespace remote_display_topology {
     static mode_t desired_mode(const client_state_t &state);
     void resolve_effective_mode_locked(const std::string &client_uuid, client_state_t &state);
     std::vector<node_t> compose_locked(std::vector<std::string> &warnings) const;
+    // An empty composition is the correct end state when no role wants a display, not a refused
+    // apply. The composition callback refuses to build a topology from zero nodes on purpose, so
+    // treating that refusal as failure made the last release roll back and keep its identity
+    // owned for the life of the process.
+    bool apply_composed_or_accept_empty_locked(std::vector<std::string> &warnings);
     static mode_t effective_mode(const node_t &node);
     static int layout_width(const node_t &node);
     static int layout_height(const node_t &node);
