@@ -169,6 +169,13 @@ namespace ArtLightControl.Services
         /// </summary>
         public float CurrentTargetBitrateMbps { get; set; }
 
+        /// <summary>
+        /// The monitor stream's own configured ceiling. Kept apart from the session's target
+        /// because a second screen is not sent at the game's bitrate, so comparing its delivered
+        /// rate against the game's target would read as a permanent shortfall.
+        /// </summary>
+        public float CurrentMonitorTargetBitrateMbps { get; set; }
+
         // ── Glossary deep-link ────────────────────────────────────────────────
         // An ⓘ InfoHint sets this to the term it wants, then navigates to the Glossary;
         // GlossaryView reads + clears it on navigation and scrolls to that row. Plain

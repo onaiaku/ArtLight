@@ -656,6 +656,12 @@ namespace ArtLightControl
                     // own ceiling and must not overwrite the game's target.
                     AppStateService.Instance.CurrentTargetBitrateMbps = batch.TargetBitrateMbps;
                 }
+                else
+                {
+                    // The monitor's ceiling is its own; recording it here is what lets the second
+                    // screen say "of N Mbps target" instead of borrowing the game's 500.
+                    AppStateService.Instance.CurrentMonitorTargetBitrateMbps = batch.TargetBitrateMbps;
+                }
 
                 // Forward every sample to the live Dashboard cockpit (preserves
                 // chronological order even on the final flush batch). Client fields

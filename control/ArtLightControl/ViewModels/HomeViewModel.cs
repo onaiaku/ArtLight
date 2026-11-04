@@ -335,6 +335,12 @@ namespace ArtLightControl.ViewModels
         // host-wide, so a second copy of them would be the same number twice.
         private DateTime _lastMonitorSampleUtc = DateTime.MinValue;
 
+        // The monitor's own short window, so its captions mean what the row above means: a peak
+        // RTT over the same window, and a frame count its drop percentage is measured against.
+        private readonly List<float> _monitorRttBuffer = new();
+        private long   _monitorDrops;
+        private double _monitorRendered;
+
         private bool _hasMonitorStream;
         public bool HasMonitorStream { get => _hasMonitorStream; private set => SetProperty(ref _hasMonitorStream, value); }
 
@@ -352,6 +358,18 @@ namespace ArtLightControl.ViewModels
 
         private string _monitorFpsNumber = "—";
         public string MonitorFpsNumber { get => _monitorFpsNumber; private set => SetProperty(ref _monitorFpsNumber, value); }
+
+        // Captions under the second screen's numbers. Same shape as the session row above: a
+        // figure on its own says nothing about whether it is the peak, how many frames it came
+        // from, or what ceiling it is being measured against.
+        private string _monitorRttSub = "peak — · jit —";
+        public string MonitorRttSub { get => _monitorRttSub; private set => SetProperty(ref _monitorRttSub, value); }
+
+        private string _monitorBitrateSub = "live outbound";
+        public string MonitorBitrateSub { get => _monitorBitrateSub; private set => SetProperty(ref _monitorBitrateSub, value); }
+
+        private string _monitorDropsSub = "0 frames";
+        public string MonitorDropsSub { get => _monitorDropsSub; private set => SetProperty(ref _monitorDropsSub, value); }
 
         private IReadOnlyList<float> _liveHostLatSeries = Array.Empty<float>();
         public IReadOnlyList<float> LiveHostLatSeries
@@ -1717,10 +1735,16 @@ namespace ArtLightControl.ViewModels
             // stream sends a sample.
             HasMonitorStream     = false;
             _lastMonitorSampleUtc = DateTime.MinValue;
+            _monitorRttBuffer.Clear();
+            _monitorDrops        = 0;
+            _monitorRendered     = 0;
             MonitorRttNumber     = "—";
             MonitorRttColorHex   = "#808080";
+            MonitorRttSub        = "peak — · jit —";
             MonitorBitrateNumber = "—";
+            MonitorBitrateSub    = "live outbound";
             MonitorDropsNumber   = "0.0";
+            MonitorDropsSub      = "0 frames";
             MonitorFpsNumber     = "—";
 
             var startTime     = SessionLogger.ActiveSessionStartTime;
@@ -1743,7 +1767,13 @@ namespace ArtLightControl.ViewModels
                     if (HasMonitorStream &&
                         DateTime.UtcNow - _lastMonitorSampleUtc > TimeSpan.FromSeconds(3))
                     {
+                        // Forget the run too: a second screen that comes back is a new stream,
+                        // and its peak and frame count should start from nothing rather than
+                        // carrying the closed one's.
                         HasMonitorStream = false;
+                        _monitorRttBuffer.Clear();
+                        _monitorDrops    = 0;
+                        _monitorRendered = 0;
                     }
                 };
             }
@@ -1761,6 +1791,9 @@ namespace ArtLightControl.ViewModels
             _gpuBuffer.Clear();
             _encBuffer.Clear();
             _cpuBuffer.Clear();
+            _monitorRttBuffer.Clear();
+            _monitorDrops    = 0;
+            _monitorRendered = 0;
         }
 
         // GPU / Encoder / CPU line colours (match the compute-chart legend).
@@ -1863,6 +1896,21 @@ namespace ArtLightControl.ViewModels
                     s.RttMs <= 30f ? "#4ade80" :
                     s.RttMs <= 80f ? "#fbbf24" :
                                      "#f87171";
+
+                Push(_monitorRttBuffer, s.RttMs);
+                _monitorDrops    += Math.Max(0, s.Drops);
+                _monitorRendered += Math.Max(0f, s.FpsAvg);
+                double monitorFrames = _monitorDrops + _monitorRendered;
+                float  monitorPeak   = _monitorRttBuffer.Count > 0 ? _monitorRttBuffer.Max() : s.RttMs;
+                MonitorRttSub   = $"peak {(int)monitorPeak} · jit {s.JitterMs:0.0}";
+                MonitorDropsSub = $"{_monitorDrops} of {FormatFrameCount(monitorFrames)} frames";
+
+                // The monitor has its own ceiling (a second screen is not sent at the game's
+                // bitrate), so it reads its own target and never the session's.
+                float monitorTarget = AppStateService.Instance.CurrentMonitorTargetBitrateMbps;
+                MonitorBitrateSub = monitorTarget > 0f
+                    ? $"of {monitorTarget:0.#} Mbps target"
+                    : "live outbound";
             });
         }
 

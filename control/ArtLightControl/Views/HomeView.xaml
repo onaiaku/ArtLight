@@ -275,48 +275,75 @@
                                 </StackPanel>
                             </Grid>
 
-                            <!-- Second screen · its own stream, its own numbers.
+                            <!-- Second screen · the monitor's own stream, its own numbers.
                                  Only the four the client measures: GPU, encoder, CPU and host frame
                                  latency are host-wide, so a second copy would be the same figure
-                                 twice. Hidden until that stream actually reports. -->
+                                 twice. Laid out in the same five columns as the row above so each
+                                 number lands under its twin, and the one column the monitor has no
+                                 value for (host latency) is left empty rather than being filled
+                                 with the game's figure. Hidden until that stream reports. -->
                             <StackPanel Spacing="4"
                                         Visibility="{x:Bind ViewModel.HasMonitorStream, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <TextBlock Text="SECOND SCREEN" Style="{StaticResource ST_SectionLabel}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="· its own stream" Style="{StaticResource ST_BodySmall}" VerticalAlignment="Center"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="26">
-                                    <StackPanel Orientation="Horizontal" Spacing="3">
-                                        <TextBlock Text="{x:Bind ViewModel.MonitorRttNumber, Mode=OneWay}"
-                                                   FontFamily="{StaticResource DMSansSemiBold}" FontSize="17"
-                                                   Foreground="{x:Bind ViewModel.MonitorRttColorHex, Mode=OneWay,
-                                                                Converter={StaticResource HexToSolidColorBrushConverter}}"/>
-                                        <TextBlock Text="ms RTT" FontSize="11" Foreground="{StaticResource STTextDim}"
-                                                   VerticalAlignment="Bottom" Margin="0,0,0,3"/>
+                                <TextBlock Text="SECOND SCREEN" Style="{StaticResource ST_SectionLabel}"/>
+
+                                <Grid ColumnSpacing="14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" Spacing="2">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{x:Bind ViewModel.MonitorRttNumber, Mode=OneWay}"
+                                                       FontFamily="{StaticResource DMSansSemiBold}" FontSize="21"
+                                                       Foreground="{x:Bind ViewModel.MonitorRttColorHex, Mode=OneWay,
+                                                                    Converter={StaticResource HexToSolidColorBrushConverter}}"/>
+                                            <TextBlock Text="ms" FontSize="11" Foreground="{StaticResource STTextDim}"
+                                                       VerticalAlignment="Bottom" Margin="2,0,0,4"/>
+                                        </StackPanel>
+                                        <TextBlock Text="RTT" Style="{StaticResource ST_SectionLabel}"/>
+                                        <TextBlock Text="{x:Bind ViewModel.MonitorRttSub, Mode=OneWay}" Style="{StaticResource ST_BodySmall}"/>
                                     </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="3">
-                                        <TextBlock Text="{x:Bind ViewModel.MonitorBitrateNumber, Mode=OneWay}"
-                                                   FontFamily="{StaticResource DMSansSemiBold}" FontSize="17"
-                                                   Foreground="#FF00B4D8"/>
-                                        <TextBlock Text="Mbps" FontSize="11" Foreground="{StaticResource STTextDim}"
-                                                   VerticalAlignment="Bottom" Margin="0,0,0,3"/>
+
+                                    <StackPanel Grid.Column="2" Spacing="2">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{x:Bind ViewModel.MonitorBitrateNumber, Mode=OneWay}"
+                                                       FontFamily="{StaticResource DMSansSemiBold}" FontSize="21"
+                                                       Foreground="#FF00B4D8"/>
+                                            <TextBlock Text="Mbps" FontSize="11" Foreground="{StaticResource STTextDim}"
+                                                       VerticalAlignment="Bottom" Margin="2,0,0,4"/>
+                                        </StackPanel>
+                                        <TextBlock Text="BITRATE" Style="{StaticResource ST_SectionLabel}"/>
+                                        <TextBlock Text="{x:Bind ViewModel.MonitorBitrateSub, Mode=OneWay}" Style="{StaticResource ST_BodySmall}"/>
                                     </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="3">
-                                        <TextBlock Text="{x:Bind ViewModel.MonitorDropsNumber, Mode=OneWay}"
-                                                   FontFamily="{StaticResource DMSansSemiBold}" FontSize="17"
-                                                   Foreground="{StaticResource STTextPrimary}"/>
-                                        <TextBlock Text="% drops" FontSize="11" Foreground="{StaticResource STTextDim}"
-                                                   VerticalAlignment="Bottom" Margin="0,0,0,3"/>
+
+                                    <StackPanel Grid.Column="3" Spacing="2">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{x:Bind ViewModel.MonitorDropsNumber, Mode=OneWay}"
+                                                       FontFamily="{StaticResource DMSansSemiBold}" FontSize="21"
+                                                       Foreground="{StaticResource STTextPrimary}"/>
+                                            <TextBlock Text="%" FontSize="11" Foreground="{StaticResource STTextDim}"
+                                                       VerticalAlignment="Bottom" Margin="2,0,0,4"/>
+                                        </StackPanel>
+                                        <TextBlock Text="DROPS" Style="{StaticResource ST_SectionLabel}"/>
+                                        <TextBlock Text="{x:Bind ViewModel.MonitorDropsSub, Mode=OneWay}" Style="{StaticResource ST_BodySmall}"/>
                                     </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="3">
-                                        <TextBlock Text="{x:Bind ViewModel.MonitorFpsNumber, Mode=OneWay}"
-                                                   FontFamily="{StaticResource DMSansSemiBold}" FontSize="17"
-                                                   Foreground="{StaticResource STTextPrimary}"/>
-                                        <TextBlock Text="fps" FontSize="11" Foreground="{StaticResource STTextDim}"
-                                                   VerticalAlignment="Bottom" Margin="0,0,0,3"/>
+
+                                    <StackPanel Grid.Column="4" Spacing="2">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{x:Bind ViewModel.MonitorFpsNumber, Mode=OneWay}"
+                                                       FontFamily="{StaticResource DMSansSemiBold}" FontSize="21"
+                                                       Foreground="{StaticResource STTextPrimary}"/>
+                                            <TextBlock Text="fps" FontSize="11" Foreground="{StaticResource STTextDim}"
+                                                       VerticalAlignment="Bottom" Margin="2,0,0,4"/>
+                                        </StackPanel>
+                                        <TextBlock Text="FRAME RATE" Style="{StaticResource ST_SectionLabel}"/>
+                                        <TextBlock Text="client decode" Style="{StaticResource ST_BodySmall}"/>
                                     </StackPanel>
-                                </StackPanel>
+                                </Grid>
                             </StackPanel>
+
 
                         </StackPanel>
                     </Grid>
