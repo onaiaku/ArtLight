@@ -240,20 +240,27 @@ namespace nvhttp {
   static std::string otp_device_name;
   static std::chrono::time_point<std::chrono::steady_clock> otp_creation_time;
 
-#ifdef _WIN32
   namespace {
-    bool remote_device_id_equals(const std::string &lhs, const std::string &rhs) {
-      return !lhs.empty() && !rhs.empty() && boost::iequals(lhs, rhs);
-    }
-
     /*
      * launch_session->fps is millihertz — the unit the client speaks, 60000 for 60 Hz — while
      * mode_t is hertz. Passing it through unconverted asked the host to create a virtual display
      * at 138000 Hz, which SetDisplayConfig rejects as ERROR_INVALID_PARAMETER during forced mode
      * enumeration, so every topology containing that display failed validation.
+     *
+     * Platform-free arithmetic, and deliberately outside the _WIN32 block: the Linux identity
+     * reservation below asks for a mode in the same units, and while this lived in the Windows
+     * namespace the Linux build could not compile at all. Nothing noticed until the first Linux
+     * build after that commit — the Windows job compiles only its own half.
      */
     int refresh_hz_from_session_fps(int fps) {
       return fps >= 1000 ? static_cast<int>(std::lround(fps / 1000.0)) : fps;
+    }
+  }  // namespace
+
+#ifdef _WIN32
+  namespace {
+    bool remote_device_id_equals(const std::string &lhs, const std::string &rhs) {
+      return !lhs.empty() && !rhs.empty() && boost::iequals(lhs, rhs);
     }
 
     int remote_refresh_hz(const display_device::FloatingPoint &refresh) {
