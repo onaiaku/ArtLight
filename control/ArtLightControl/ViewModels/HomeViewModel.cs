@@ -328,6 +328,31 @@ namespace ArtLightControl.ViewModels
         private string _liveBitrateSub = "live outbound";
         public string LiveBitrateSub { get => _liveBitrateSub; private set => SetProperty(ref _liveBitrateSub, value); }
 
+        // ── Second screen (Remote Monitor) ────────────────────────────────────
+        //
+        // A second stream with its own sampler, shown under the session strip when one is live.
+        // Only the client-measured numbers appear: GPU, encoder, CPU and host frame latency are
+        // host-wide, so a second copy of them would be the same number twice.
+        private DateTime _lastMonitorSampleUtc = DateTime.MinValue;
+
+        private bool _hasMonitorStream;
+        public bool HasMonitorStream { get => _hasMonitorStream; private set => SetProperty(ref _hasMonitorStream, value); }
+
+        private string _monitorRttNumber = "—";
+        public string MonitorRttNumber { get => _monitorRttNumber; private set => SetProperty(ref _monitorRttNumber, value); }
+
+        private string _monitorRttColorHex = "#808080";
+        public string MonitorRttColorHex { get => _monitorRttColorHex; private set => SetProperty(ref _monitorRttColorHex, value); }
+
+        private string _monitorBitrateNumber = "—";
+        public string MonitorBitrateNumber { get => _monitorBitrateNumber; private set => SetProperty(ref _monitorBitrateNumber, value); }
+
+        private string _monitorDropsNumber = "0.0";
+        public string MonitorDropsNumber { get => _monitorDropsNumber; private set => SetProperty(ref _monitorDropsNumber, value); }
+
+        private string _monitorFpsNumber = "—";
+        public string MonitorFpsNumber { get => _monitorFpsNumber; private set => SetProperty(ref _monitorFpsNumber, value); }
+
         private IReadOnlyList<float> _liveHostLatSeries = Array.Empty<float>();
         public IReadOnlyList<float> LiveHostLatSeries
         {
@@ -876,6 +901,7 @@ namespace ArtLightControl.ViewModels
             AppStateService.Instance.SessionStateChanged       += OnSessionStateChanged;
             AppStateService.Instance.SpatialAudioStatusChanged += OnSpatialAudioStatusChanged;
             AppStateService.Instance.LiveTelemetrySample       += OnLiveSample;
+            AppStateService.Instance.MonitorTelemetrySample    += OnMonitorSample;
 
             var sentinel = AppStateService.Instance.NvidiaSentinel;
             if (sentinel != null)
@@ -950,6 +976,7 @@ namespace ArtLightControl.ViewModels
             AppStateService.Instance.SessionStateChanged       -= OnSessionStateChanged;
             AppStateService.Instance.SpatialAudioStatusChanged -= OnSpatialAudioStatusChanged;
             AppStateService.Instance.LiveTelemetrySample       -= OnLiveSample;
+            AppStateService.Instance.MonitorTelemetrySample    -= OnMonitorSample;
 
             var sentinel = AppStateService.Instance.NvidiaSentinel;
             if (sentinel != null)
@@ -1686,6 +1713,16 @@ namespace ArtLightControl.ViewModels
             LiveRttColorHex    = "#808080";
             LiveRttLineColor   = Color.FromArgb(0xFF, 0x80, 0x80, 0x80);
 
+            // The second screen goes with the session: the row is hidden again until its own
+            // stream sends a sample.
+            HasMonitorStream     = false;
+            _lastMonitorSampleUtc = DateTime.MinValue;
+            MonitorRttNumber     = "—";
+            MonitorRttColorHex   = "#808080";
+            MonitorBitrateNumber = "—";
+            MonitorDropsNumber   = "0.0";
+            MonitorFpsNumber     = "—";
+
             var startTime     = SessionLogger.ActiveSessionStartTime;
             LiveStartedAt     = $"Started {startTime:dd/MM/yyyy  HH:mm}";
             LiveDuration      = FormatDuration(startTime);
@@ -1699,6 +1736,15 @@ namespace ArtLightControl.ViewModels
                 {
                     var t = SessionLogger.ActiveSessionStartTime;
                     if (t != default) LiveDuration = FormatDuration(t);
+
+                    // The monitor stream ends by itself (its window closed, or Stop was pressed in
+                    // it) without telling this app. Three seconds of silence is the honest signal:
+                    // it samples every second while it runs.
+                    if (HasMonitorStream &&
+                        DateTime.UtcNow - _lastMonitorSampleUtc > TimeSpan.FromSeconds(3))
+                    {
+                        HasMonitorStream = false;
+                    }
                 };
             }
             _durationTimer.Start();
@@ -1795,6 +1841,28 @@ namespace ArtLightControl.ViewModels
                 // sees what actually goes out).
                 float target = AppStateService.Instance.CurrentTargetBitrateMbps;
                 LiveBitrateSub = target > 0f ? $"of {target:0.#} Mbps target" : "live outbound";
+            });
+        }
+
+        // The second screen's own stream. Same shape as the session sample, one row instead of a
+        // strip: its RTT, its bitrate, its drops, its frame rate. Nothing host-wide is repeated —
+        // the GPU does not have a second copy for the second window.
+        private void OnMonitorSample(AppStateService.LiveSample s)
+        {
+            _dispatcher.TryEnqueue(() =>
+            {
+                _lastMonitorSampleUtc = DateTime.UtcNow;
+                HasMonitorStream = true;
+
+                MonitorRttNumber   = s.RttMs < 10f ? $"{s.RttMs:0.0}" : $"{(int)s.RttMs}";
+                MonitorBitrateNumber = s.BitrateMbps >= 100f ? $"{s.BitrateMbps:0}" : $"{s.BitrateMbps:0.0}";
+                MonitorDropsNumber = $"{s.Drops:0.0}";
+                MonitorFpsNumber   = s.FpsAvg > 0f ? $"{s.FpsAvg:0}" : "—";
+
+                MonitorRttColorHex =
+                    s.RttMs <= 30f ? "#4ade80" :
+                    s.RttMs <= 80f ? "#fbbf24" :
+                                     "#f87171";
             });
         }
 

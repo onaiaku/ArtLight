@@ -134,6 +134,17 @@ namespace ArtLightControl.Services
         public void RaiseLiveSample(LiveSample sample)
             => LiveTelemetrySample?.Invoke(sample);
 
+        // ── The second screen's own stream ───────────────────────────────────
+        //
+        // A Remote Monitor window is a second ArtMoon process with its own sampler, sending its
+        // own SESSIONDATA batch tagged role="monitor". It is a separate stream, so its numbers are
+        // kept apart from the ordinary session: mixed into one feed they were a coin toss between
+        // the two streams, and the recorded session averages blended both.
+        public event Action<LiveSample>? MonitorTelemetrySample;
+
+        public void RaiseMonitorSample(LiveSample sample)
+            => MonitorTelemetrySample?.Invoke(sample);
+
         // ── Host metrics (idle vitals) ────────────────────────────────────────
         //
         // Exposes HostMetricsCollector.GetLatestSample() to the Dashboard so the

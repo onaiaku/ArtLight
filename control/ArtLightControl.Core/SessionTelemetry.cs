@@ -38,6 +38,14 @@ namespace ArtLightControl
     public sealed class ClientBatch
     {
         [JsonPropertyName("session_id")]  public string             SessionId { get; set; } = "";
+
+        /// <summary>
+        /// Which stream this batch belongs to: "game" for the ordinary session, "monitor" for the
+        /// second screen. That window is its own ArtMoon process with its own sampler, so the two
+        /// arrive here as two independent streams and would otherwise be blended into one live
+        /// feed and one session record. Empty from clients older than 6.4.0.
+        /// </summary>
+        [JsonPropertyName("role")]        public string             Role      { get; set; } = "";
         [JsonPropertyName("target_fps")]  public int                TargetFps { get; set; }
         [JsonPropertyName("samples")]     public List<ClientSample> Samples   { get; set; } = new();
 

@@ -80,10 +80,17 @@ TEST(RemoteSession, CatalogueProjectionMatchesCallerOwnershipMatrix) {
   EXPECT_EQ(observer.catalogue[5].id, remote_session::secondary_input_id);
   EXPECT_EQ(observer.catalogue[6].id, remote_session::secondary_monitor_id);
 
+  // Holding a monitor keeps the host's apps: the collapse that used to hide them outlived the
+  // stream once leaving stopped ending the role (4 Nov 2026). Resume and Disconnect go on the
+  // front; Remote Input is gone because dispatch refuses it while a role is held.
   const auto monitor = remote_session::project(caller("monitor"), {}, {.role = remote_session::role_e::monitor, .retained = true}, configured, true);
-  ASSERT_EQ(monitor.catalogue.size(), 2);
+  ASSERT_EQ(monitor.catalogue.size(), 5);
+  EXPECT_TRUE(monitor.free);
   EXPECT_EQ(monitor.catalogue[0].id, remote_session::resume_id);
   EXPECT_EQ(monitor.catalogue[1].id, remote_session::disconnect_monitor_id);
+  EXPECT_EQ(monitor.catalogue[2].title, "One");
+  EXPECT_EQ(monitor.catalogue[3].title, "Two");
+  EXPECT_EQ(monitor.catalogue[4].id, remote_session::monitor_id);
 
   const auto input = remote_session::project(caller("input"), {}, {.role = remote_session::role_e::input}, configured, true);
   ASSERT_EQ(input.catalogue.size(), 3);
@@ -100,10 +107,17 @@ TEST(RemoteSession, CatalogueProjectionMatchesCallerOwnershipMatrix) {
   EXPECT_EQ(input_during_game.catalogue[4].title, "Two");
   EXPECT_EQ(input_during_game.catalogue[5].id, remote_session::secondary_monitor_id);
 
+  // The case that stranded Nik's picker: a game running and owned by this client, and a monitor
+  // also held. The list must still be the list, with the monitor's controls in front of it.
   const auto game_owner_monitor = remote_session::project(caller("owner"), game(), {.role = remote_session::role_e::monitor, .retained = true}, configured, true);
-  ASSERT_EQ(game_owner_monitor.catalogue.size(), 2);
+  ASSERT_EQ(game_owner_monitor.catalogue.size(), 5);
+  EXPECT_FALSE(game_owner_monitor.free);
+  EXPECT_EQ(game_owner_monitor.current_game, 42);
   EXPECT_EQ(game_owner_monitor.catalogue[0].id, remote_session::resume_id);
   EXPECT_EQ(game_owner_monitor.catalogue[1].id, remote_session::disconnect_monitor_id);
+  EXPECT_EQ(game_owner_monitor.catalogue[2].title, "One");
+  EXPECT_EQ(game_owner_monitor.catalogue[3].title, "Two");
+  EXPECT_EQ(game_owner_monitor.catalogue[4].id, remote_session::monitor_id);
 }
 
 TEST(RemoteSession, ConfiguredRemoteMarkersCannotShadowSyntheticControls) {
