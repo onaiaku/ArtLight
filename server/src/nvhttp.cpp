@@ -328,7 +328,10 @@ namespace nvhttp {
     bool apply_remote_monitor_composition(const std::vector<remote_display_topology::node_t> &nodes) {
       display_helper_integration::DisplayTopologyDefinition topology;
       const auto physical = display_helper_integration::capture_physical_topology();
-      if (!physical) return false;
+      if (!physical) {
+        BOOST_LOG(warning) << "Remote monitor composition: could not capture the physical topology; composition abandoned.";
+        return false;
+      }
       topology.topology = *physical;
 
       auto has_device = [&topology](const std::string &id) {

@@ -347,13 +347,18 @@ namespace remote_display_topology {
   activation_result_t coordinator_t::resume_remote_monitor(const std::string &client_uuid) {
     std::lock_guard lock(mutex_);
     const auto it = clients_.find(client_uuid);
-    if (it == clients_.end() || !it->second.remote_monitor) return {false, false, "Remote Monitor is not owned by this paired client."};
+    if (it == clients_.end() || !it->second.remote_monitor) {
+      BOOST_LOG(warning) << "Remote Monitor resume refused: client '" << client_uuid << "' does not hold the monitor role.";
+      return {false, false, "Remote Monitor is not owned by this paired client."};
+    }
     return activate_locked(client_uuid, it->second);
   }
 
   monitor_runtime_state_t coordinator_t::activate_or_resume(const std::string &client_uuid, const std::string &label, mode_t mode, uint64_t generation) {
     std::lock_guard lock(mutex_);
     if (!clients_.contains(client_uuid) && clients_.size() >= max_client_identities) {
+      BOOST_LOG(warning) << "Remote Monitor refused: capacity reached (" << clients_.size() << "/"
+                         << max_client_identities << " client identities).";
       return {false, false, true, {}, "Remote display capacity is four paired-client identities."};
     }
     auto [state_it, inserted] = clients_.try_emplace(client_uuid);
@@ -408,6 +413,10 @@ namespace remote_display_topology {
     if (!state.lease_held) {
       state.lifecycle = lifecycle_e::leased;
       if (!callbacks_.create_or_reclaim(client_uuid, state.label, desired_mode(state))) {
+        const auto want = desired_mode(state);
+        BOOST_LOG(warning) << "Remote monitor activation: create_or_reclaim failed for client '" << client_uuid
+                           << "' (label '" << state.label << "') mode=" << want.width << "x" << want.height << "x"
+                           << want.refresh_hz << "; ownership retained for Resume.";
         state.lifecycle = lifecycle_e::retryable;
         state.warning = "The owned virtual display could not be created or reclaimed; Resume will retry the same identity.";
         return {true, false, state.warning};
@@ -419,6 +428,8 @@ namespace remote_display_topology {
     std::vector<std::string> warnings;
     const auto composed = compose_locked(warnings);
     if (!callbacks_.apply_composed_topology(composed)) {
+      BOOST_LOG(warning) << "Remote monitor activation: composed topology did not apply for client '" << client_uuid
+                         << "' (" << composed.size() << " node(s)); ownership retained for Resume.";
       state.lifecycle = lifecycle_e::retryable;
       state.warning = "The composed display topology did not apply; existing owners and their displays were retained.";
       return {true, false, state.warning};
@@ -426,6 +437,9 @@ namespace remote_display_topology {
     if (!warnings.empty()) state.warning = warnings.front();
     const auto exact_output = callbacks_.exact_target_has_current_mode_and_dxgi(client_uuid, state.effective_mode);
     if (!exact_output || exact_output->empty()) {
+      BOOST_LOG(warning) << "Remote monitor activation: no exact capture output for client '" << client_uuid
+                         << "' mode=" << state.effective_mode.width << "x" << state.effective_mode.height << "x"
+                         << state.effective_mode.refresh_hz << "; ownership retained for Resume.";
       state.lifecycle = lifecycle_e::retryable;
       state.warning = "The requested client display is not yet capture-ready. Existing streamed physical or virtual displays remain topology anchors, but capture will wait rather than mirror another screen.";
       return {true, false, state.warning};
@@ -681,6 +695,7 @@ namespace remote_display_topology {
 
     for (const auto &uuid : active_ids) emit(uuid);
 
+
     // A paired client can hold a game role and a Remote Monitor role at once, and each role owns
     // a separate display. The list above carries one node per client, so the monitor's display
     // had no place in the model at all - the composer kept the game's node and the capture was
@@ -706,6 +721,18 @@ namespace remote_display_topology {
       rightmost += layout_width(monitor);
       nodes.push_back(std::move(monitor));
       warnings.push_back("Client '" + uuid + "' owns both a game display and a Remote Monitor display; the monitor was placed to the right for this activation.");
+    }
+
+    // One place that says what the topology will actually ask Windows for. A refusal is otherwise
+    // read against the roster and the node list guessed at, and a node that never got emitted looks
+    // exactly like a node that was emitted and rejected.
+    BOOST_LOG(info) << "Remote monitor compose result: " << nodes.size() << " node(s)";
+    for (const auto &node : nodes) {
+      BOOST_LOG(info) << "Remote monitor compose result: node id='" << node.id << "' label='" << node.label
+                      << "' device_id='" << node.device_id << "' physical=" << node.physical
+                      << " preexisting=" << node.preexisting << " mode=" << node.configured_mode.width << "x"
+                      << node.configured_mode.height << "x" << node.configured_mode.refresh_hz << " at " << node.x
+                      << "," << node.y << (node.primary ? " primary" : "");
     }
 
     return nodes;
