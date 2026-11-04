@@ -19,6 +19,7 @@
   #include <limits>
   #include <mutex>
   #include <optional>
+  #include <sstream>
   #include <string>
   #include <string_view>
   #include <thread>
@@ -535,7 +536,28 @@ namespace {
         const bool already_matches = ctx->display->isTopologyTheSame(current_topology, topology.topology);
         if (!already_matches) {
           BOOST_LOG(info) << "Display helper: applying requested topology (" << label << ").";
-          display_diagnostics::breadcrumb(std::string {"setTopology before apply ("} + label + "); requested nodes=" + std::to_string(topology.topology.size()));
+          std::ostringstream request_summary;
+          request_summary << "setTopology before apply (" << label << "); requested nodes=" << topology.topology.size();
+          for (const auto &group : topology.topology) {
+            request_summary << " [";
+            for (std::size_t index = 0; index < group.size(); ++index) {
+              request_summary << (index == 0 ? "" : ",") << group[index];
+            }
+            request_summary << ']';
+          }
+          for (const auto &[device_id, point] : topology.monitor_positions) {
+            request_summary << " pos " << device_id << '=' << point.m_x << ',' << point.m_y;
+          }
+          if (topology.primary_device) {
+            request_summary << " primary=" << *topology.primary_device;
+          }
+          display_diagnostics::breadcrumb(request_summary.str());
+          // Written before the apply, not after it. The helper process is the one that
+          // dies mid-call, so a snapshot taken only on failure never reaches disk when
+          // the pipe is lost - which is exactly the case this has to explain.
+          display_diagnostics::snapshot(
+            "topology-apply-before", label, &topology.topology, &topology.monitor_positions,
+            "written immediately before setTopology so a helper death still records the request");
           topology_ok = ctx->display->setTopology(topology.topology);
           if (!topology_ok) {
             BOOST_LOG(warning) << "Display helper: requested topology apply failed (" << label << ").";
