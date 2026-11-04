@@ -41,6 +41,7 @@
   #include "src/platform/windows/display_diagnostics.h"
   #include "src/platform/windows/display_helper_coordinator.h"
   #include "src/platform/windows/display_helper_request_helpers.h"
+  #include "src/platform/windows/display_helper_v2/snapshot_codec.h"
   #include "src/platform/windows/frame_limiter_nvcp.h"
   #include "src/platform/windows/impersonating_display_device.h"
   #include "src/platform/windows/ipc/display_settings_client.h"
@@ -1780,10 +1781,9 @@ namespace {
         wanted.push_back(g_active_session_dd->virtual_display_device_id);
       }
     }
-    if (wanted.empty()) {
-      return;
-    }
-
+    // No early return on an empty list: a Remote Monitor-only stream has no game display to name
+    // here, and that was exactly the case where a second screen's position was never sampled.
+    // What is ours is now decided by the device walk below, not by this list.
     const auto devices = display_helper_integration::enumerate_devices(display_device::DeviceEnumerationDetail::Minimal);
     if (!devices) {
       return;
@@ -1796,9 +1796,17 @@ namespace {
       if (!device.m_info || device.m_device_id.empty()) {
         continue;
       }
-      const bool is_ours = std::any_of(wanted.begin(), wanted.end(), [&](const auto &id) {
-        return boost::iequals(id, device.m_device_id);
-      });
+      // One of ours by identity, or one of ours because it is one of the driver's virtual
+      // displays at all. The session only ever names the game display. The Remote Monitor's
+      // second screen is created and composed by the topology coordinator and never enters that
+      // list, so its position was never read: drag it all evening and it still came back where
+      // the composer put it. Classifying by what the device *is* fixes that for every role,
+      // including ones nobody has written yet.
+      const bool is_ours =
+        display_helper::v2::codec::is_virtual_display_device(device) ||
+        std::any_of(wanted.begin(), wanted.end(), [&](const auto &id) {
+          return boost::iequals(id, device.m_device_id);
+        });
       if (!is_ours) {
         continue;
       }
