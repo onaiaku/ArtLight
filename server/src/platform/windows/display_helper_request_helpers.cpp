@@ -18,6 +18,7 @@
   #include "src/platform/windows/virtual_display.h"
   #include "src/process.h"
   #include "src/rtsp.h"
+  #include "src/state_storage.h"
 
   #include <algorithm>
   #include <boost/algorithm/string/predicate.hpp>
@@ -677,6 +678,31 @@ namespace display_helper_integration::helpers {
           // Only include non-virtual devices
           if (!virtual_device_id.empty() && boost::iequals(device_id, virtual_device_id)) continue;
           topology.device_refresh_rate_overrides[device_id] = rate;
+        }
+      }
+
+      // Put the virtual display back where the user left it.
+      //
+      // Windows stores a monitor's arrangement against the monitor itself, and this
+      // one only exists for the length of a stream — so every session it is a
+      // stranger, and it gets hung off the right-hand edge no matter where they
+      // dragged it last time. The origin saved from that session is the answer.
+      // Nothing here overrides a placement the layout logic above already decided.
+      const std::string remembered_device_id =
+        (resolved_virtual_device_id && !resolved_virtual_device_id->empty()) ? *resolved_virtual_device_id : default_device_id;
+      const bool position_already_set = std::any_of(
+        topology.monitor_positions.begin(),
+        topology.monitor_positions.end(),
+        [&](const auto &entry) { return boost::iequals(entry.first, remembered_device_id); }
+      );
+      if (!remembered_device_id.empty() && !position_already_set) {
+        if (const auto saved = statefile::load_virtual_display_position(remembered_device_id)) {
+          topology.monitor_positions.emplace_back(
+            remembered_device_id,
+            display_device::Point {saved->m_x, saved->m_y}
+          );
+          BOOST_LOG(info) << "Display helper: restoring virtual display " << remembered_device_id
+                          << " to its remembered position (" << saved->m_x << ", " << saved->m_y << ").";
         }
       }
 

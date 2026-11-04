@@ -17,6 +17,7 @@
   #include <filesystem>
   #include <functional>
   #include <limits>
+  #include <map>
   #include <mutex>
   #include <optional>
   #include <sstream>
@@ -1759,6 +1760,51 @@ namespace {
     return j.dump();
   }
 
+  // Ask the desktop where the streaming display actually is, and keep it.
+  //
+  // The user drags the virtual display where they want it and Windows applies it, but
+  // the position is stored against a monitor that will not exist anymore in five
+  // minutes. Reading it back while the session is live is the only moment it can be
+  // captured; the next session hands it straight back.
+  static void remember_virtual_display_position() {
+    std::string device_id;
+    {
+      std::lock_guard<std::mutex> lg(g_session_mutex);
+      if (!g_active_session_dd || !g_active_session_dd->virtual_display) {
+        return;
+      }
+      device_id = g_active_session_dd->virtual_display_device_id;
+    }
+    if (device_id.empty()) {
+      return;
+    }
+
+    const auto devices = enumerate_devices(display_device::DeviceEnumerationDetail::Minimal);
+    if (!devices) {
+      return;
+    }
+
+    for (const auto &device : *devices) {
+      if (!device.m_info || device.m_device_id.empty() || !boost::iequals(device.m_device_id, device_id)) {
+        continue;
+      }
+      const auto origin = device.m_info->m_origin_point;
+
+      // Only write when it has actually moved, so a steady session does not rewrite
+      // the state file every five seconds.
+      static std::mutex remembered_mutex;
+      static std::map<std::string, display_device::Point> remembered;
+      std::lock_guard<std::mutex> lg(remembered_mutex);
+      if (const auto it = remembered.find(device_id);
+          it != remembered.end() && it->second.m_x == origin.m_x && it->second.m_y == origin.m_y) {
+        return;
+      }
+      statefile::save_virtual_display_position(device_id, origin.m_x, origin.m_y);
+      remembered[device_id] = origin;
+      return;
+    }
+  }
+
   static void watchdog_proc(std::stop_token st) {
     using namespace std::chrono_literals;
     constexpr auto kActiveInterval = 5s;
@@ -1806,6 +1852,11 @@ namespace {
           (rtsp_stream::session_count_no_cleanup() == 0) &&
           (proc::proc.current_app_id() > 0);
         const auto interval = suspended ? kSuspendedInterval : kActiveInterval;
+        if (!suspended) {
+          // A live session's display can be dragged anywhere on the desktop; this is
+          // where that ends up being remembered.
+          remember_virtual_display_position();
+        }
         sleep_interruptible(interval);
         if (st.stop_requested()) {
           break;

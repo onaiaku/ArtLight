@@ -151,6 +151,26 @@ namespace statefile {
   /** Load the last compositor scale selected for a stable virtual-display owner. */
   std::optional<double> load_virtual_display_scale(const std::string &identity);
 
+  /**
+   * @brief Where the user left a virtual display on the desktop.
+   *
+   * Windows remembers a monitor's arrangement against the monitor, and a
+   * streaming display only exists for the length of a session. It is a stranger
+   * to Windows every time, so it lands on the right-hand edge instead of where
+   * the user dragged it. Keeping the coordinates ourselves lets the next
+   * session put it back.
+   */
+  struct virtual_display_position_t {
+    int m_x {};
+    int m_y {};
+  };
+
+  /** Persist the desktop origin the user left a virtual display at. */
+  void save_virtual_display_position(const std::string &identity, int x, int y);
+
+  /** @brief Load the remembered origin for a virtual display, if one was saved. */
+  std::optional<virtual_display_position_t> load_virtual_display_position(const std::string &identity);
+
   /** Clear retained virtual-display scales when display state is reset. */
   void clear_virtual_display_scales();
 

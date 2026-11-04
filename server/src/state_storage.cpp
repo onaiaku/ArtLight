@@ -14,6 +14,7 @@
 #include <boost/property_tree/ptree.hpp>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cwctype>
 #include <filesystem>
 #include <fstream>
@@ -23,6 +24,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <tuple>
 
 #ifdef _WIN32
   #include <winsock2.h>
@@ -1380,5 +1382,108 @@ namespace statefile {
       BOOST_LOG(error) << "statefile: failed to clear virtual display scales: " << e.what();
     }
   }
+
+namespace {
+  constexpr std::size_t kMaxVirtualDisplayPositions = 32;
+
+  // A virtual desktop coordinate is an int, but nothing sane lives past this and
+  // a corrupt file should not be able to park a display a billion pixels away.
+  bool valid_virtual_display_position(const int x, const int y) {
+    constexpr int kLimit = 100000;
+    return std::abs(x) <= kLimit && std::abs(y) <= kLimit;
+  }
+}  // namespace
+
+void save_virtual_display_position(const std::string &identity, const int x, const int y) {
+  if (identity.empty() || !valid_virtual_display_position(x, y)) {
+    return;
+  }
+  migrate_recent_state_keys();
+  const auto &path_str = vibeshine_state_path();
+  if (path_str.empty()) {
+    return;
+  }
+
+  std::lock_guard<std::mutex> guard(state_mutex());
+  const fs::path path(path_str);
+  pt::ptree root;
+  if (load_tree_for_update(path, root) == policy::load_result_e::failed) {
+    return;
+  }
+
+  auto &root_node = ensure_root(root);
+  std::vector<std::tuple<std::string, int, int>> positions;
+  if (auto positions_node = root_node.get_child_optional("virtual_display_positions")) {
+    for (const auto &item : *positions_node) {
+      const auto saved_identity = item.second.get_optional<std::string>("identity");
+      const auto saved_x = item.second.get_optional<int>("x");
+      const auto saved_y = item.second.get_optional<int>("y");
+      if (saved_identity && saved_x && saved_y && !saved_identity->empty() &&
+          valid_virtual_display_position(*saved_x, *saved_y) && *saved_identity != identity) {
+        positions.emplace_back(*saved_identity, *saved_x, *saved_y);
+      }
+    }
+  }
+  positions.emplace_back(identity, x, y);
+  if (positions.size() > kMaxVirtualDisplayPositions) {
+    positions.erase(positions.begin(), positions.end() - kMaxVirtualDisplayPositions);
+  }
+
+  pt::ptree positions_node;
+  for (const auto &[saved_identity, saved_x, saved_y] : positions) {
+    pt::ptree item;
+    item.put("identity", saved_identity);
+    item.put("x", saved_x);
+    item.put("y", saved_y);
+    positions_node.push_back({"", item});
+  }
+  root_node.put_child("virtual_display_positions", positions_node);
+  try {
+    write_tree(path, root);
+  } catch (const std::exception &e) {
+    BOOST_LOG(error) << "statefile: failed to persist virtual display position: " << e.what();
+    return;
+  }
+  BOOST_LOG(info) << "statefile: remembered virtual display position (" << x << ", " << y
+                  << ") for " << identity;
+}
+
+std::optional<virtual_display_position_t> load_virtual_display_position(const std::string &identity) {
+  if (identity.empty()) {
+    return std::nullopt;
+  }
+  migrate_recent_state_keys();
+  const auto &path_str = vibeshine_state_path();
+  if (path_str.empty()) {
+    return std::nullopt;
+  }
+
+  std::lock_guard<std::mutex> guard(state_mutex());
+  pt::ptree root;
+  if (!load_tree_if_exists(fs::path(path_str), root)) {
+    return std::nullopt;
+  }
+  try {
+    const auto positions_node = root.get_child_optional("root.virtual_display_positions");
+    if (!positions_node) {
+      return std::nullopt;
+    }
+    for (auto item = positions_node->rbegin(); item != positions_node->rend(); ++item) {
+      const auto saved_identity = item->second.get_optional<std::string>("identity");
+      if (!saved_identity || *saved_identity != identity) {
+        continue;
+      }
+      const auto x = item->second.get_optional<int>("x");
+      const auto y = item->second.get_optional<int>("y");
+      if (x && y && valid_virtual_display_position(*x, *y)) {
+        return virtual_display_position_t {*x, *y};
+      }
+      return std::nullopt;
+    }
+  } catch (const std::exception &e) {
+    BOOST_LOG(warning) << "statefile: failed to read virtual display position: " << e.what();
+  }
+  return std::nullopt;
+}
 
 }  // namespace statefile
