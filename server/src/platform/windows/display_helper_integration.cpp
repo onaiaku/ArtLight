@@ -1779,7 +1779,7 @@ namespace {
       return;
     }
 
-    const auto devices = enumerate_devices(display_device::DeviceEnumerationDetail::Minimal);
+    const auto devices = display_helper_integration::enumerate_devices(display_device::DeviceEnumerationDetail::Minimal);
     if (!devices) {
       return;
     }

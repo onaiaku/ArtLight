@@ -697,10 +697,8 @@ namespace display_helper_integration::helpers {
       );
       if (!remembered_device_id.empty() && !position_already_set) {
         if (const auto saved = statefile::load_virtual_display_position(remembered_device_id)) {
-          topology.monitor_positions.emplace_back(
-            remembered_device_id,
-            display_device::Point {saved->m_x, saved->m_y}
-          );
+          topology.monitor_positions[remembered_device_id] =
+            display_device::Point {saved->m_x, saved->m_y};
           BOOST_LOG(info) << "Display helper: restoring virtual display " << remembered_device_id
                           << " to its remembered position (" << saved->m_x << ", " << saved->m_y << ").";
         }
