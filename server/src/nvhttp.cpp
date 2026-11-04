@@ -392,6 +392,19 @@ namespace nvhttp {
                                    << node.id << "') never appeared in the output list within "
                                    << publish_budget.count() << " ms; keeping the current topology so the live "
                                    << "stream is not torn down for a display Windows has not published.";
+                // Name what Windows does see. Otherwise the next run cannot distinguish a display
+                // that is missing from one that is present at the wrong size or under a different
+                // identity, and the answer costs another build.
+                if (const auto seen = display_helper_integration::enumerate_devices(display_device::DeviceEnumerationDetail::Minimal)) {
+                  for (const auto &device : *seen) {
+                    if (!device.m_info) continue;
+                    BOOST_LOG(warning) << "Remote monitor composition: output '" << device.m_display_name
+                                       << "' id='" << device.m_device_id << "' "
+                                       << device.m_info->m_resolution.m_width << "x"
+                                       << device.m_info->m_resolution.m_height << "x"
+                                       << remote_refresh_hz(device.m_info->m_refresh_rate);
+                  }
+                }
                 return false;
               }
               std::this_thread::sleep_for(publish_interval);
@@ -441,12 +454,21 @@ namespace nvhttp {
         const auto refresh = remote_refresh_hz(device.m_info->m_refresh_rate);
         const auto have_width = static_cast<int>(device.m_info->m_resolution.m_width);
         const auto have_height = static_cast<int>(device.m_info->m_resolution.m_height);
-        if (have_width != static_cast<int>(mode.width) || have_height != static_cast<int>(mode.height) ||
-            refresh != static_cast<int>(mode.refresh_hz)) {
+        // Size decides whether this is the right display; refresh does not. The virtual display
+        // driver reports the streamed panel as 552 Hz for a 138 Hz request - the encoder logs the
+        // same figure on every successful stream - so an exact-refresh comparison here rejects a
+        // display that is present, correctly sized and already capturing. Say both numbers out
+        // loud when they differ, and let capture prove itself.
+        if (have_width != static_cast<int>(mode.width) || have_height != static_cast<int>(mode.height)) {
           BOOST_LOG(warning) << "Remote Monitor capture check: display '" << device.m_display_name << "' is "
                              << have_width << "x" << have_height << "x" << refresh << " but the client asked for "
                              << mode.width << "x" << mode.height << "x" << mode.refresh_hz << ".";
           return std::nullopt;
+        }
+        if (refresh != static_cast<int>(mode.refresh_hz)) {
+          BOOST_LOG(info) << "Remote Monitor capture check: display '" << device.m_display_name << "' reports "
+                          << refresh << " Hz for a " << mode.refresh_hz
+                          << " Hz request; accepting it on size, because this driver does not report refresh back honestly.";
         }
         const auto output = std::find_if(capture_outputs.begin(), capture_outputs.end(), [&](const auto &candidate) {
           return remote_device_id_equals(candidate, device.m_display_name);
