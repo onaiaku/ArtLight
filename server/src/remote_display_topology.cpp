@@ -4,7 +4,6 @@
 #include <set>
 #include <unordered_set>
 
-#include <boost/log/trivial.hpp>
 #include <sstream>
 
 // The composer is built on its own by a component test, which links no logging backend. So the
@@ -21,6 +20,11 @@
   }  // namespace
   #define REMOTE_MONITOR_LOG(level) discarded_log_t {}
 #else
+  // Only in the product build. The component test links no logging backend and carries only
+  // Boost's core headers, so this include is a compile error there: boost/log/trivial.hpp lives
+  // in Boost's log module, which the test does not have. It sat above the #ifdef and broke the
+  // Linux build the first time the suite reached this file (2026-11-04 17:40:54).
+  #include <boost/log/trivial.hpp>
   #include "logging.h"
   #define REMOTE_MONITOR_LOG(level) BOOST_LOG(level)
 #endif
