@@ -56,6 +56,50 @@ TEST(RemoteDisplayTopology, SupportsEveryEdgeAndAlignment) {
   }
 }
 
+
+// A Remote Monitor is retained for resume when its transport goes away, and that is right while
+// the app is still there to resume into. When the app itself terminates there is nothing left to
+// resume into, and the retained identity is what makes the terminal teardown treat the host as
+// busy: cleanup and revert both defer and the displays stay on the desktop with no stream running
+// (2026-11-04 23:26:08, two active SDD displays after a plain stop).
+TEST(RemoteDisplayTopology, AppTerminationReleasesARetainedMonitor) {
+  remote_display_topology::coordinator_t coordinator;
+  coordinator.set_runtime_callbacks({
+    .create_or_reclaim = [](const auto &, const auto &, const auto &) { return true; },
+    .apply_composed_topology = [](const auto &) { return true; },
+    .exact_target_has_current_mode_and_dxgi = [](const auto &, const auto &) {
+      return std::optional<std::string> {"monitor-display"};
+    },
+  });
+
+  ASSERT_TRUE(coordinator.activate_or_resume("client", "Mini PC", {2560, 1440, 144, false}, 1).ready);
+  coordinator.transport_lost("client", 1);
+  ASSERT_EQ(coordinator.managed_client_identity_count(), 1u) << "the monitor was retained for resume";
+
+  coordinator.release_abandoned_remote_monitors("app terminated");
+
+  EXPECT_EQ(coordinator.managed_client_identity_count(), 0u)
+    << "a monitor whose session is gone must not outlive the app it was showing";
+}
+
+TEST(RemoteDisplayTopology, AppTerminationKeepsAMonitorSomebodyIsWatching) {
+  remote_display_topology::coordinator_t coordinator;
+  coordinator.set_runtime_callbacks({
+    .create_or_reclaim = [](const auto &, const auto &, const auto &) { return true; },
+    .apply_composed_topology = [](const auto &) { return true; },
+    .exact_target_has_current_mode_and_dxgi = [](const auto &, const auto &) {
+      return std::optional<std::string> {"monitor-display"};
+    },
+  });
+
+  ASSERT_TRUE(coordinator.activate_or_resume("client", "Mini PC", {2560, 1440, 144, false}, 1).ready);
+
+  coordinator.release_abandoned_remote_monitors("app terminated");
+
+  EXPECT_EQ(coordinator.managed_client_identity_count(), 1u)
+    << "a live monitor must survive another app's termination";
+}
+
 TEST(RemoteDisplayTopology, CreationReceivesPairedClientLabel) {
   remote_display_topology::coordinator_t coordinator;
   std::string observed_label;

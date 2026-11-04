@@ -134,6 +134,10 @@ namespace remote_display_topology {
     void release_drained_normal_game_identities();
     void release_all_normal_game_identities();
     void note_lease_lost(const std::string &client_uuid);
+    // A Remote Monitor held for resume outlives its transport, but not the app it was showing.
+    // Once that app ends for good, an identity that is no longer ready has nothing left to
+    // resume into, so it is released here along with the display it owns.
+    void release_abandoned_remote_monitors(const std::string &reason);
     void disconnect_monitor(const std::string &client_uuid);
     void unpair_client(const std::string &client_uuid);
     /** Drop runtime state, optionally preserving every platform display untouched. */

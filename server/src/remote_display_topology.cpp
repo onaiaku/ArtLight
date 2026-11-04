@@ -482,6 +482,34 @@ namespace remote_display_topology {
     }
   }
 
+  void coordinator_t::release_abandoned_remote_monitors(const std::string &reason) {
+    std::lock_guard lock(mutex_);
+    for (auto it = clients_.begin(); it != clients_.end();) {
+      // ready means a live transport is still capturing this role: a monitor someone is
+      // actually watching is never abandoned. Everything else - retryable after its transport
+      // went away, leased or applying with no session left - is a display kept only for a
+      // resume that cannot happen now that the app has ended.
+      if (!it->second.remote_monitor || it->second.lifecycle == lifecycle_e::ready) {
+        ++it;
+        continue;
+      }
+      const auto released_uuid = it->first;
+      REMOTE_MONITOR_LOG(info) << "Releasing Remote Monitor role for client '" << released_uuid << "' (" << reason << ").";
+      release_locked(released_uuid, it->second, reason);
+      // The composition no longer names this client and an empty compose is accepted without
+      // asking Windows for anything, so nothing else will retire this output. Whoever releases a
+      // role on the app's last breath removes the display it owned, right here.
+      if (callbacks_.remove_owned_display) {
+        callbacks_.remove_owned_display(released_uuid);
+      }
+      if (!it->second.normal_game && !it->second.remote_monitor) {
+        it = clients_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+
   void coordinator_t::disconnect_monitor(const std::string &client_uuid) {
     std::lock_guard lock(mutex_);
     const auto it = clients_.find(client_uuid);

@@ -3272,6 +3272,19 @@ namespace proc {
     }
 #endif
 
+#if defined(_WIN32) || defined(__linux__)
+    // A Remote Monitor kept for resume outlives its transport, but not the app it was showing:
+    // once the app terminates there is nothing left to resume into. That retained identity is
+    // what makes the check below answer "another streaming session is still active", so cleanup
+    // and the revert both defer and nothing ever retries - the desktop keeps the monitor's
+    // virtual display and the game's after a plain stop, with no stream running (2026-11-04
+    // 23:26:08: stopped, then three deferrals and two active SDD displays left behind).
+    // App replacement is excluded: there the new session has already applied its topology.
+    if (should_dispatch_revert && !skip_display_revert) {
+      remote_display_topology::instance().release_abandoned_remote_monitors("app terminated");
+    }
+#endif
+
     // A draining normal capture or retained Remote Monitor keeps cleanup and
     // REVERT pending until the final capture reference has been released.
     const bool other_streaming_session_active =
