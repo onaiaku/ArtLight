@@ -441,6 +441,13 @@ namespace platf {
       return true;
     }
 
+    // True when this device can run NVIDIA's TrueHDR conversion between capture and encode.
+    // Defaults to false so every platform that never implemented it keeps refusing rather than
+    // silently labelling unconverted SDR as HDR.
+    virtual bool supports_rtx_hdr() const {
+      return false;
+    }
+
     int convert(platf::img_t &img) override {
       return -1;
     }

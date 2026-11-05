@@ -1,14 +1,10 @@
 #include "rtx_hdr_runtime.h"
 
-#include "display_helper_process.h"
 #include "src/config.h"
 #include "src/process.h"
 
 #include <algorithm>
 #include <atomic>
-#include <boost/program_options/parsers.hpp>
-#include <cstdlib>
-#include <gio/gio.h>
 
 namespace platf::rtx_hdr {
   namespace {
@@ -50,63 +46,19 @@ namespace platf::rtx_hdr {
   }
 
   bool foreground_t::matches() const {
-    const auto age = std::chrono::steady_clock::now().time_since_epoch() - std::chrono::nanoseconds(observed_at.load());
-    return matched.load() && app_id.load() == proc::proc.current_app_id() && age < std::chrono::seconds(2);
+    // Upstream asks its machine service which window owns the desktop, so the conversion can
+    // follow one application. This fork has no such service yet, so a live stream with RTX HDR
+    // switched on is the whole condition: same picture, without the per-app rule. When that
+    // service arrives, only this poll changes - the callers do not.
+    return matched.load();
   }
 
   void foreground_t::poll(std::stop_token stop) {
     while (!stop.stop_requested()) {
       const int id = proc::proc.current_app_id();
-      bool match = false;
-      try {
-        const auto app = proc::proc.active_app_snapshot();
-        if (!app) {
-          // A brief lifecycle/catalog lock is not a foreground change. Keep
-          // the last observation until its normal two-second TTL, without
-          // refreshing it or letting it survive an application transition.
-          if (id <= 0 || id != app_id.load()) {
-            matched.store(false);
-          }
-          std::unique_lock lock(mutex);
-          wake.wait_for(lock, stop, std::chrono::milliseconds(500), [] {
-            return false;
-          });
-          continue;
-        }
-        std::string provider, identity;
-        if (app && !app->steam_id.empty()) {
-          provider = "steam";
-          identity = app->steam_id;
-        } else if (app && !app->lutris_id.empty()) {
-          provider = "lutris";
-          identity = app->lutris_id;
-        } else if (app && !app->cmd.empty()) {
-          const auto parts = boost::program_options::split_unix(app->cmd);
-          if (!parts.empty()) {
-            provider = "executable";
-            identity = parts.front();
-          }
-        }
-        if (id > 0 && !identity.empty()) {
-          const bool machine = std::getenv("VIBEPOLLO_MACHINE_HOST") != nullptr;
-          GError *error = nullptr;
-          auto *process = g_subprocess_new(GSubprocessFlags(G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_PIPE), &error, machine ? "/usr/libexec/vibeshine/vibepollo-session-exec" : "/usr/libexec/vibeshine/vibepollo-app-focus", machine ? "rtx-hdr-foreground" : "--foreground", provider.c_str(), identity.c_str(), nullptr);
-          if (process) {
-            const auto reply = linux_private_display::helper_process::communicate_until(process, std::chrono::steady_clock::now() + std::chrono::milliseconds(1500), machine);
-            match = reply.success && reply.stdout_text == "1\n";
-            g_object_unref(process);
-          }
-          g_clear_error(&error);
-        }
-      } catch (...) {
-        match = false;
-      }
-      // Never publish a result for the app which was replaced during IPC.
-      matched.store(false);
       app_id.store(id);
-      observed_at.store(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
-      matched.store(match && id == proc::proc.current_app_id());
-      std::unique_lock lock(mutex);
+      matched.store(id > 0);
+      std::unique_lock lock {mutex};
       wake.wait_for(lock, stop, std::chrono::milliseconds(500), [] {
         return false;
       });
