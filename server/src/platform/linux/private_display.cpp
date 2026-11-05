@@ -718,6 +718,18 @@ namespace platf::linux_private_display {
       return "client:" + client_uuid;
     }
 
+    /*
+     * The monitor role's own reservation identity.
+     *
+     * Windows derives the monitor's display GUID from remote_monitor_stable_id(); Linux keyed the
+     * reservation on the bare client uuid, so a client already streaming as the game role collided
+     * with its own game connector and the composed topology — whose monitor node carries the
+     * suffix — then looked for a reservation nobody had written. Two roles, two identities.
+     */
+    std::string remote_monitor_reservation_identity(const std::string &client_uuid) {
+      return client_reservation_identity(remote_display_topology::remote_monitor_stable_id(client_uuid));
+    }
+
     std::optional<double> retained_scale(state_t &manager, const std::string &identity) {
       if (const auto saved = manager.retained_scales.find(identity); saved != manager.retained_scales.end()) {
         return saved->second;
@@ -1375,7 +1387,7 @@ namespace platf::linux_private_display {
     manager.cleanup_generation.fetch_add(1, std::memory_order_acq_rel);
     const auto output = reserve_output(
       manager,
-      client_reservation_identity(client_uuid),
+      remote_monitor_reservation_identity(client_uuid),
       false,
       false
     );
@@ -1393,7 +1405,7 @@ namespace platf::linux_private_display {
     const std::string &client_uuid,
     remote_display_topology::mode_t &mode
   ) {
-    const auto output_name = output_for_client(client_uuid);
+    const auto output_name = output_for_monitor(client_uuid);
     const auto configuration = query_configuration();
     const auto *output = output_name && configuration ? find_output(*configuration, *output_name) : nullptr;
     const bool capable = output_name && output_hdr_capable(output, *output_name);
@@ -1478,9 +1490,10 @@ namespace platf::linux_private_display {
         .owned_client = owned_client,
       };
       if (const auto existing = desired_indexes.find(output_name); existing != desired_indexes.end()) {
-        // A normal stream and Remote Monitor owned by the same paired client
-        // deliberately resolve to one connector. The explicit client node owns
-        // its requested mode and placement.
+        // Two roles of one paired client own two connectors of their own (the monitor's identity is
+        // <uuid>:remote-monitor), so this is defensive only: it exists for a retained reservation
+        // that still points both nodes at one output. When it does happen the explicit client node
+        // owns its requested mode and placement.
         if (owned_client || !desired[existing->second].owned_client) {
           desired[existing->second] = std::move(entry);
         }
@@ -1687,7 +1700,7 @@ namespace platf::linux_private_display {
     const std::string &client_uuid,
     const remote_display_topology::mode_t &mode
   ) {
-    const auto owned_output = output_for_client(client_uuid);
+    const auto owned_output = output_for_monitor(client_uuid);
     if (!owned_output) {
       return std::nullopt;
     }
@@ -1720,13 +1733,8 @@ namespace platf::linux_private_display {
     return std::nullopt;
   }
 
-  bool remote_remove_owned_display(const std::string &client_uuid) {
-    if (process_shutdown_preserve_requested()) {
-      return true;
-    }
-    auto &manager = state();
-    std::lock_guard lock {manager.mutex};
-    const auto reservation = manager.reservations.find(client_reservation_identity(client_uuid));
+  static bool remove_owned_reservation(state_t &manager, const std::string &identity) {
+    const auto reservation = manager.reservations.find(identity);
     if (reservation == manager.reservations.end()) {
       return true;
     }
@@ -1759,6 +1767,28 @@ namespace platf::linux_private_display {
     return true;
   }
 
+  bool remote_remove_owned_display(const std::string &client_uuid) {
+    if (process_shutdown_preserve_requested()) {
+      return true;
+    }
+    auto &manager = state();
+    std::lock_guard lock {manager.mutex};
+    return remove_owned_reservation(manager, client_reservation_identity(client_uuid));
+  }
+
+  /*
+   * The coordinator's remove_owned_display callback is the monitor role's, so it must free the
+   * monitor's connector — the game's reservation is released by the session path, not this one.
+   */
+  bool remote_remove_monitor_display(const std::string &client_uuid) {
+    if (process_shutdown_preserve_requested()) {
+      return true;
+    }
+    auto &manager = state();
+    std::lock_guard lock {manager.mutex};
+    return remove_owned_reservation(manager, remote_monitor_reservation_identity(client_uuid));
+  }
+
   bool is_kernel_output(const std::string &output_name) {
     return is_managed_output(output_name);
   }
@@ -1771,6 +1801,13 @@ namespace platf::linux_private_display {
     auto &manager = state();
     std::lock_guard lock {manager.mutex};
     const auto reservation = manager.reservations.find(client_reservation_identity(client_uuid));
+    return reservation == manager.reservations.end() ? std::nullopt : std::make_optional(reservation->second);
+  }
+
+  std::optional<std::string> output_for_monitor(const std::string &client_uuid) {
+    auto &manager = state();
+    std::lock_guard lock {manager.mutex};
+    const auto reservation = manager.reservations.find(remote_monitor_reservation_identity(client_uuid));
     return reservation == manager.reservations.end() ? std::nullopt : std::make_optional(reservation->second);
   }
 

@@ -72,12 +72,21 @@ namespace platf::linux_private_display {
 
   /** Release only this client's connector reservation; topology apply performs the disable. */
   bool remote_remove_owned_display(const std::string &client_uuid);
+  /**
+   * Release the connector held by this client's Remote Monitor role.
+   *
+   * The monitor owns an identity of its own (<uuid>:remote-monitor), so the game role's release
+   * above must not be used for it and vice versa.
+   */
+  bool remote_remove_monitor_display(const std::string &client_uuid);
 
   /** Inspect stable ownership while constructing the Remote Monitor baseline. */
   bool is_private_output(const std::string &output_name);
   /** Identify an output backed by the managed kernel driver. */
   bool is_kernel_output(const std::string &output_name);
   std::optional<std::string> output_for_client(const std::string &client_uuid);
+  /** The connector this client's monitor role reserved, if any. */
+  std::optional<std::string> output_for_monitor(const std::string &client_uuid);
 
   /** Restore the pre-stream topology and release all private-output reservations. */
   bool revert();
