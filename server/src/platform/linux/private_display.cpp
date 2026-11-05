@@ -568,6 +568,52 @@ namespace platf::linux_private_display {
       std::optional<std::string> guard_output;
     };
 
+  /*
+   * A KScreen mode id is an index into the enumeration for that query, not a durable name: adding
+   * an output, removing one, or admitting a custom mode renumbers the others. A snapshot therefore
+   * remembers an id that can name a different mode - or nothing - by the time it is sent, which is
+   * how the restore guard asked eDP-2 for 'mode.1' while the panel's mode had become 99 and the
+   * enable was refused with no error at all.
+   *
+   * Resolve the saved mode by size and refresh against the output's current mode table and return
+   * the id that is true now. Empty when nothing matches, so the caller can omit the mode argument
+   * and let the compositor keep the output's own.
+   */
+  static std::optional<std::string> current_mode_id(const json &saved, const json *present) {
+    const auto saved_mode = saved.value("currentModeId", std::string {});
+    if (!present) {
+      return saved_mode.empty() ? std::nullopt : std::make_optional(saved_mode);
+    }
+    int width = 0;
+    int height = 0;
+    double refresh = 0.0;
+    for (const auto &mode : saved.value("modes", json::array())) {
+      if (mode.value("id", std::string {}) == saved_mode) {
+        const auto size = mode.value("size", json::object());
+        width = size.value("width", 0);
+        height = size.value("height", 0);
+        refresh = mode.value("refreshRate", 0.0);
+        break;
+      }
+    }
+    const auto modes = present->value("modes", json::array());
+    if (width > 0 && height > 0 && refresh > 0) {
+      for (const auto &mode : modes) {
+        const auto size = mode.value("size", json::object());
+        if (size.value("width", 0) == width && size.value("height", 0) == height &&
+            std::abs(mode.value("refreshRate", 0.0) - refresh) < 0.2) {
+          return mode.value("id", std::string {});
+        }
+      }
+    }
+    for (const auto &mode : modes) {
+      if (mode.value("id", std::string {}) == saved_mode) {
+        return saved_mode;
+      }
+    }
+    return std::nullopt;
+  }
+
     std::vector<std::string> output_activation_arguments(
       const json &saved,
       const json *present,
@@ -575,9 +621,8 @@ namespace platf::linux_private_display {
     ) {
       const auto prefix = "output." + name + ".";
       std::vector<std::string> arguments {prefix + "enable"};
-      const auto mode = saved.value("currentModeId", std::string {});
-      if (!mode.empty()) {
-        arguments.push_back(prefix + "mode." + mode);
+      if (const auto mode = current_mode_id(saved, present)) {
+        arguments.push_back(prefix + "mode." + *mode);
       }
       // KScreen serializes Output::Rotation as flags, while the doctor takes names.
       static const std::map<int, std::string> rotations {
@@ -1544,6 +1589,37 @@ namespace platf::linux_private_display {
                          << entry.name << ".";
         return false;
       }
+    }
+
+    /*
+     * admit_requested_mode() adds a custom mode when the connector does not offer the requested
+     * refresh, and adding one renumbers every mode id in the configuration. The ids resolved above
+     * were read before that, so they can name a different mode by the time this command runs - which
+     * is how the monitor connector came up at the game's own 3840x2160 instead of 2560x1440@144.
+     * Re-resolve each owned entry against the enumeration that will actually receive the command.
+     */
+    if (const auto fresh = query_configuration()) {
+      for (auto &entry : desired) {
+        if (!entry.owned_client) {
+          continue;
+        }
+        const auto *output = find_output(*fresh, entry.name);
+        if (!output) {
+          continue;
+        }
+        const display_device::Resolution resolution {
+          static_cast<unsigned int>(std::max(1, entry.node.configured_mode.width)),
+          static_cast<unsigned int>(std::max(1, entry.node.configured_mode.height)),
+        };
+        const display_device::FloatingPoint refresh = display_device::Rational {
+          static_cast<unsigned int>(std::max(1, entry.node.configured_mode.refresh_hz)),
+          1,
+        };
+        if (const auto resolved = best_mode_id(*output, resolution, refresh); !resolved.empty()) {
+          entry.mode_id = resolved;
+        }
+      }
+      configuration = fresh;
     }
 
     const auto min_x = std::min_element(desired.begin(), desired.end(), [](const auto &lhs, const auto &rhs) {
