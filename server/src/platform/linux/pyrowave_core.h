@@ -16,6 +16,12 @@ namespace pyrowave::linux_gpu {
     bool yuv444 = false, ten_bit = false, hdr = false;
     std::array<float, 12> matrix {};
     std::string render_device;
+    // RTX HDR: the model runs between two dispatches. An empty runtime keeps it out
+    // of the path entirely, and external_sync keeps CUDA and Vulkan on one timeline
+    // instead of stalling the CPU between the passes.
+    std::string truehdr_runtime;
+    bool truehdr_external_sync = true;
+    int truehdr_contrast = 100, truehdr_saturation = 100, truehdr_middle_gray = 50, truehdr_peak = 1000;
   };
 
   struct source_t {

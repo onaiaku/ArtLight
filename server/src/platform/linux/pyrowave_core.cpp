@@ -7,9 +7,11 @@
 #include "context.hpp"
 #include "device.hpp"
 #include "pyrowave_encoder.hpp"
+#include "pyrowave_truehdr.h"
 
 #include <algorithm>
 #include <cerrno>
+#include <exception>
 #include <cstring>
 #include <drm_fourcc.h>
 #include <fcntl.h>
@@ -68,6 +70,8 @@ namespace pyrowave::linux_gpu {
     Vulkan::Program *program = nullptr;
     Vulkan::ImageHandle planes[3];
     Vulkan::BufferHandle meta_gpu, bits_gpu, meta_cpu, bits_cpu;
+    std::unique_ptr<truehdr_t> truehdr;
+    std::string truehdr_error;
     bool initialized = false;
 
     ~impl_t() {
@@ -147,6 +151,7 @@ namespace pyrowave::linux_gpu {
       layout.sets[0].sampled_image_mask = (1u << 0) | (1u << 4) | (1u << 5);
       layout.sets[0].storage_image_mask = (1u << 1) | (1u << 2) | (1u << 3);
       layout.sets[0].uniform_buffer_mask = 1u << 6;
+      layout.sets[0].storage_buffer_mask = 1u << 7;
       layout.sets[0].fp_mask = 0x3f;
       for (int i = 0; i < 7; ++i) {
         layout.sets[0].meta[i].array_size = 1;
@@ -155,6 +160,17 @@ namespace pyrowave::linux_gpu {
       if (!program) {
         error = "conversion shader creation failed";
         return false;
+      }
+      if (!c.truehdr_runtime.empty() && c.hdr) {
+        try {
+          truehdr = std::make_unique<truehdr_t>();
+          truehdr->init(device, c);
+        } catch (const std::exception &e) {
+          // An unavailable model is not a broken encoder: the session keeps the
+          // SDR-to-PQ path it had before.
+          truehdr_error = e.what();
+          truehdr.reset();
+        }
       }
       for (int i = 0; i < 3; ++i) {
         auto info = Vulkan::ImageCreateInfo::immutable_2d_image(c.width, c.height, VK_FORMAT_R16_UNORM);
@@ -311,12 +327,75 @@ namespace pyrowave::linux_gpu {
       error = "bitstream allocation failed";
       return false;
     }
+    const bool linear = source->get_create_info().format == VK_FORMAT_R16G16B16A16_SFLOAT;
+    // RTX HDR synthesizes HDR from an SDR source: it has nothing to add to a capture
+    // that is already float scRGB or already carrying PQ codes.
+    const bool use_truehdr = d.truehdr && d.config.hdr && !linear && !s.hdr10;
+    std::uint64_t truehdr_value = 0;
+
+    if (use_truehdr) {
+      auto pass = d.device.request_command_buffer(Vulkan::CommandBuffer::Type::AsyncCompute);
+      if (s.surface) {
+        pass->acquire_image_barrier(*source, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT, VK_QUEUE_FAMILY_FOREIGN_EXT);
+      }
+      pass->set_program(d.program);
+      pass->set_texture(0, 0, source->get_view(), Vulkan::StockSampler::LinearClamp);
+      for (int i = 0; i < 3; ++i) {
+        pass->set_storage_texture(0, 1 + i, d.planes[i]->get_view());
+      }
+      pass->set_texture(0, 4, cursor->get_view(), Vulkan::StockSampler::LinearClamp);
+      pass->set_texture(0, 5, gamma->get_view(), Vulkan::StockSampler::LinearClamp);
+      pass->set_storage_buffer(0, 7, *d.truehdr->input);
+      auto u1 = uniform_t {};
+      u1.matrix = d.config.matrix;
+      u1.crop = {s.offset_x, s.offset_y, s.width, s.height};
+      u1.output = {d.config.width, d.config.height};
+      u1.invert_y = s.y_invert;
+      u1.use_lut = s.lut && !s.lut->empty();
+      if (s.cursor) {
+        u1.cursor = {(s.cursor_x - s.offset_x) * d.config.width / s.width, (s.cursor_y - s.offset_y) * d.config.height / s.height, s.cursor_dst_width * d.config.width / s.width, s.cursor_dst_height * d.config.height / s.height};
+      }
+      u1.mode = 1;
+      auto *d1 = pass->allocate_typed_constant_data<uniform_t>(0, 6, 1);
+      *d1 = u1;
+      pass->dispatch((d.config.width + 15) / 16, (d.config.height + 15) / 16, 1);
+      // The model reads this buffer through CUDA; make the write visible outside Vulkan.
+      pass->barrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT);
+      if (s.surface) {
+        pass->release_image_barrier(*source, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_QUEUE_FAMILY_FOREIGN_EXT);
+      }
+      truehdr_value = d.truehdr->next_value();
+      if (d.truehdr->asynchronous()) {
+        // Hand the frame to CUDA on the timeline: the model waits for this value,
+        // so the CPU never sits between the two passes.
+        auto signal = d.device.request_timeline_semaphore_as_binary(*d.truehdr->timeline, truehdr_value - 1);
+        d.device.submit(pass, nullptr, 1, &signal);
+      } else {
+        Vulkan::Fence done;
+        d.device.submit(pass, &done);
+        if (!done->wait_timeout(UINT64_MAX)) {
+          error = "GPU capture pass wait failed";
+          return false;
+        }
+      }
+      try {
+        d.truehdr->run({d.config.truehdr_contrast, d.config.truehdr_saturation, d.config.truehdr_middle_gray, d.config.truehdr_peak}, d.config.width, d.config.height);
+      } catch (const std::exception &e) {
+        error = e.what();
+        return false;
+      }
+    }
+
     auto cmd = d.device.request_command_buffer(Vulkan::CommandBuffer::Type::AsyncCompute);
     if (s.surface) {
       cmd->acquire_image_barrier(*source, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT, VK_QUEUE_FAMILY_FOREIGN_EXT);
     }
     for (auto &plane : d.planes) {
       cmd->image_barrier(*plane, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+    }
+    if (use_truehdr) {
+      // The planes are built from what the model returned, which CUDA wrote on its own queue.
+      cmd->barrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_ACCESS_MEMORY_WRITE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
     }
     cmd->set_program(d.program);
     cmd->set_texture(0, 0, source->get_view(), Vulkan::StockSampler::LinearClamp);
@@ -325,6 +404,9 @@ namespace pyrowave::linux_gpu {
     }
     cmd->set_texture(0, 4, cursor->get_view(), Vulkan::StockSampler::LinearClamp);
     cmd->set_texture(0, 5, gamma->get_view(), Vulkan::StockSampler::LinearClamp);
+    if (use_truehdr) {
+      cmd->set_storage_buffer(0, 7, *d.truehdr->output);
+    }
     uniform_t u {};
     u.matrix = d.config.matrix;
     u.output_hdr = d.config.hdr;
@@ -333,7 +415,7 @@ namespace pyrowave::linux_gpu {
     u.subsampled = !d.config.yuv444;
     u.invert_y = s.y_invert;
     u.use_lut = s.lut && !s.lut->empty();
-    bool linear = source->get_create_info().format == VK_FORMAT_R16G16B16A16_SFLOAT;
+    u.mode = use_truehdr ? 2 : 0;
     u.transfer = linear ? (d.config.hdr ? 2 : 1) : 0;
     // KMS HDR pixels are already PQ even when scanout uses an 8-bit buffer.
     // Only expand an SDR source; precision alone does not identify its transfer.
@@ -368,6 +450,11 @@ namespace pyrowave::linux_gpu {
     cmd->copy_buffer(*d.meta_cpu, *d.meta_gpu);
     cmd->copy_buffer(*d.bits_cpu, *d.bits_gpu);
     cmd->barrier(VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_HOST_BIT, VK_ACCESS_HOST_READ_BIT);
+    if (use_truehdr && d.truehdr->asynchronous()) {
+      // Wait for the model's result on the GPU rather than stalling the CPU for it.
+      auto ready = d.device.request_timeline_semaphore_as_binary(*d.truehdr->timeline, truehdr_value);
+      d.device.add_wait_semaphore(Vulkan::CommandBuffer::Type::AsyncCompute, ready, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, false);
+    }
     Vulkan::Fence fence;
     d.device.submit(cmd, &fence);
     if (!fence->wait_timeout(UINT64_MAX)) {

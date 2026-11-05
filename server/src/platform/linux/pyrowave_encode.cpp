@@ -3,6 +3,7 @@
  */
 #include "graphics.h"
 #include "pyrowave_core.h"
+#include "src/config.h"
 #include "src/platform/common.h"
 #include "src/pyrowave_host.h"
 #include "src/pyrowave_protocol.h"
@@ -23,6 +24,17 @@ namespace pyrowave::host {
         std::memcpy(c.matrix.data(), matrix, sizeof(float) * 12);
       }
       c.render_device = platf::resolve_render_device();
+#ifdef SUNSHINE_TRUEHDR_RUNTIME_DIR
+      // RTX HDR is the same model the NVENC path runs; PyroWave needs its own bridge
+      // because the frame never reaches the CUDA converter.
+      if (config::video.rtx_hdr.enabled && c.hdr) {
+        c.truehdr_runtime = SUNSHINE_TRUEHDR_RUNTIME_DIR;
+        c.truehdr_contrast = config::video.rtx_hdr.contrast + 100;
+        c.truehdr_saturation = config::video.rtx_hdr.saturation + 100;
+        c.truehdr_middle_gray = config::video.rtx_hdr.middle_gray;
+        c.truehdr_peak = config::video.rtx_hdr.peak_brightness;
+      }
+#endif
       return c;
     }
 
