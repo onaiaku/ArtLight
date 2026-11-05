@@ -50,6 +50,10 @@ namespace platf::rtx_hdr {
     // follow one application. This fork has no such service yet, so a live stream with RTX HDR
     // switched on is the whole condition: same picture, without the per-app rule. When that
     // service arrives, only this poll changes - the callers do not.
+    //
+    // That rule cannot be "an app id exists": the Desktop session has no app id (apps.json
+    // carries an empty one), so a desktop stream - the one case a synthesizer exists for -
+    // would be encoded as HDR with nothing converted. The stream is the condition, not the app.
     return matched.load();
   }
 
@@ -57,7 +61,7 @@ namespace platf::rtx_hdr {
     while (!stop.stop_requested()) {
       const int id = proc::proc.current_app_id();
       app_id.store(id);
-      matched.store(id > 0);
+      matched.store(true);
       std::unique_lock lock {mutex};
       wake.wait_for(lock, stop, std::chrono::milliseconds(500), [] {
         return false;
