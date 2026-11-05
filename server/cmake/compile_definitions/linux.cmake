@@ -42,13 +42,14 @@ if(CUDA_FOUND)
             "${CMAKE_SOURCE_DIR}/src/platform/linux/cuda.h"
             "${CMAKE_SOURCE_DIR}/src/platform/linux/cuda.cu"
             "${CMAKE_SOURCE_DIR}/src/platform/linux/cuda.cpp"
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/truehdr.h"
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/truehdr.cpp"
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/truehdr_peak.h"
             "${CMAKE_SOURCE_DIR}/third-party/nvfbc/NvFBC.h")
 
     add_compile_definitions(SUNSHINE_BUILD_CUDA)
 endif()
+
+# Native NVIDIA TrueHDR: the conversion core is built only where CUDA and the pinned
+# runtime exist, and the runtime library travels with the package.
+include("${CMAKE_SOURCE_DIR}/cmake/dependencies/truehdr_linux.cmake")
 
 # libdrm is required for DRM (KMS), KWin ScreenCast and Wayland
 if(${SUNSHINE_ENABLE_DRM} OR ${SUNSHINE_ENABLE_KWIN} OR ${SUNSHINE_ENABLE_WAYLAND})
