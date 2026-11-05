@@ -6704,34 +6704,38 @@ namespace nvhttp {
   }
 
   bool find_and_stop_session(const std::string &uuid, bool graceful) {
-    // "Stop this stream" is one intention, not one session. A client can hold a game stream and
-    // a Remote Monitor stream at the same time under the same identity, and find_session returns
-    // whichever comes first in the list - so stopping "the" session could stop either one and
-    // leave the other running with no window open anywhere. Stop the game session(s), then the
-    // monitor's own session by role, then release the monitor role so the display it owns goes
-    // with it: the same three steps the Disconnect Monitor control already takes, in the same
-    // order disconnect_client() uses (2026-11-04 23:38, monitor streaming on after its game had
-    // gone). The Remote Monitor's own resume window is untouched - this only runs on an explicit
-    // stop, never on a transport that merely went quiet.
-    bool stopped = false;
-    for (const auto &session : rtsp_stream::get_sessions_snapshot()) {
-      if (!stream::session::uuid_match(*session, uuid)) continue;
-      if (session->remote_role == remote_session::role_e::monitor) continue;
-      stop_session(*session, graceful);
-      stopped = true;
+    if (!graceful) {
+      auto session = rtsp_stream::find_session(uuid);
+      if (session) {
+        stop_session(*session, graceful);
+        return true;
+      }
+      return false;
     }
+
+    /*
+     * "Stop this stream" is one intention, not one session.
+     *
+     * A client can hold a game stream and a Remote Monitor stream at the same time under one
+     * identity, and find_session() hands back whichever of the two comes first in the list - so
+     * stopping "the" session stopped one of them and left the other running with no window open
+     * anywhere on the client (2026-11-04 23:38: monitor still streaming after its game had gone).
+     *
+     * A graceful disconnect therefore takes every session this client owns, then releases the
+     * monitor role so the display it holds is retired with it. That is the same three steps the
+     * Disconnect Monitor control already takes, in the order disconnect_client() uses. The
+     * Remote Monitor's resume window is untouched: this only runs on an explicit stop, never on
+     * a transport that merely went quiet.
+     */
+    const auto disconnect = rtsp_stream::disconnect_client_sessions_with_result(uuid);
+    bool stopped = disconnect.disconnected;
 
     const auto monitor_generation = remote_owner_generation(uuid, remote_session::role_e::monitor);
     if (monitor_generation) {
-      // End the monitor's transport first, outside the lifecycle gate, exactly as
-      // disconnect_client() does; only the ownership release below runs under it.
-      (void) rtsp_stream::disconnect_remote_role_session(
-        uuid,
-        remote_session::role_e::monitor,
-        *monitor_generation,
-        false
-      );
       std::unique_lock lifecycle_lock {stream_lifecycle_mutex()};
+      // A session may have released this generation while it joined above; recheck under the
+      // lifecycle gate so this handles only retained ownership and never reaches into a newer
+      // Remote Monitor launch.
       if (remote_owner_generation(uuid, remote_session::role_e::monitor) == monitor_generation) {
         remote_session::release_monitor(uuid, *monitor_generation, "Stopped with its game stream");
         forget_remote_owner(uuid, remote_session::role_e::monitor, *monitor_generation);
