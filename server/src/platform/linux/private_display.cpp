@@ -1622,13 +1622,6 @@ namespace platf::linux_private_display {
       configuration = fresh;
     }
 
-    const auto min_x = std::min_element(desired.begin(), desired.end(), [](const auto &lhs, const auto &rhs) {
-                         return lhs.node.x < rhs.node.x;
-                       })->node.x;
-    const auto min_y = std::min_element(desired.begin(), desired.end(), [](const auto &lhs, const auto &rhs) {
-                         return lhs.node.y < rhs.node.y;
-                       })->node.y;
-
     std::size_t primary_index = desired.size();
     for (std::size_t i = 0; i < desired.size(); ++i) {
       if (desired[i].node.primary) {
@@ -1694,7 +1687,6 @@ namespace platf::linux_private_display {
           return false;
         }
       }
-      activate_arguments.push_back(prefix + "position." + std::to_string(entry.node.x - min_x) + "," + std::to_string(entry.node.y - min_y));
       activate_arguments.push_back(prefix + "priority." + std::to_string(i == primary_index ? 1 : next_priority++));
     }
 
@@ -1702,6 +1694,62 @@ namespace platf::linux_private_display {
       const auto name = output.value("name", std::string {});
       if (connected(output) && !desired_names.contains(name)) {
         deactivate_arguments.push_back("output." + name + ".disable");
+      }
+    }
+
+    // KScreen positions are logical, not physical: an output's extent is its mode divided by its
+    // scale. The topology arrives in whole pixels, so a 3840x2160 game display at 170% occupies
+    // 2259 logical pixels, not 3840. Passing the pixel width therefore leaves a gap the width of
+    // the downscale, which KScreen stores happily and Plasma shows as an arrangement it cannot
+    // support - the same layout a person fixes by dragging the two displays together. Lay the
+    // roster out from the topology's own ordering, in the units KScreen is going to keep.
+    {
+      std::vector<std::size_t> order(desired.size());
+      for (std::size_t i = 0; i < order.size(); ++i) {
+        order[i] = i;
+      }
+      std::stable_sort(order.begin(), order.end(), [&](std::size_t lhs, std::size_t rhs) {
+        if (desired[lhs].node.y != desired[rhs].node.y) {
+          return desired[lhs].node.y < desired[rhs].node.y;
+        }
+        return desired[lhs].node.x < desired[rhs].node.x;
+      });
+      const auto logical_extent = [&](const desired_output_t &entry) {
+        const auto *output = find_output(*configuration, entry.name);
+        const auto fallback = output ? output->value("scale", 1.0) : 1.0;
+        const auto scale = std::max(0.25, entry.owned_client ? entry.scale : fallback);
+        auto width = entry.node.configured_mode.width;
+        auto height = entry.node.configured_mode.height;
+        if (!entry.owned_client && output) {
+          const auto size = output->value("size", json::object());
+          width = size.value("width", width);
+          height = size.value("height", height);
+        }
+        return std::pair {
+          static_cast<int>(std::ceil(std::max(1, width) / scale)),
+          static_cast<int>(std::ceil(std::max(1, height) / scale)),
+        };
+      };
+      int row_y = 0;
+      std::size_t row_start = 0;
+      while (row_start < order.size()) {
+        std::size_t row_end = row_start;
+        while (row_end < order.size() && desired[order[row_end]].node.y == desired[order[row_start]].node.y) {
+          ++row_end;
+        }
+        int x = 0;
+        int tallest = 0;
+        for (std::size_t i = row_start; i < row_end; ++i) {
+          auto &entry = desired[order[i]];
+          const auto [width, height] = logical_extent(entry);
+          activate_arguments.push_back(
+            "output." + entry.name + ".position." + std::to_string(x) + "," + std::to_string(row_y)
+          );
+          x += width;
+          tallest = std::max(tallest, height);
+        }
+        row_y += tallest;
+        row_start = row_end;
       }
     }
 
