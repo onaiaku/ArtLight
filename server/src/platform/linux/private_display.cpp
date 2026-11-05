@@ -1820,6 +1820,38 @@ namespace platf::linux_private_display {
     return true;
   }
 
+  std::optional<remote_display_topology::mode_t> remote_observe_shared_mode(
+    const std::string &client_uuid,
+    const bool monitor_role
+  ) {
+    // The reservation, not the composition: this reports what the connector is set to right
+    // now, which is the only number another role may be placed beside. A requested mode that
+    // has not landed yet is a guess, and the compositor answers a guess by refusing the
+    // topology and keeping the old desktop.
+    const auto owned_output = monitor_role ? output_for_monitor(client_uuid) : output_for_client(client_uuid);
+    if (!owned_output) {
+      return std::nullopt;
+    }
+    const auto configuration = query_configuration();
+    if (!configuration) {
+      return std::nullopt;
+    }
+    const auto *output = find_output(*configuration, *owned_output);
+    if (!output || !connected(*output) || !enabled(*output)) {
+      return std::nullopt;
+    }
+    const auto size = output->value("size", json::object());
+    remote_display_topology::mode_t mode;
+    mode.width = size.value("width", 0);
+    mode.height = size.value("height", 0);
+    mode.refresh_hz = static_cast<int>(std::lround(output_refresh(*output)));
+    mode.hdr = output->value("hdr", false);
+    if (mode.width <= 0 || mode.height <= 0 || mode.refresh_hz <= 0) {
+      return std::nullopt;
+    }
+    return mode;
+  }
+
   std::optional<std::string> remote_exact_capture_output(
     const std::string &client_uuid,
     const remote_display_topology::mode_t &mode

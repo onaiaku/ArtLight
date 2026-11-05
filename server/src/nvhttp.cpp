@@ -738,6 +738,7 @@ namespace nvhttp {
         .apply_composed_topology = platf::linux_private_display::remote_apply_composed_topology,
         .exact_target_has_current_mode_and_dxgi = platf::linux_private_display::remote_exact_capture_output,
         .remove_owned_display = platf::linux_private_display::remote_remove_monitor_display,
+        .observe_shared_mode = platf::linux_private_display::remote_observe_shared_mode,
       });
       remote_display_topology::instance().set_plaintext_rtsp_warning_provider([](const std::string &) {
         return rtsp_stream::plaintext_route_warning();

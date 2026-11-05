@@ -64,6 +64,12 @@ namespace platf::linux_private_display {
     const std::vector<remote_display_topology::node_t> &nodes
   );
 
+  /** Read the mode a client's own connector actually has, not the one that was requested. */
+  std::optional<remote_display_topology::mode_t> remote_observe_shared_mode(
+    const std::string &client_uuid,
+    bool monitor_role
+  );
+
   /** Verify that a client's exact connector has the requested mode and is capture-enumerated. */
   std::optional<std::string> remote_exact_capture_output(
     const std::string &client_uuid,

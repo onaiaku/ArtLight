@@ -1121,3 +1121,55 @@ TEST(RemoteDisplayTopology, MissingAnchorAppendsAndReleasingOnePeerPreservesTheO
   ASSERT_FALSE(applied.empty());
   EXPECT_EQ(applied.back(), std::vector<std::string> {monitor_id("two")});
 }
+
+// A requested mode is a claim, not a fact. The shared output may still be running the old one
+// when the next role is composed beside it, and placing a live peer against a number that does
+// not exist yet is what the compositor answers by refusing the topology and keeping the old
+// desktop. Observed geometry is the only thing another role may be placed against.
+TEST(RemoteDisplayTopology, SharedGeometryIsObservedBeforeLivePeersAreMoved) {
+  remote_display_topology::coordinator_t coordinator;
+  std::vector<remote_display_topology::node_t> applied;
+  int applies = 0;
+  remote_display_topology::mode_t actual {1920, 1080, 60, false};
+  coordinator.set_runtime_callbacks({
+    .create_or_reclaim = [](const auto &, const auto &, const auto &) { return true; },
+    .apply_composed_topology = [&](const auto &nodes) { ++applies; applied = nodes; return true; },
+    .exact_target_has_current_mode_and_dxgi = [](const auto &, const auto &) {
+      return std::optional<std::string> {"DP-1"};
+    },
+    .observe_shared_mode = [&](const auto &id, const bool monitor_role) -> std::optional<remote_display_topology::mode_t> {
+      if (id == "peer" && monitor_role) return actual;
+      return std::nullopt;
+    },
+  });
+
+  const auto deferred = coordinator.activate_or_resume("peer", "Peer", {3840, 2160, 120, false}, 1);
+  EXPECT_TRUE(deferred.accepted);
+  EXPECT_FALSE(deferred.ready);
+  EXPECT_TRUE(deferred.retryable);
+  EXPECT_EQ(applies, 0) << "a topology must not be applied from geometry that was only requested";
+  EXPECT_NE(deferred.error.find("does not yet match the requested geometry"), std::string::npos);
+
+  // The connector catches up, the second attempt observes it, and only then is anything moved.
+  actual = {3840, 2160, 120, false};
+  const auto ready = coordinator.activate_or_resume("peer", "Peer", {3840, 2160, 120, false}, 1);
+  EXPECT_TRUE(ready.ready);
+  EXPECT_EQ(applies, 1);
+  ASSERT_FALSE(applied.empty());
+  EXPECT_EQ(applied.front().configured_mode.width, 3840);
+}
+
+TEST(RemoteDisplayTopology, UnknownSharedGeometryDoesNotBlockAStream) {
+  // A platform that cannot read the connector is not a platform that disagrees with it, and a
+  // failed query must never keep a stream from starting.
+  remote_display_topology::coordinator_t coordinator;
+  coordinator.set_runtime_callbacks({
+    .create_or_reclaim = [](const auto &, const auto &, const auto &) { return true; },
+    .apply_composed_topology = [](const auto &) { return true; },
+    .exact_target_has_current_mode_and_dxgi = [](const auto &, const auto &) {
+      return std::optional<std::string> {"DP-1"};
+    },
+    .observe_shared_mode = [](const auto &, bool) -> std::optional<remote_display_topology::mode_t> { return std::nullopt; },
+  });
+  EXPECT_TRUE(coordinator.activate_or_resume("peer", "Peer", {1920, 1080, 60, false}, 1).ready);
+}
