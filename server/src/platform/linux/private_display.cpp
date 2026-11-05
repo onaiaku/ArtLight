@@ -1811,6 +1811,34 @@ namespace platf::linux_private_display {
     return reservation == manager.reservations.end() ? std::nullopt : std::make_optional(reservation->second);
   }
 
+  static std::string describe_saved_output(const json &saved) {
+    const auto pos = saved.value("pos", json::object());
+    return "enabled=" + std::to_string(saved.value("enabled", false)) +
+           " mode=" + saved.value("currentModeId", std::string {"?"}) +
+           " scale=" + std::to_string(saved.value("scale", 1.0)) +
+           " pos=" + std::to_string(pos.value("x", 0)) + "," + std::to_string(pos.value("y", 0)) +
+           " rotation=" + std::to_string(saved.value("rotation", 1)) +
+           " hdr=" + std::to_string(saved.value("hdr", false));
+  }
+
+  static std::string describe_current_output(const json *present, const json &current) {
+    if (!present) {
+      return "absent from the compositor's " + std::to_string(current["outputs"].size()) + "-output list";
+    }
+    return describe_saved_output(*present);
+  }
+
+  static std::string join_arguments(const std::vector<std::string> &arguments) {
+    std::string joined;
+    for (const auto &argument : arguments) {
+      if (!joined.empty()) {
+        joined += ' ';
+      }
+      joined += argument;
+    }
+    return joined;
+  }
+
   static bool revert_locked(state_t &manager) {
     if (process_shutdown_preserve_requested()) {
       return true;
@@ -1852,8 +1880,16 @@ namespace platf::linux_private_display {
     }
     const auto guard_snapshot = snapshot_for_output(*manager.snapshot, *arguments.guard_output);
     if (!wait_for_snapshot_activation(guard_snapshot)) {
+      // Name what was asked for and what the compositor has, or this line costs another afternoon:
+      // the failure is identical for a refused transaction, an unapplied one, and a snapshot that
+      // remembers a mode the output no longer offers.
+      const auto live = query_configuration();
+      const auto *present = live ? find_output(*live, *arguments.guard_output) : nullptr;
       BOOST_LOG(error) << "Linux private display: saved output " << *arguments.guard_output
-                       << " did not activate as the topology restore guard; preserving the current private scanout.";
+                       << " did not activate as the topology restore guard; preserving the current private scanout."
+                       << " sent='" << join_arguments(arguments.guard_activate) << "'"
+                       << " expected[" << describe_saved_output(guard_snapshot["outputs"].front()) << ']'
+                       << " actual[" << describe_current_output(present, live ? *live : *manager.snapshot) << ']';
       return false;
     }
     if (!wait_for_capture_publication(*arguments.guard_output)) {
