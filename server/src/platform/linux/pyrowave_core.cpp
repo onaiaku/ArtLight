@@ -55,6 +55,7 @@ namespace pyrowave::linux_gpu {
       std::array<int, 4> crop, cursor;
       std::array<int, 2> output;
       int subsampled, invert_y, use_lut, transfer, output_hdr;
+      int mode;  // 0 planes from the capture, 1 capture to RGBA8 for RTX HDR, 2 planes from RTX HDR
     };
   }  // namespace
 

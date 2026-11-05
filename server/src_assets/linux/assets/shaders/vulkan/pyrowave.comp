@@ -16,7 +16,10 @@ layout(std140,set=0,binding=6) uniform Params {
   int use_lut;
   int transfer; // 0: native, 1: scRGB -> SDR, 2: scRGB -> PQ, 3: SDR -> PQ
   int output_hdr;
+  int mode;     // 0: planes from the capture, 1: capture -> RGBA8 for RTX HDR, 2: planes from the RTX HDR result
 } p;
+// Shared with the CUDA half of RTX HDR: RGBA8 in, RGB10A2 back.
+layout(set=0,binding=7,std430) buffer FrameBuffer { uint frame[]; };
 vec3 srgb_to_linear(vec3 c) {
   return mix(c / 12.92, pow(max((c + 0.055) / 1.055, 0.0), vec3(2.4)), greaterThan(c, vec3(0.04045)));
 }
@@ -29,7 +32,11 @@ vec3 to_2020(vec3 c) {
               dot(c, vec3(0.069097,0.919540,0.011362)),
               dot(c, vec3(0.016391,0.088013,0.895595)));
 }
-vec3 sample_rgb(ivec2 pos) {
+uint frame_index(ivec2 pos) {
+  return uint(pos.y) * uint(p.output_size.x) + uint(pos.x);
+}
+// SDR capture, still display encoded: what the model reads, pointer included.
+vec3 sample_sdr(ivec2 pos) {
   vec2 uv = (vec2(p.crop.xy) + (vec2(pos)+0.5)*vec2(p.crop.zw)/vec2(p.output_size)) / vec2(textureSize(source_image,0));
   if (p.invert_y != 0) uv.y = 1.0-uv.y;
   vec3 rgb = texture(source_image,uv).rgb;
@@ -40,11 +47,20 @@ vec3 sample_rgb(ivec2 pos) {
                texture(gamma_lut,vec2(coord.g,0.5)).g,
                texture(gamma_lut,vec2(coord.b,0.5)).b);
   }
+  ivec2 cp = pos-p.cursor_rect.xy;
+  if (p.cursor_rect.z>0 && all(greaterThanEqual(cp,ivec2(0))) && all(lessThan(cp,p.cursor_rect.zw))) {
+    vec4 c = texture(cursor_image,(vec2(cp)+0.5)/vec2(p.cursor_rect.zw));
+    rgb = c.rgb + rgb*(1.0-c.a);
+  }
+  return rgb;
+}
+vec3 sample_display(ivec2 pos) {
+  vec3 rgb = sample_sdr(pos);
   if (p.transfer == 1) rgb = mix(12.92*max(rgb,0.0),1.055*pow(max(rgb,0.0),vec3(1.0/2.4))-0.055,greaterThan(rgb,vec3(0.0031308)));
   if (p.transfer == 2) rgb = pq(to_2020(rgb)*80.0);
   if (p.transfer == 3) rgb = pq(to_2020(srgb_to_linear(rgb))*100.0);
   ivec2 cp = pos-p.cursor_rect.xy;
-  if (p.cursor_rect.z>0 && all(greaterThanEqual(cp,ivec2(0))) && all(lessThan(cp,p.cursor_rect.zw))) {
+  if (p.transfer != 0 && p.cursor_rect.z>0 && all(greaterThanEqual(cp,ivec2(0))) && all(lessThan(cp,p.cursor_rect.zw))) {
     vec4 c = texture(cursor_image,(vec2(cp)+0.5)/vec2(p.cursor_rect.zw));
     // DRM cursors contain premultiplied alpha; convert their unassociated SDR
     // color to the output transfer function before compositing an HDR frame.
@@ -54,15 +70,27 @@ vec3 sample_rgb(ivec2 pos) {
   }
   return rgb;
 }
+// The model returns 10-bit PQ, so the planes take those codes as they are.
+vec3 read_hdr(ivec2 pos) {
+  uint v = frame[frame_index(pos)];
+  return vec3(float(v & 1023u), float((v >> 10) & 1023u), float((v >> 20) & 1023u)) / 1023.0;
+}
 void main() {
   ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
   if (any(greaterThanEqual(pos,p.output_size))) return;
-  vec3 rgb = sample_rgb(pos);
+  if (p.mode == 1) {
+    vec3 rgb = clamp(sample_sdr(pos),0.0,1.0);
+    uvec3 c = uvec3(round(rgb*255.0));
+    frame[frame_index(pos)] = c.r | (c.g << 8) | (c.b << 16) | (255u << 24);
+    return;
+  }
+  vec3 rgb = (p.mode == 2) ? read_hdr(pos) : sample_display(pos);
   imageStore(y_plane,pos,vec4(dot(p.y,vec4(rgb,1.0))));
   ivec2 cp=pos;
   if (p.subsampled != 0) {
     if ((pos.x&1)!=0 || (pos.y&1)!=0) return;
-    rgb = (rgb+sample_rgb(pos+ivec2(1,0))+sample_rgb(pos+ivec2(0,1))+sample_rgb(pos+ivec2(1,1)))*0.25;
+    if (p.mode == 2) rgb = (rgb+read_hdr(pos+ivec2(1,0))+read_hdr(pos+ivec2(0,1))+read_hdr(pos+ivec2(1,1)))*0.25;
+    else rgb = (rgb+sample_display(pos+ivec2(1,0))+sample_display(pos+ivec2(0,1))+sample_display(pos+ivec2(1,1)))*0.25;
     cp >>= 1;
   }
   imageStore(u_plane,cp,vec4(dot(p.u,vec4(rgb,1.0))));
