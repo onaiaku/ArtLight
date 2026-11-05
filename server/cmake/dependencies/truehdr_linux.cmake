@@ -26,10 +26,7 @@ if(SUNSHINE_ENABLE_NV_TRUEHDR AND CUDA_FOUND AND CMAKE_SYSTEM_NAME STREQUAL "Lin
     target_compile_features(linux-truehdr PUBLIC cxx_std_20)
     target_link_libraries(linux-truehdr PRIVATE glad ${CMAKE_DL_LIBS})
     list(APPEND PLATFORM_LIBRARIES linux-truehdr)
-    # The define arrives with the capture/encoder wiring, not before: it also gates the
-    # Windows NV_TRUEHDR paths in video.cpp, and switching it on here would drag those into
-    # a Linux build untouched by this port.
-    list(APPEND SUNSHINE_DEFINITIONS
+    list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ENABLE_NV_TRUEHDR=1
         SUNSHINE_TRUEHDR_RUNTIME_DIR="${CMAKE_INSTALL_FULL_LIBDIR}/vibeshine/truehdr")
     install(DIRECTORY "${SUNSHINE_TRUEHDR_LINUX_ROOT}/nvvfx/libs/"
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/vibeshine/truehdr/nvvfx/libs"
