@@ -639,7 +639,7 @@ namespace nvhttp {
           .width = launch_session->width,
           .height = launch_session->height,
           .refresh_hz = refresh_hz_from_session_fps(launch_session->fps),
-          .hdr = rtsp_stream::effective_hdr_requested(*launch_session),
+          .hdr = rtsp_stream::hdr_capture_required(*launch_session, config::video),
         }
       );
       if (!reservation.accepted) {
@@ -1230,7 +1230,7 @@ namespace nvhttp {
           .width = launch_session->width,
           .height = launch_session->height,
           .refresh_hz = refresh_hz_from_session_fps(launch_session->fps),
-          .hdr = rtsp_stream::effective_hdr_requested(*launch_session),
+          .hdr = rtsp_stream::hdr_capture_required(*launch_session, config::video),
         };
         const auto reservation = remote_display_topology::instance().reserve_normal_game_identity(
           launch_session->client_uuid,
@@ -4652,7 +4652,7 @@ namespace nvhttp {
             request_client_identity.uuid,
             request_client_identity.name,
             mode,
-            rtsp_stream::effective_hdr_requested(*launch_session),
+            rtsp_stream::hdr_capture_required(*launch_session, config::video),
             launch_session->role_generation
           );
           if (monitor.accepted) {
@@ -4679,7 +4679,7 @@ namespace nvhttp {
             return;
           }
           launch_session->virtual_display_hdr_enabled = monitor.hdr_enabled;
-          if (rtsp_stream::effective_hdr_requested(*launch_session) && !monitor.hdr_enabled) {
+          if (rtsp_stream::hdr_capture_required(*launch_session, config::video) && !monitor.hdr_enabled) {
             launch_session->force_sdr = true;
           }
           launch_session->remote_capture_output = monitor.output;

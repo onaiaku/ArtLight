@@ -1738,12 +1738,15 @@ namespace proc {
     const bool stream_hdr = rtsp_stream::effective_hdr_requested(*launch_session);
     _env["SUNSHINE_CLIENT_HDR"] = stream_hdr ? "true" : "false";
 #ifdef __linux__
+    // The launched app renders the *source*, not the stream. Under synthesized HDR the source
+    // must stay SDR, otherwise TrueHDR converts pixels that are already HDR a second time.
+    const bool source_hdr = rtsp_stream::hdr_capture_required(*launch_session, config::video);
     const auto wayland_hdr_compatibility = platf::wayland_hdr_compatibility::resolve(
       config::video.dd.wayland_hdr_compatibility,
       platf::wayland_hdr_compatibility::selected_session_is_wayland(
         window_system == window_system_e::WAYLAND
       ),
-      stream_hdr
+      source_hdr
     );
     auto set_stream_environment_default = [&](const char *key, const char *value) {
       if (!_env[key].to_string().empty()) {
@@ -1891,7 +1894,7 @@ namespace proc {
               .smooth_motion = smooth_motion_policy.enabled,
               .smooth_motion_graphics_queue = smooth_motion_policy.enabled &&
                                               smooth_motion_policy.use_graphics_queue,
-              .hdr = stream_hdr,
+              .hdr = source_hdr,
               // The machine-side Steam catalog intentionally omits desktop
               // Proton metadata. The session helper re-discovers the app and
               // applies this policy only when its launch is actually Proton;
@@ -1968,8 +1971,8 @@ namespace proc {
     if (steam_proton_launch) {
       // Steam metadata is the reliable Proton discriminator. Native Steam and
       // arbitrary direct executables do not receive these Proton HDR flags.
-      (void) set_stream_environment_default("PROTON_ENABLE_HDR", stream_hdr ? "1" : "0");
-      (void) set_stream_environment_default("DXVK_HDR", stream_hdr ? "1" : "0");
+      (void) set_stream_environment_default("PROTON_ENABLE_HDR", source_hdr ? "1" : "0");
+      (void) set_stream_environment_default("DXVK_HDR", source_hdr ? "1" : "0");
       if (wayland_hdr_compatibility.enabled) {
         (void) set_stream_environment_default("PROTON_ENABLE_WAYLAND", "1");
         BOOST_LOG(debug) << "Wayland HDR compatibility applied Proton/DXVK launch flags.";

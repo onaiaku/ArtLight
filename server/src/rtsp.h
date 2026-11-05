@@ -7,6 +7,7 @@
 // standard includes
 #include "config.h"
 #include "framegen_policy.h"
+#include "hdr_stream_policy.h"
 #include "remote_session.h"
 
 #include <array>
@@ -240,6 +241,18 @@ namespace rtsp_stream {
   inline bool rtx_hdr_conversion_requested(const launch_session_t &session, const config::video_t &video_config) {
     return effective_hdr_requested(session) &&
            rtx_hdr_enabled(video_config);
+  }
+
+  /**
+   * @brief Whether the *source* display must be HDR for this session.
+   *
+   * Different question from whether the stream is HDR. Synthesized HDR (RTX HDR) converts an
+   * SDR source on the GPU, so asking the display coordinator for HDR in that case would hand
+   * the capture path a 10-bit HDR scanout it cannot import. Native HDR still needs an HDR
+   * source, because there is nothing to synthesize from.
+   */
+  inline bool hdr_capture_required(const launch_session_t &session, const config::video_t &video_config) {
+    return video::hdr_stream_policy::requires_hdr_source(effective_hdr_requested(session), rtx_hdr_enabled(video_config));
   }
 
   /**
