@@ -4,6 +4,7 @@
  */
 // standard includes
 #include <atomic>
+#include <cstdint>
 #include <fcntl.h>
 #include <limits>
 #include <mutex>
@@ -63,7 +64,19 @@ namespace gl {
       std::lock_guard lock {context_seed_mutex};
       return egl_image_target_texture_2d_seed;
     }
+
+    // These reports used to be once per process, which silently destroyed the evidence
+    // whenever two runs were compared inside one host lifetime: the second run looked
+    // clean because the first had already spent the single line. Key them to a session
+    // generation instead, so every capture session says which path it took.
+    std::atomic<std::uint64_t> capture_session_generation {0};
+    std::atomic<std::uint64_t> import_rejected_generation {0};
+    std::atomic<std::uint64_t> cpu_fallback_generation {0};
   }  // namespace
+
+  void begin_capture_session() {
+    capture_session_generation.fetch_add(1, std::memory_order_relaxed);
+  }
 
   // OpenGL dispatch is context/vendor-specific. Each owner thread loads its own
   // table instead of rewriting pointers underneath active encoder threads. The
@@ -737,8 +750,8 @@ namespace egl {
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
 
     if (import_error != GL_NO_ERROR) {
-      static std::atomic_bool warned {false};
-      if (!warned.exchange(true, std::memory_order_relaxed)) {
+      const auto session = gl::capture_session_generation.load(std::memory_order_relaxed);
+      if (gl::import_rejected_generation.exchange(session, std::memory_order_relaxed) != session) {
         BOOST_LOG(warning) << "GL rejected imported RGB DMA-BUF texture (fourcc="
                            << util::hex(xrgb.fourcc).to_string_view() << ", error="
                            << util::hex(import_error).to_string_view()
@@ -752,8 +765,8 @@ namespace egl {
 
   std::optional<rgb_t> upload_source(display_t::pointer egl_display, const surface_descriptor_t &xrgb) {
     if (xrgb.direct_import_required) {
-      static std::atomic_bool warned {false};
-      if (!warned.exchange(true, std::memory_order_relaxed)) {
+      const auto session = gl::capture_session_generation.load(std::memory_order_relaxed);
+      if (gl::cpu_fallback_generation.exchange(session, std::memory_order_relaxed) != session) {
         BOOST_LOG(warning) << "Managed virtual framebuffer rejected direct GPU import (fourcc="
                            << util::hex(xrgb.fourcc).to_string_view() << ", modifier="
                            << util::hex(xrgb.modifier).to_string_view()
@@ -851,10 +864,7 @@ namespace egl {
       return std::nullopt;
     }
 
-    static std::atomic_bool warned {false};
-    if (!warned.exchange(true, std::memory_order_relaxed)) {
-      BOOST_LOG(warning) << "Using CPU DMA-BUF upload fallback for cross-device KMS capture.";
-    }
+    BOOST_LOG(warning) << "Using CPU DMA-BUF upload fallback for cross-device KMS capture (capture path: cpu-copy).";
     return rgb;
   }
 

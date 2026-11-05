@@ -45,6 +45,14 @@ namespace gl {
   using PFNGLEGLIMAGETARGETTEXTURE2DOESPROC = void (*)(GLenum target, void *image);
   PFNGLEGLIMAGETARGETTEXTURE2DOESPROC egl_image_target_texture_2d();
 
+  /**
+   * @brief Start a new capture session so per-session reports can be emitted again.
+   * @details The capture path (GPU import or CPU copy) is reported once per session
+   *          rather than once per process; without this a second run inside the same
+   *          host lifetime is indistinguishable from a clean one.
+   */
+  void begin_capture_session();
+
   void drain_errors(const std::string_view &prefix);
 
   class tex_t: public util::buffer_t<GLuint> {

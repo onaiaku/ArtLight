@@ -1576,6 +1576,7 @@ namespace platf {
         presentation_pending = presentation_latch.capture_ready();
         presentation_trace_sequence = presentation_sequence;
         presentation_trace_available = true;
+        gl::begin_capture_session();
         BOOST_LOG(info) << "Using event-driven KMS capture for ArtLight DRM CRTC ["sv << crtc_id << "]."sv;
         if (drm_timing_trace::writer().available()) {
           BOOST_LOG(info) << "Always-on DRM timing trace is buffered in "sv << drm_timing_trace::TRACE_PATH
