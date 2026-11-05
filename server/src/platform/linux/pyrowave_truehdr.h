@@ -2,8 +2,10 @@
 
 #include "device.hpp"
 #include "pyrowave_core.h"
+#include "truehdr.h"
 
 #include <cstring>
+#include <filesystem>
 #include <ffnvcodec/dynlink_loader.h>
 #include <stdexcept>
 #include <unistd.h>
