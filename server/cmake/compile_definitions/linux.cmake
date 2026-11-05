@@ -426,6 +426,11 @@ if(SUNSHINE_ENABLE_PYROWAVE AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_compile_options(pyrowave-linux PRIVATE -fvisibility=hidden)
     target_include_directories(pyrowave-linux PRIVATE "${CMAKE_BINARY_DIR}/generated-src" ${LIBDRM_INCLUDE_DIRS})
     target_link_libraries(pyrowave-linux PRIVATE pyrowave granite-vulkan)
+    if(TARGET linux-truehdr)
+      # The encoder drives the RTX HDR bridge, so the model's implementation has to
+      # travel with it; the bridge header only declares it.
+      target_link_libraries(pyrowave-linux PRIVATE linux-truehdr)
+    endif()
     list(APPEND PLATFORM_LIBRARIES pyrowave-linux)
     list(APPEND PLATFORM_TARGET_FILES "${CMAKE_SOURCE_DIR}/src/platform/linux/pyrowave_encode.cpp")
 endif()
