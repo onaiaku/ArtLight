@@ -934,8 +934,14 @@ namespace platf {
             this->env_logical_width = ::platf::kms::env_logical_width;
             this->env_logical_height = ::platf::kms::env_logical_height;
 
+            // Name of the output this capture actually landed on, for the dimension log
+            // below. Empty when the crtc could not be matched to a monitor, which the log
+            // then reports as "unresolved" rather than guessing.
+            std::string input_output_name;
+
             auto monitor = pos->crtc_to_monitor.find(plane->crtc_id);
             if (monitor != std::end(pos->crtc_to_monitor)) {
+              input_output_name = monitor->second.connector_name;
               auto &viewport = monitor->second.viewport;
 
               width = viewport.width;
