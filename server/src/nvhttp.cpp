@@ -240,6 +240,23 @@ namespace nvhttp {
   static std::string otp_device_name;
   static std::chrono::time_point<std::chrono::steady_clock> otp_creation_time;
 
+  namespace {
+    /*
+     * launch_session->fps is millihertz — the unit the client speaks, 60000 for 60 Hz — while
+     * mode_t is hertz. Passing it through unconverted asked the host to create a virtual display
+     * at 138000 Hz, which SetDisplayConfig rejects as ERROR_INVALID_PARAMETER during forced mode
+     * enumeration, so every topology containing that display failed validation.
+     *
+     * Platform-free arithmetic, and deliberately outside the _WIN32 block: the Linux identity
+     * reservation below asks for a mode in the same units, and while this lived in the Windows
+     * namespace the Linux build could not compile at all. Nothing noticed until the first Linux
+     * build after that commit — the Windows job compiles only its own half.
+     */
+    int refresh_hz_from_session_fps(int fps) {
+      return fps >= 1000 ? static_cast<int>(std::lround(fps / 1000.0)) : fps;
+    }
+  }  // namespace
+
 #ifdef _WIN32
   namespace {
     bool remote_device_id_equals(const std::string &lhs, const std::string &rhs) {
@@ -318,7 +335,10 @@ namespace nvhttp {
     bool apply_remote_monitor_composition(const std::vector<remote_display_topology::node_t> &nodes) {
       display_helper_integration::DisplayTopologyDefinition topology;
       const auto physical = display_helper_integration::capture_physical_topology();
-      if (!physical) return false;
+      if (!physical) {
+        BOOST_LOG(warning) << "Remote monitor composition: could not capture the physical topology; composition abandoned.";
+        return false;
+      }
       topology.topology = *physical;
 
       auto has_device = [&topology](const std::string &id) {
@@ -330,12 +350,53 @@ namespace nvhttp {
         std::string device_id = node.device_id.empty() ? node.id : node.device_id;
         if (!node.physical && !node.preexisting) {
           const auto resolved = VDISPLAY::resolveActiveVirtualDisplayDeviceIdForStableId(node.id, {}, {}, false);
-          if (!resolved) return false;
+          if (!resolved) {
+            // Silent before now, and a silent false here is indistinguishable from a Windows refusal
+            // three layers down. Name the node that could not be resolved.
+            BOOST_LOG(warning) << "Remote monitor composition: no active virtual display for stable id '"
+                               << node.id << "' (label '" << node.label << "', " << node.x << "," << node.y
+                               << ", " << node.configured_mode.width << "x" << node.configured_mode.height
+                               << "x" << node.configured_mode.refresh_hz << "); topology cannot be built.";
+            return false;
+          }
           device_id = *resolved;
         }
+        BOOST_LOG(info) << "Remote monitor composition node: id='" << node.id << "' device_id='" << device_id
+                        << "' physical=" << node.physical << " preexisting=" << node.preexisting
+                        << " mode=" << node.configured_mode.width << "x" << node.configured_mode.height
+                        << "x" << node.configured_mode.refresh_hz << " at " << node.x << "," << node.y
+                        << (node.primary ? " primary" : "");
         if (!has_device(device_id)) topology.topology.push_back({device_id});
-        topology.monitor_positions.emplace(device_id, display_device::Point {node.x, node.y});
+
+        /*
+         * Where the user last left this display wins over where the layout says it goes.
+         *
+         * The composer places a new display edge-on to what is already there, and it has no
+         * idea the user dragged this panel somewhere else last session. Windows cannot help:
+         * the arrangement is stored against a monitor that stopped existing when the last
+         * stream ended, so every session starts from the computed position again.
+         */
+        auto placed = display_device::Point {node.x, node.y};
+        if (!node.physical) {
+          if (const auto saved = statefile::load_virtual_display_position(device_id)) {
+            placed = display_device::Point {saved->m_x, saved->m_y};
+            BOOST_LOG(info) << "Remote monitor composition: placing '" << node.id << "' at its remembered "
+                            << placed.m_x << "," << placed.m_y << " instead of the composed "
+                            << node.x << "," << node.y << ".";
+          }
+        }
+        topology.monitor_positions.emplace(device_id, placed);
         if (node.primary) topology.primary_device = device_id;
+      }
+      // A group with no device in it is not a topology, it is a rejection waiting to happen.
+      topology.topology.erase(
+        std::remove_if(topology.topology.begin(), topology.topology.end(), [](const auto &group) { return group.empty(); }),
+        topology.topology.end()
+      );
+      if (topology.topology.empty()) {
+        BOOST_LOG(warning) << "Remote monitor composition: nothing left to place after resolving " << nodes.size()
+                           << " node(s); keeping the current topology.";
+        return false;
       }
       return display_helper_integration::apply_remote_composed_topology(topology);
     }
@@ -344,17 +405,42 @@ namespace nvhttp {
       const std::string &client_uuid,
       const remote_display_topology::mode_t &mode
     ) {
-      const auto expected_device = VDISPLAY::resolveActiveVirtualDisplayDeviceIdForStableId(client_uuid, {}, {}, false);
-      if (!expected_device) return std::nullopt;
+      // The monitor role's display is created under "<uuid>:remote-monitor" - never under the bare
+      // client uuid, which is the game role's identity. Looking it up under the client uuid finds
+      // either nothing (monitor-only client, i.e. a second device) or the game display, whose mode
+      // is not the monitor's, and either way this check answers "not capture-ready" and the launch
+      // is refused with a 503. Ask for the identity the display was actually created with.
+      const auto expected_device = VDISPLAY::resolveActiveVirtualDisplayDeviceIdForStableId(
+        remote_display_topology::remote_monitor_stable_id(client_uuid), {}, {}, false
+      );
+      if (!expected_device) {
+        BOOST_LOG(warning) << "Remote Monitor capture check: no active virtual display for client '" << client_uuid
+                           << "' under its monitor identity; the display was not created or was already released.";
+        return std::nullopt;
+      }
       const auto devices = display_helper_integration::enumerate_devices(display_device::DeviceEnumerationDetail::Minimal);
       if (!devices) return std::nullopt;
       const auto capture_outputs = platf::display_names(platf::mem_type_e::dxgi);
       for (const auto &device : *devices) {
         if (!remote_device_id_equals(device.m_device_id, *expected_device) || !device.m_info || device.m_display_name.empty()) continue;
         const auto refresh = remote_refresh_hz(device.m_info->m_refresh_rate);
-        if (static_cast<int>(device.m_info->m_resolution.m_width) != mode.width ||
-            static_cast<int>(device.m_info->m_resolution.m_height) != mode.height || refresh != mode.refresh_hz) {
+        const auto have_width = static_cast<int>(device.m_info->m_resolution.m_width);
+        const auto have_height = static_cast<int>(device.m_info->m_resolution.m_height);
+        // Size decides whether this is the right display; refresh does not. The virtual display
+        // driver reports the streamed panel as 552 Hz for a 138 Hz request - the encoder logs the
+        // same figure on every successful stream - so an exact-refresh comparison here rejects a
+        // display that is present, correctly sized and already capturing. Say both numbers out
+        // loud when they differ, and let capture prove itself.
+        if (have_width != static_cast<int>(mode.width) || have_height != static_cast<int>(mode.height)) {
+          BOOST_LOG(warning) << "Remote Monitor capture check: display '" << device.m_display_name << "' is "
+                             << have_width << "x" << have_height << "x" << refresh << " but the client asked for "
+                             << mode.width << "x" << mode.height << "x" << mode.refresh_hz << ".";
           return std::nullopt;
+        }
+        if (refresh != static_cast<int>(mode.refresh_hz)) {
+          BOOST_LOG(info) << "Remote Monitor capture check: display '" << device.m_display_name << "' reports "
+                          << refresh << " Hz for a " << mode.refresh_hz
+                          << " Hz request; accepting it on size, because this driver does not report refresh back honestly.";
         }
         const auto output = std::find_if(capture_outputs.begin(), capture_outputs.end(), [&](const auto &candidate) {
           return remote_device_id_equals(candidate, device.m_display_name);
@@ -369,20 +455,29 @@ namespace nvhttp {
       remote_display_topology::instance().set_runtime_callbacks({
         .create_or_reclaim = [](const std::string &client_uuid, const std::string &client_label, const remote_display_topology::mode_t &mode) {
           if (!VDISPLAY::ensure_driver_is_ready()) return false;
-          const auto stable_uuid = VDISPLAY::virtualDisplayUuidFromStableId(client_uuid);
+          // Monitor role, not the bare client uuid: the same client may already own a game
+          // display under that uuid, and two roles must never share one display identity.
+          const auto stable_uuid = VDISPLAY::virtualDisplayUuidFromStableId(
+            remote_display_topology::remote_monitor_stable_id(client_uuid));
           GUID guid {};
           std::memcpy(&guid, stable_uuid.b8, sizeof(guid));
+          // HDR was hardcoded off here, so a client that asked for HDR got an SDR display and an
+          // SDR encode on its second screen while its main screen stayed HDR. The driver enables
+          // HDR itself when the request is true; the profile only supplies luminance metadata, so
+          // a null profile still yields a real HDR10 display.
           return VDISPLAY::createVirtualDisplay(
             client_uuid.c_str(), client_label.c_str(), nullptr,
             static_cast<std::uint32_t>(mode.width), static_cast<std::uint32_t>(mode.height),
             static_cast<std::uint32_t>(mode.refresh_hz * 1000), guid,
-            static_cast<std::uint32_t>(mode.refresh_hz * 1000), false, 1, false, false, true, true
+            static_cast<std::uint32_t>(mode.refresh_hz * 1000), false, 1,
+            mode.hdr, false, true, true
           ).has_value();
         },
         .apply_composed_topology = apply_remote_monitor_composition,
         .exact_target_has_current_mode_and_dxgi = remote_monitor_exact_capture_output,
         .remove_owned_display = [](const std::string &client_uuid) {
-          const auto stable_uuid = VDISPLAY::virtualDisplayUuidFromStableId(client_uuid);
+          const auto stable_uuid = VDISPLAY::virtualDisplayUuidFromStableId(
+            remote_display_topology::remote_monitor_stable_id(client_uuid));
           GUID guid {};
           std::memcpy(&guid, stable_uuid.b8, sizeof(guid));
           return VDISPLAY::removeVirtualDisplay(guid);
@@ -392,12 +487,15 @@ namespace nvhttp {
         return rtsp_stream::plaintext_route_warning();
       });
       remote_session::register_monitor_runtime_hooks({
-        .activate_or_resume = [](std::string_view uuid, std::string_view label, std::string_view requested_mode, bool, std::uint64_t generation) -> remote_session::monitor_runtime_state_t {
+        .activate_or_resume = [](std::string_view uuid, std::string_view label, std::string_view requested_mode, const bool hdr_requested, std::uint64_t generation) -> remote_session::monitor_runtime_state_t {
           remote_display_topology::mode_t mode;
           if (std::sscanf(std::string {requested_mode}.c_str(), "%dx%d@%d", &mode.width, &mode.height, &mode.refresh_hz) != 3 ||
               mode.width <= 0 || mode.height <= 0 || mode.refresh_hz <= 0) {
             return remote_session::monitor_runtime_state_t {.retryable = true, .error = "Remote Monitor requested an invalid display mode."};
           }
+          // The client's HDR request used to be dropped here (the parameter was unnamed), so the
+          // monitor display was always created SDR and the session was forced to SDR to match.
+          mode.hdr = hdr_requested;
           refresh_remote_monitor_baseline(has_stream_session_activity());
           const auto state = remote_display_topology::instance().activate_or_resume(std::string {uuid}, std::string {label}, mode, generation);
           return {.accepted = state.accepted, .ready = state.ready, .retryable = state.retryable, .output = state.output, .error = state.error};
@@ -540,8 +638,8 @@ namespace nvhttp {
         {
           .width = launch_session->width,
           .height = launch_session->height,
-          .refresh_hz = launch_session->fps,
-          .hdr = rtsp_stream::effective_hdr_requested(*launch_session),
+          .refresh_hz = refresh_hz_from_session_fps(launch_session->fps),
+          .hdr = rtsp_stream::hdr_capture_required(*launch_session, config::video),
         }
       );
       if (!reservation.accepted) {
@@ -639,7 +737,8 @@ namespace nvhttp {
         .resolve_mode = platf::linux_private_display::remote_resolve_mode,
         .apply_composed_topology = platf::linux_private_display::remote_apply_composed_topology,
         .exact_target_has_current_mode_and_dxgi = platf::linux_private_display::remote_exact_capture_output,
-        .remove_owned_display = platf::linux_private_display::remote_remove_owned_display,
+        .remove_owned_display = platf::linux_private_display::remote_remove_monitor_display,
+        .observe_shared_mode = platf::linux_private_display::remote_observe_shared_mode,
       });
       remote_display_topology::instance().set_plaintext_rtsp_warning_provider([](const std::string &) {
         return rtsp_stream::plaintext_route_warning();
@@ -1130,8 +1229,8 @@ namespace nvhttp {
         const remote_display_topology::mode_t mode {
           .width = launch_session->width,
           .height = launch_session->height,
-          .refresh_hz = launch_session->fps,
-          .hdr = rtsp_stream::effective_hdr_requested(*launch_session),
+          .refresh_hz = refresh_hz_from_session_fps(launch_session->fps),
+          .hdr = rtsp_stream::hdr_capture_required(*launch_session, config::video),
         };
         const auto reservation = remote_display_topology::instance().reserve_normal_game_identity(
           launch_session->client_uuid,
@@ -4553,7 +4652,7 @@ namespace nvhttp {
             request_client_identity.uuid,
             request_client_identity.name,
             mode,
-            rtsp_stream::effective_hdr_requested(*launch_session),
+            rtsp_stream::hdr_capture_required(*launch_session, config::video),
             launch_session->role_generation
           );
           if (monitor.accepted) {
@@ -4567,16 +4666,20 @@ namespace nvhttp {
             );
           }
           if (!monitor.ready || monitor.output.empty()) {
+            const auto refusal = monitor.error.empty() ? std::string {"Remote Monitor exact capture target is not ready"} : monitor.error;
+            // A refusal that exists only in the HTTP response leaves nothing behind on the host: the
+            // client shows a 503 and the log reads clean, which is exactly how a failed test gets
+            // mistaken for a quiet one. Say it here, with the role and the stage that refused.
+            BOOST_LOG(warning) << "Remote Monitor refused for client '" << request_client_identity.uuid
+                               << "' (role=" << (is_remote_input ? "input" : "monitor")
+                               << ", retryable=" << monitor.retryable << "): " << refusal;
             tree.put("root.resume", 0);
             tree.put("root.<xmlattr>.status_code", monitor.retryable ? 503 : 500);
-            tree.put(
-              "root.<xmlattr>.status_message",
-              monitor.error.empty() ? "Remote Monitor exact capture target is not ready" : monitor.error
-            );
+            tree.put("root.<xmlattr>.status_message", refusal);
             return;
           }
           launch_session->virtual_display_hdr_enabled = monitor.hdr_enabled;
-          if (rtsp_stream::effective_hdr_requested(*launch_session) && !monitor.hdr_enabled) {
+          if (rtsp_stream::hdr_capture_required(*launch_session, config::video) && !monitor.hdr_enabled) {
             launch_session->force_sdr = true;
           }
           launch_session->remote_capture_output = monitor.output;
@@ -6602,12 +6705,48 @@ namespace nvhttp {
   }
 
   bool find_and_stop_session(const std::string &uuid, bool graceful) {
-    auto session = rtsp_stream::find_session(uuid);
-    if (session) {
-      stop_session(*session, graceful);
-      return true;
+    if (!graceful) {
+      auto session = rtsp_stream::find_session(uuid);
+      if (session) {
+        stop_session(*session, graceful);
+        return true;
+      }
+      return false;
     }
-    return false;
+
+    /*
+     * "Stop this stream" is one intention, not one session.
+     *
+     * A client can hold a game stream and a Remote Monitor stream at the same time under one
+     * identity, and find_session() hands back whichever of the two comes first in the list - so
+     * stopping "the" session stopped one of them and left the other running with no window open
+     * anywhere on the client (2026-11-04 23:38: monitor still streaming after its game had gone).
+     *
+     * A graceful disconnect therefore takes every session this client owns, then releases the
+     * monitor role so the display it holds is retired with it. That is the same three steps the
+     * Disconnect Monitor control already takes, in the order disconnect_client() uses. The
+     * Remote Monitor's resume window is untouched: this only runs on an explicit stop, never on
+     * a transport that merely went quiet.
+     */
+    const auto disconnect = rtsp_stream::disconnect_client_sessions_with_result(uuid);
+    bool stopped = disconnect.disconnected;
+
+    const auto monitor_generation = remote_owner_generation(uuid, remote_session::role_e::monitor);
+    if (monitor_generation) {
+      std::unique_lock lifecycle_lock {stream_lifecycle_mutex()};
+      // A session may have released this generation while it joined above; recheck under the
+      // lifecycle gate so this handles only retained ownership and never reaches into a newer
+      // Remote Monitor launch.
+      if (remote_owner_generation(uuid, remote_session::role_e::monitor) == monitor_generation) {
+        remote_session::release_monitor(uuid, *monitor_generation, "Stopped with its game stream");
+        forget_remote_owner(uuid, remote_session::role_e::monitor, *monitor_generation);
+#if defined(_WIN32) || defined(__linux__)
+        cleanup_virtual_display_if_idle_locked();
+#endif
+        stopped = true;
+      }
+    }
+    return stopped;
   }
 
   bool disconnect_client(const std::string &uuid) {

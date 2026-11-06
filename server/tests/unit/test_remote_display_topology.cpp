@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <map>
 
 #include "src/remote_display_topology.h"
 #include "src/platform/linux/private_display_resume_policy.h"
@@ -9,6 +10,12 @@ namespace {
   using remote_display_topology::mode_t;
 
   nlohmann::json layout(nlohmann::json placements) { return {{"version", 1}, {"placements", std::move(placements)}}; }
+
+  // A client's monitor role owns "<uuid>:remote-monitor" and its game role owns the bare uuid: one
+  // suffix is what stops the second screen from hashing onto the display the game is capturing.
+  // Every test that names a monitor node goes through the product's own function, so the scheme
+  // can change in one place.
+  std::string monitor_id(const std::string &uuid) { return remote_display_topology::remote_monitor_stable_id(uuid); }
   const std::vector<std::string> clients {"one", "two", "three", "four", "five"};
 }
 
@@ -47,6 +54,50 @@ TEST(RemoteDisplayTopology, SupportsEveryEdgeAndAlignment) {
     std::string error;
     EXPECT_TRUE(remote_display_topology::validate_layout(layout({{"one", {{"anchor_kind", "physical"}, {"anchor_id", "stable-device-path"}, {"edge", edge}, {"alignment", alignment}, {"gap_px", 8}}}}), clients, {"stable-device-path"}, error)) << edge << '/' << alignment;
   }
+}
+
+
+// A Remote Monitor is retained for resume when its transport goes away, and that is right while
+// the app is still there to resume into. When the app itself terminates there is nothing left to
+// resume into, and the retained identity is what makes the terminal teardown treat the host as
+// busy: cleanup and revert both defer and the displays stay on the desktop with no stream running
+// (2026-11-04 23:26:08, two active SDD displays after a plain stop).
+TEST(RemoteDisplayTopology, AppTerminationReleasesARetainedMonitor) {
+  remote_display_topology::coordinator_t coordinator;
+  coordinator.set_runtime_callbacks({
+    .create_or_reclaim = [](const auto &, const auto &, const auto &) { return true; },
+    .apply_composed_topology = [](const auto &) { return true; },
+    .exact_target_has_current_mode_and_dxgi = [](const auto &, const auto &) {
+      return std::optional<std::string> {"monitor-display"};
+    },
+  });
+
+  ASSERT_TRUE(coordinator.activate_or_resume("client", "Mini PC", {2560, 1440, 144, false}, 1).ready);
+  coordinator.transport_lost("client", 1);
+  ASSERT_EQ(coordinator.managed_client_identity_count(), 1u) << "the monitor was retained for resume";
+
+  coordinator.release_abandoned_remote_monitors("app terminated");
+
+  EXPECT_EQ(coordinator.managed_client_identity_count(), 0u)
+    << "a monitor whose session is gone must not outlive the app it was showing";
+}
+
+TEST(RemoteDisplayTopology, AppTerminationKeepsAMonitorSomebodyIsWatching) {
+  remote_display_topology::coordinator_t coordinator;
+  coordinator.set_runtime_callbacks({
+    .create_or_reclaim = [](const auto &, const auto &, const auto &) { return true; },
+    .apply_composed_topology = [](const auto &) { return true; },
+    .exact_target_has_current_mode_and_dxgi = [](const auto &, const auto &) {
+      return std::optional<std::string> {"monitor-display"};
+    },
+  });
+
+  ASSERT_TRUE(coordinator.activate_or_resume("client", "Mini PC", {2560, 1440, 144, false}, 1).ready);
+
+  coordinator.release_abandoned_remote_monitors("app terminated");
+
+  EXPECT_EQ(coordinator.managed_client_identity_count(), 1u)
+    << "a live monitor must survive another app's termination";
 }
 
 TEST(RemoteDisplayTopology, CreationReceivesPairedClientLabel) {
@@ -193,7 +244,7 @@ TEST(RemoteDisplayTopology, RemoteMonitorExtendsExistingPhysicalDesktop) {
   EXPECT_TRUE(composed[0].physical);
   EXPECT_EQ(composed[0].id, "physical-one");
   EXPECT_FALSE(composed[1].physical);
-  EXPECT_EQ(composed[1].id, "client");
+  EXPECT_EQ(composed[1].id, monitor_id("client"));
   EXPECT_EQ(composed[1].x, 2020);
 }
 
@@ -342,7 +393,7 @@ TEST(RemoteDisplayTopology, LinuxCrossClientResumeRetainsOneAppOwnedDisplay) {
   ASSERT_EQ(composed.size(), 2);
   coordinator.release_normal_game_identity("deck", app.token);
   ASSERT_EQ(composed.size(), 1);
-  EXPECT_EQ(composed.front().id, "mac");
+  EXPECT_EQ(composed.front().id, monitor_id("mac"));
   EXPECT_EQ(removed, std::vector<std::string> {"deck"});
 }
 
@@ -365,26 +416,73 @@ TEST(RemoteDisplayTopology, NormalReservationResolvesHdrCapabilityBeforeRecompos
 
 TEST(RemoteDisplayTopology, SharedNormalAndMonitorIdentityCountsOnceAndReleasesIndependently) {
   remote_display_topology::coordinator_t coordinator;
-  std::vector<remote_display_topology::mode_t> applied;
-  coordinator.set_runtime_callbacks({.create_or_reclaim = [](const auto &, const auto &, const auto &) { return true; }, .apply_composed_topology = [&applied](const auto &nodes) { if (!nodes.empty()) applied.push_back(nodes.front().configured_mode); return true; }, .exact_target_has_current_mode_and_dxgi = [](const auto &uuid, const auto &) { return std::optional<std::string> {uuid}; }});
+  // Two roles on one client: the game keeps the bare uuid and its own mode, the monitor owns the
+  // suffixed identity and its own mode. Neither may read the other's mode out of the composition.
+  std::map<std::string, remote_display_topology::mode_t> modes;
+  coordinator.set_runtime_callbacks({.create_or_reclaim = [](const auto &, const auto &, const auto &) { return true; }, .apply_composed_topology = [&modes](const auto &nodes) { modes.clear(); for (const auto &node : nodes) modes[node.id] = node.configured_mode; return true; }, .exact_target_has_current_mode_and_dxgi = [](const auto &uuid, const auto &) { return std::optional<std::string> {uuid}; }});
   const auto normal = coordinator.reserve_normal_game_identity("same", "Same", {2560, 1440, 120, true});
   ASSERT_TRUE(normal.accepted);
   ASSERT_TRUE(coordinator.reapply_composed_topology());
   EXPECT_TRUE(coordinator.activate_or_resume("same", "Same", {1920, 1080, 60, false}, 7).accepted);
   EXPECT_EQ(coordinator.snapshot({})["capacity"]["used"], 1);
-  ASSERT_GE(applied.size(), 2u);
-  EXPECT_EQ(applied.back().width, 1920);
-  EXPECT_FALSE(applied.back().hdr);
+  ASSERT_EQ(modes.count(monitor_id("same")), 1u);
+  EXPECT_EQ(modes.at(monitor_id("same")).width, 1920);
+  EXPECT_FALSE(modes.at(monitor_id("same")).hdr);
+  EXPECT_EQ(modes.at("same").width, 2560);
+  EXPECT_EQ(modes.at("same").height, 1440);
+  EXPECT_TRUE(modes.at("same").hdr);
 
   coordinator.explicit_release("same", 7, "monitor done");
   EXPECT_EQ(coordinator.snapshot({})["capacity"]["used"], 1);
-  EXPECT_EQ(applied.back().width, 2560);
-  EXPECT_EQ(applied.back().height, 1440);
-  EXPECT_EQ(applied.back().refresh_hz, 120);
-  EXPECT_TRUE(applied.back().hdr);
+  EXPECT_EQ(modes.count(monitor_id("same")), 0u);
+  EXPECT_EQ(modes.at("same").width, 2560);
+  EXPECT_EQ(modes.at("same").height, 1440);
+  EXPECT_EQ(modes.at("same").refresh_hz, 120);
+  EXPECT_TRUE(modes.at("same").hdr);
 
   coordinator.release_normal_game_identity("same", normal.token);
   EXPECT_EQ(coordinator.snapshot({})["capacity"]["used"], 0);
+}
+
+TEST(RemoteDisplayTopology, LastReleaseAcceptsTheEmptyTopologyItsCallerRefusesToPlace) {
+  // nvhttp's composition callback deliberately refuses to build a topology from zero nodes
+  // ("nothing left to place"). That refusal is correct for a request that must place something,
+  // and wrong for the last release, whose whole job is to leave nothing behind. Reporting it as
+  // a failed apply made the release roll its identity back: normal_game stayed set for the life
+  // of the process, generic_virtual_display_cleanup_allowed() answered false, every teardown
+  // deferred, and the physical outputs were never restored (2026-11-04 16:24:36, black KVM).
+  remote_display_topology::coordinator_t coordinator;
+  int applies = 0;
+  int empty_applies = 0;
+  std::string removed;
+  coordinator.set_runtime_callbacks({
+    .apply_composed_topology =
+      [&](const auto &nodes) {
+        ++applies;
+        if (nodes.empty()) {
+          ++empty_applies;
+          return false;  // exactly what the real callback does with nothing to place
+        }
+        return true;
+      },
+    .remove_owned_display =
+      [&](const auto &uuid) {
+        removed = uuid;
+        return true;
+      },
+  });
+
+  const auto game = coordinator.reserve_normal_game_identity("game", "Game", {1920, 1080, 60});
+  ASSERT_TRUE(game.accepted);
+  coordinator.release_normal_game_identity("game", game.token);
+
+  // The callback is still asked, and still refuses - that refusal is correct in general. What
+  // must change is the coordinator's reading of it: nothing was left to place, so the release
+  // completes instead of rolling its identity back.
+  EXPECT_EQ(empty_applies, 1);
+  EXPECT_EQ(removed, "game");
+  EXPECT_EQ(coordinator.snapshot({})["capacity"]["used"], 0);
+  EXPECT_TRUE(coordinator.generic_virtual_display_cleanup_allowed());
 }
 
 TEST(RemoteDisplayTopology, AppExitWaitsForEveryCaptureBeforeMutatingTopology) {
@@ -492,7 +590,7 @@ TEST(RemoteDisplayTopology, DrainedGameRetiresWhileIndependentMonitorRemainsOwne
   coordinator.release_drained_normal_game_identities();
   EXPECT_EQ(removed, (std::vector<std::string> {"game"}));
   ASSERT_EQ(composed.size(), 1u);
-  EXPECT_EQ(composed.front().id, "monitor");
+  EXPECT_EQ(composed.front().id, monitor_id("monitor"));
   EXPECT_TRUE(coordinator.is_ready("monitor", 1));
 }
 
@@ -658,17 +756,96 @@ TEST(RemoteDisplayTopology, ReleaseAppliesReplacementBeforeDisconnectingDepartin
   EXPECT_TRUE(coordinator.generic_virtual_display_cleanup_allowed());
 }
 
+TEST(RemoteDisplayTopology, MonitorReleaseRetiresItsOwnDisplayWhileGameKeepsStreaming) {
+  remote_display_topology::coordinator_t coordinator;
+  std::vector<std::string> events;
+  std::vector<remote_display_topology::node_t> composed;
+  coordinator.set_runtime_callbacks({
+    .create_or_reclaim = [](const auto &, const auto &, const auto &) {
+      return true;
+    },
+    .apply_composed_topology = [&](const auto &nodes) {
+      composed = nodes;
+      events.push_back("apply:" + std::to_string(nodes.size()));
+      return true;
+    },
+    .exact_target_has_current_mode_and_dxgi = [](const auto &uuid, const auto &) {
+      return std::optional<std::string> {uuid};
+    },
+    .remove_owned_display = [&](const auto &uuid) {
+      events.push_back("remove:" + uuid);
+      return true;
+    },
+  });
+
+  const auto game = coordinator.reserve_normal_game_identity("same", "Same", {2560, 1440, 120, false});
+  ASSERT_TRUE(game.accepted);
+  ASSERT_TRUE(coordinator.activate_or_resume("same", "Same", {1920, 1080, 60, false}, 3).ready);
+  events.clear();
+
+  coordinator.explicit_release("same", 3, "Remote Monitor disconnected while the game kept streaming");
+
+  // Both roles own their own VDD, so ending the monitor role retires the monitor's display even
+  // though the game role is still live. Retiring nothing here left the display active on the
+  // desktop with no target mode, and every later setDisplayConfig call failed validation with
+  // ERROR_INVALID_PARAMETER until the machine was rebooted.
+  EXPECT_EQ(events, (std::vector<std::string> {"apply:1", "remove:same"}));
+  ASSERT_EQ(composed.size(), 1u);
+  EXPECT_EQ(composed.front().id, "same");
+
+  coordinator.release_normal_game_identity("same", game.token);
+}
+
+TEST(RemoteDisplayTopology, ReleaseRetiresDepartingDisplayWhenShrinkingApplyRejectsIt) {
+  remote_display_topology::coordinator_t coordinator;
+  std::vector<std::string> events;
+  bool reject_apply = false;
+  int applies = 0;
+  coordinator.set_runtime_callbacks({
+    .create_or_reclaim = [](const auto &, const auto &, const auto &) {
+      return true;
+    },
+    .apply_composed_topology = [&](const auto &nodes) {
+      events.push_back("apply:" + std::to_string(nodes.size()));
+      return !(reject_apply && ++applies == 1);
+    },
+    .exact_target_has_current_mode_and_dxgi = [](const auto &uuid, const auto &) {
+      return std::optional<std::string> {uuid};
+    },
+    .remove_owned_display = [&](const auto &uuid) {
+      events.push_back("remove:" + uuid);
+      return true;
+    },
+  });
+
+  ASSERT_TRUE(coordinator.activate_or_resume("one", "One", {}, 1).ready);
+  // A second owner, so the shrinking composition still carries a node: that is the real shape of
+  // the 15:20 failure, where the departing monitor display sat beside a live game display.
+  const auto keep = coordinator.reserve_normal_game_identity("keep", "Keep", {1920, 1080, 60});
+  ASSERT_TRUE(keep.accepted);
+  events.clear();
+  reject_apply = true;
+  coordinator.explicit_release("one", 1, "Remote Monitor disconnected");
+
+  // The shrinking apply is refused - an already-departed display still held active with no mode is
+  // exactly how Windows answers with ERROR_INVALID_PARAMETER - so the departing display is retired
+  // and the same request is repeated, which now succeeds. The release completes instead of rolling
+  // back on top of a display nobody owns any more.
+  EXPECT_EQ(events, (std::vector<std::string> {"apply:1", "remove:one", "apply:1"}));
+  EXPECT_EQ(coordinator.snapshot({})["capacity"]["used"], 1);
+}
+
 TEST(RemoteDisplayTopology, FailedReplacementOrDisconnectRetainsOwnership) {
   remote_display_topology::coordinator_t coordinator;
-  bool reject_empty = false;
+  bool reject_apply = false;
   bool reject_remove = false;
   int removals = 0;
   coordinator.set_runtime_callbacks({
     .create_or_reclaim = [](const auto &, const auto &, const auto &) {
       return true;
     },
-    .apply_composed_topology = [&reject_empty](const auto &nodes) {
-      return !(reject_empty && nodes.empty());
+    .apply_composed_topology = [&reject_apply](const auto &) {
+      return !reject_apply;
     },
     .exact_target_has_current_mode_and_dxgi = [](const auto &uuid, const auto &) {
       return std::optional<std::string> {uuid};
@@ -680,15 +857,20 @@ TEST(RemoteDisplayTopology, FailedReplacementOrDisconnectRetainsOwnership) {
   });
 
   ASSERT_TRUE(coordinator.activate_or_resume("one", "One", {}, 1).ready);
-  reject_empty = true;
+  // A real failure needs something to place: with a second owner the composition carries a node,
+  // so a refusal is a genuine rejection rather than the empty end state of the last release.
+  ASSERT_TRUE(coordinator.reserve_normal_game_identity("keep", "Keep", {1920, 1080, 60}).accepted);
+  reject_apply = true;
   coordinator.explicit_release("one", 1, "failed topology handoff");
-  EXPECT_EQ(removals, 0);
+  // The departing display is retired before the apply is repeated - that is the point of the
+  // rescue - but the repeat is refused too, so ownership is retained as before.
+  EXPECT_EQ(removals, 1);
   EXPECT_TRUE(coordinator.snapshot("one", 1).accepted);
 
-  reject_empty = false;
+  reject_apply = false;
   reject_remove = true;
   coordinator.explicit_release("one", 1, "failed connector release");
-  EXPECT_EQ(removals, 1);
+  EXPECT_EQ(removals, 2);
   EXPECT_TRUE(coordinator.snapshot("one", 1).accepted);
   EXPECT_FALSE(coordinator.generic_virtual_display_cleanup_allowed());
 }
@@ -851,9 +1033,9 @@ TEST(RemoteDisplayTopology, FailedPeerApplyKeepsExistingRemoteOwnerComposed) {
   EXPECT_TRUE(second.retryable);
   const auto state = coordinator.snapshot({{{"uuid", "one"}, {"name", "One"}}, {{"uuid", "two"}, {"name", "Two"}}});
   EXPECT_EQ(state["capacity"]["used"], 2);
-  EXPECT_NE(std::find_if(state["nodes"].begin(), state["nodes"].end(), [](const auto &node) { return node["id"] == "one"; }), state["nodes"].end());
+  EXPECT_NE(std::find_if(state["nodes"].begin(), state["nodes"].end(), [&](const auto &node) { return node["id"] == monitor_id("one"); }), state["nodes"].end());
   ASSERT_FALSE(applied.empty());
-  EXPECT_EQ(applied.back(), std::vector<std::string>({"one", "two"}));
+  EXPECT_EQ(applied.back(), (std::vector<std::string> {monitor_id("one"), monitor_id("two")}));
 }
 
 TEST(RemoteDisplayTopology, ClientAnchorCompositionIsIndependentOfMapIterationOrder) {
@@ -886,8 +1068,8 @@ TEST(RemoteDisplayTopology, ClientAnchorCompositionIsIndependentOfMapIterationOr
     });
     return it == state["nodes"].end() ? -1 : (*it)["desired_position"]["x"].get<int>();
   };
-  EXPECT_EQ(find_x("two"), 1920);
-  EXPECT_EQ(find_x("one"), 3840);
+  EXPECT_EQ(find_x(monitor_id("two")), 1920);
+  EXPECT_EQ(find_x(monitor_id("one")), 3840);
   EXPECT_TRUE(state["warnings"].empty());
 }
 
@@ -914,7 +1096,7 @@ TEST(RemoteDisplayTopology, RemoteMonitorExtendsActiveNormalGameVirtualDisplayBy
     });
   };
   const auto existing = find_node("z-existing");
-  const auto added = find_node("a-new");
+  const auto added = find_node(monitor_id("a-new"));
   ASSERT_NE(existing, applied.end());
   ASSERT_NE(added, applied.end());
   EXPECT_FALSE(existing->physical);
@@ -934,8 +1116,71 @@ TEST(RemoteDisplayTopology, MissingAnchorAppendsAndReleasingOnePeerPreservesTheO
   coordinator.explicit_release("one", 3, "Disconnect Monitor");
   const auto state = coordinator.snapshot({{{"uuid", "one"}, {"name", "One"}}, {{"uuid", "two"}, {"name", "Two"}}});
   EXPECT_EQ(state["capacity"]["used"], 1);
-  EXPECT_NE(std::find_if(state["nodes"].begin(), state["nodes"].end(), [](const auto &node) { return node["id"] == "two"; }), state["nodes"].end());
+  EXPECT_NE(std::find_if(state["nodes"].begin(), state["nodes"].end(), [&](const auto &node) { return node["id"] == monitor_id("two"); }), state["nodes"].end());
   EXPECT_TRUE(state["warnings"].empty());
   ASSERT_FALSE(applied.empty());
-  EXPECT_EQ(applied.back(), std::vector<std::string>({"two"}));
+  EXPECT_EQ(applied.back(), std::vector<std::string> {monitor_id("two")});
+}
+
+// A requested mode is a claim, not a fact. The shared output may still be running the old one
+// when the next role is composed beside it, and placing a live peer against a number that does
+// not exist yet is what the compositor answers by refusing the topology and keeping the old
+// desktop. Observed geometry is the only thing another role may be placed against.
+TEST(RemoteDisplayTopology, SharedGeometryIsObservedBeforeLivePeersAreMoved) {
+  remote_display_topology::coordinator_t coordinator;
+  std::vector<remote_display_topology::node_t> applied;
+  int applies = 0;
+  remote_display_topology::mode_t actual {1920, 1080, 60, false};
+  coordinator.set_runtime_callbacks({
+    .create_or_reclaim = [](const auto &, const auto &, const auto &) { return true; },
+    .apply_composed_topology = [&](const auto &nodes) { ++applies; applied = nodes; return true; },
+    .exact_target_has_current_mode_and_dxgi = [](const auto &, const auto &) {
+      return std::optional<std::string> {"DP-1"};
+    },
+    .observe_shared_mode = [&](const auto &id, const bool monitor_role) -> std::optional<remote_display_topology::mode_t> {
+      if (id == "peer" && monitor_role) return actual;
+      return std::nullopt;
+    },
+  });
+
+  // A lease taken by this activation is a connector nothing else is capturing: its mode is the
+  // pool's default, and the apply is what sets it. Refusing to apply because the default is not
+  // the request yet would deadlock - a client that asks once per launch would get a 503 every
+  // time and no monitor would ever open.
+  const auto first = coordinator.activate_or_resume("peer", "Peer", {3840, 2160, 120, false}, 1);
+  EXPECT_TRUE(first.accepted);
+  EXPECT_TRUE(first.ready);
+  EXPECT_EQ(applies, 1) << "a fresh lease must apply the mode it is asking for";
+  ASSERT_FALSE(applied.empty());
+  EXPECT_EQ(applied.front().configured_mode.width, 3840);
+
+  // A lease that was already held is a live peer. Geometry it has not reached yet must not be
+  // composed against, because everything is placed from those numbers.
+  const auto deferred = coordinator.activate_or_resume("peer", "Peer", {3840, 2160, 120, false}, 1);
+  EXPECT_TRUE(deferred.accepted);
+  EXPECT_FALSE(deferred.ready);
+  EXPECT_TRUE(deferred.retryable);
+  EXPECT_EQ(applies, 1) << "a topology must not be applied from geometry that was only requested";
+  EXPECT_NE(deferred.error.find("does not yet match the requested geometry"), std::string::npos);
+
+  // The connector catches up, the next attempt observes it, and only then is anything moved.
+  actual = {3840, 2160, 120, false};
+  const auto ready = coordinator.activate_or_resume("peer", "Peer", {3840, 2160, 120, false}, 1);
+  EXPECT_TRUE(ready.ready);
+  EXPECT_EQ(applies, 2);
+}
+
+TEST(RemoteDisplayTopology, UnknownSharedGeometryDoesNotBlockAStream) {
+  // A platform that cannot read the connector is not a platform that disagrees with it, and a
+  // failed query must never keep a stream from starting.
+  remote_display_topology::coordinator_t coordinator;
+  coordinator.set_runtime_callbacks({
+    .create_or_reclaim = [](const auto &, const auto &, const auto &) { return true; },
+    .apply_composed_topology = [](const auto &) { return true; },
+    .exact_target_has_current_mode_and_dxgi = [](const auto &, const auto &) {
+      return std::optional<std::string> {"DP-1"};
+    },
+    .observe_shared_mode = [](const auto &, bool) -> std::optional<remote_display_topology::mode_t> { return std::nullopt; },
+  });
+  EXPECT_TRUE(coordinator.activate_or_resume("peer", "Peer", {1920, 1080, 60, false}, 1).ready);
 }

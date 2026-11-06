@@ -80,10 +80,17 @@ TEST(RemoteSession, CatalogueProjectionMatchesCallerOwnershipMatrix) {
   EXPECT_EQ(observer.catalogue[5].id, remote_session::secondary_input_id);
   EXPECT_EQ(observer.catalogue[6].id, remote_session::secondary_monitor_id);
 
+  // Holding a monitor keeps the host's apps: the collapse that used to hide them outlived the
+  // stream once leaving stopped ending the role (4 Nov 2026). Resume and Disconnect go on the
+  // front; Remote Input is gone because dispatch refuses it while a role is held.
   const auto monitor = remote_session::project(caller("monitor"), {}, {.role = remote_session::role_e::monitor, .retained = true}, configured, true);
-  ASSERT_EQ(monitor.catalogue.size(), 2);
+  ASSERT_EQ(monitor.catalogue.size(), 5);
+  EXPECT_TRUE(monitor.free);
   EXPECT_EQ(monitor.catalogue[0].id, remote_session::resume_id);
   EXPECT_EQ(monitor.catalogue[1].id, remote_session::disconnect_monitor_id);
+  EXPECT_EQ(monitor.catalogue[2].title, "One");
+  EXPECT_EQ(monitor.catalogue[3].title, "Two");
+  EXPECT_EQ(monitor.catalogue[4].id, remote_session::monitor_id);
 
   const auto input = remote_session::project(caller("input"), {}, {.role = remote_session::role_e::input}, configured, true);
   ASSERT_EQ(input.catalogue.size(), 3);
@@ -100,10 +107,17 @@ TEST(RemoteSession, CatalogueProjectionMatchesCallerOwnershipMatrix) {
   EXPECT_EQ(input_during_game.catalogue[4].title, "Two");
   EXPECT_EQ(input_during_game.catalogue[5].id, remote_session::secondary_monitor_id);
 
+  // The case that stranded Nik's picker: a game running and owned by this client, and a monitor
+  // also held. The list must still be the list, with the monitor's controls in front of it.
   const auto game_owner_monitor = remote_session::project(caller("owner"), game(), {.role = remote_session::role_e::monitor, .retained = true}, configured, true);
-  ASSERT_EQ(game_owner_monitor.catalogue.size(), 2);
+  ASSERT_EQ(game_owner_monitor.catalogue.size(), 5);
+  EXPECT_FALSE(game_owner_monitor.free);
+  EXPECT_EQ(game_owner_monitor.current_game, 42);
   EXPECT_EQ(game_owner_monitor.catalogue[0].id, remote_session::resume_id);
   EXPECT_EQ(game_owner_monitor.catalogue[1].id, remote_session::disconnect_monitor_id);
+  EXPECT_EQ(game_owner_monitor.catalogue[2].title, "One");
+  EXPECT_EQ(game_owner_monitor.catalogue[3].title, "Two");
+  EXPECT_EQ(game_owner_monitor.catalogue[4].id, remote_session::monitor_id);
 }
 
 TEST(RemoteSession, ConfiguredRemoteMarkersCannotShadowSyntheticControls) {
@@ -141,8 +155,11 @@ TEST(RemoteSession, UngatedGameStaysLaunchableAndCancelableUntilSpecialSessionOw
   EXPECT_TRUE(remote_session::allows_normal_game_cancel(owner, active_game, true));
   EXPECT_FALSE(remote_session::allows_normal_game_cancel(other, active_game, true));
 
+  // A retained Remote Monitor is told what the game is doing: the monitor sits BESIDE the
+  // game, so its holder is looking at the list while something runs, and a tag that vanishes
+  // the moment the second screen comes up is worse than no tag at all.
   const remote_session::owner_t retained_monitor {.role = remote_session::role_e::monitor, .retained = true};
-  EXPECT_FALSE(remote_session::exposes_active_game(owner, active_game, retained_monitor, true));
+  EXPECT_TRUE(remote_session::exposes_active_game(owner, active_game, retained_monitor, true));
   EXPECT_FALSE(remote_session::exposes_active_game(other, {}, {}, false));
   EXPECT_FALSE(remote_session::allows_normal_game_cancel(caller("other", true, true, false), active_game, false));
 }
@@ -166,13 +183,20 @@ TEST(RemoteSession, EveryPairedCallerIsToldWhatTheHostIsRunning) {
   // session. Only serverinfo states what the host is doing, and that is the channel a client
   // reads for the running app. CatalogueProjectionMatchesCallerOwnershipMatrix pins this.
 
-  // Still unexposed: nothing running; this caller holds a role of its own (a retained
-  // Remote Monitor follows its own path); the caller may not view the host at all; and an
-  // unpaired caller is told nothing about a session.
+  // Still unexposed: nothing running; a caller that is IN the session (the game's own role);
+  // the caller may not view the host at all; and an unpaired caller is told nothing.
+  //
+  // A retained Remote Monitor used to be in that list and should not have been. The monitor is
+  // a second session beside the game, so its holder is the person most likely to be reading
+  // the list while something runs - and the badge disappearing exactly then left the row with
+  // no way to say it was live. Nik found it on 4 Nov 2026 by starting a monitor and watching
+  // the STREAMING tag go out.
   EXPECT_FALSE(remote_session::exposes_active_game(other, {}, {}, false));
   const remote_session::owner_t retained_monitor {.role = remote_session::role_e::monitor, .retained = true};
-  EXPECT_FALSE(remote_session::exposes_active_game(owner, active_game, retained_monitor, true));
-  EXPECT_FALSE(remote_session::exposes_active_game(other, active_game, retained_monitor, true));
+  const remote_session::owner_t game_owner {.role = remote_session::role_e::game, .retained = true};
+  EXPECT_TRUE(remote_session::exposes_active_game(owner, active_game, retained_monitor, true));
+  EXPECT_TRUE(remote_session::exposes_active_game(other, active_game, retained_monitor, true));
+  EXPECT_FALSE(remote_session::exposes_active_game(owner, active_game, game_owner, true));
   EXPECT_FALSE(remote_session::exposes_active_game(caller("other", false), active_game, {}, false));
 
   const remote_session::caller_t unpaired {.uuid = "stranger", .paired = false, .may_view = true, .may_launch = true, .may_terminate = true};

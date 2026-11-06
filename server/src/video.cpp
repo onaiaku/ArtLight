@@ -56,6 +56,9 @@ extern "C" {
 #if defined(__linux__) && defined(SUNSHINE_BUILD_CUDA)
   #include "platform/linux/cuda.h"
 #endif
+#ifdef __linux__
+  #include "platform/linux/rtx_hdr_runtime.h"
+#endif
 
 #ifdef _WIN32
   #include "src/platform/windows/display.h"
@@ -3816,7 +3819,7 @@ namespace video {
 #ifdef SUNSHINE_ENABLE_NV_TRUEHDR
   bool refresh_rtx_hdr_metadata_if_needed(
     config_t &config,
-    encode_session_t &encode_session,
+    encode_session_t *encode_session,
     safe::mail_raw_t::event_t<hdr_info_t> &hdr_event,
     std::optional<hdr_info_raw_t> &last_hdr_info,
     rtx_hdr_metadata_refresh_state_t &refresh_state
@@ -3856,7 +3859,7 @@ namespace video {
 
     config.rtx_hdr_peak_nits = peak_nits;
     const auto metadata = synthesize_rtx_hdr_metadata(peak_nits);
-    encode_session.set_hdr_metadata(metadata);
+    if (encode_session) encode_session->set_hdr_metadata(metadata);
     raise_hdr_info_if_changed(
       hdr_event,
       last_hdr_info,
@@ -4992,6 +4995,16 @@ namespace video {
                        disp.get(), encoder, config, disp->width, disp->height,
                        std::move(encode_device), initialization_deadline, initialization_cancelled,
                        &initialization_was_cancelled, &initialization_gate_contended);
+#if defined(__linux__)
+    BOOST_LOG(info) << "Linux encoder dimensions: encoder=" << encoder.name
+                    << " capture=" << disp->width << 'x' << disp->height
+                    << " encoder_context=" << config.width << 'x' << config.height
+                    << " stream_fps=" << config.framerate
+                    << " encoding_framerate_milli_fps=" << config.encodingFramerate
+                    << " result=" << (session ? "ready" : initialization_gate_contended ? "temporarily_busy" :
+                                                                                          "failed")
+                    << '.';
+#endif
 #ifdef _WIN32
     if (initialization_was_cancelled) return encode_run_result_e::completed;
     if (!session && &encoder == &amdvce_experimental) {
@@ -5483,7 +5496,7 @@ namespace video {
 #ifdef SUNSHINE_ENABLE_NV_TRUEHDR
           if (refresh_rtx_hdr_metadata_if_needed(
                 config,
-                *session,
+                session.get(),
                 hdr_event,
                 last_hdr_info,
                 rtx_hdr_metadata_refresh
@@ -5707,6 +5720,15 @@ namespace video {
     }
 
     if (result) {
+#ifdef __linux__
+      // The Linux capture path must stay SDR for TrueHDR to have something to convert: an
+      // already-HDR capture is passed through untouched, and an encoder without the CUDA/GL
+      // converter cannot do it at all. Refuse rather than label unconverted SDR as HDR.
+      if (config.rtx_hdr_active && (!result->supports_rtx_hdr() || display_is_hdr)) {
+        BOOST_LOG(error) << "RTX HDR requires an SDR capture source and a CUDA/GL NVIDIA encoder on Linux.";
+        return {};
+      }
+#endif
       result->colorspace = colorspace;
       result->rtx_hdr_active = config.rtx_hdr_active;
 
@@ -6030,7 +6052,7 @@ namespace video {
 #ifdef SUNSHINE_ENABLE_NV_TRUEHDR
             if (refresh_rtx_hdr_metadata_if_needed(
                   ctx->config,
-                  *pos->session,
+                  pos->session.get(),
                   ctx->hdr_events,
                   ctx->last_hdr_info,
                   ctx->rtx_hdr_metadata_refresh

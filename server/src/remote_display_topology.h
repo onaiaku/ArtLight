@@ -7,6 +7,7 @@
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -14,6 +15,21 @@ namespace remote_display_topology {
 
   inline constexpr unsigned int layout_version = 1;
   inline constexpr std::size_t max_client_identities = 4;
+  // A geometry that never lands must not hold a stream hostage: after this many deferrals the
+  // topology is attempted with what the platform reports and the warning stands.
+  inline constexpr int max_shared_geometry_deferrals = 3;
+
+  // The stable id the Remote Monitor role derives its own virtual display from. One paired
+  // client can hold a game role and a monitor role at the same time, and each role owns a
+  // separate display, so the id the display identity is hashed from has to carry the role.
+  // Without the suffix both roles hash to the same GUID: the monitor's activation then finds
+  // the game session's display, decides it must be replaced, cannot release it while it is
+  // being captured, and fails closed with a 503 (3 Nov 2026, second screen on the same machine
+  // that was already streaming).
+  std::string remote_monitor_stable_id(const std::string &client_uuid);
+
+  /// The role suffix that separates a client's monitor display from its game display.
+  std::string_view remote_monitor_suffix();
 
   enum class lifecycle_e { desired, leased, applying, ready, retryable, released };
 
@@ -58,6 +74,15 @@ namespace remote_display_topology {
     // prevents a callback from treating a GUID/device-id lookup as readiness.
     std::function<std::optional<std::string>(const std::string &client_uuid, const mode_t &mode)> exact_target_has_current_mode_and_dxgi;
     std::function<bool(const std::string &client_uuid)> remove_owned_display;
+    // The mode the client's own output actually has, as the compositor publishes it - not the
+    // mode it was asked for. A requested mode is a claim: until this agrees, placing another
+    // role beside it uses coordinates the desktop does not have, and the compositor refuses the
+    // whole topology and keeps the old one. Unset means the platform cannot observe, and every
+    // deferral below is skipped so behaviour is unchanged.
+    // `monitor_role` selects which of the client's two outputs is meant: this fork gives the
+    // game role and the Remote Monitor role a connector each, so the anchor geometry of a
+    // client is not the same output as the monitor's own.
+    std::function<std::optional<mode_t>(const std::string &client_uuid, bool monitor_role)> observe_shared_mode;
   };
 
   struct activation_result_t {
@@ -121,6 +146,10 @@ namespace remote_display_topology {
     void release_drained_normal_game_identities();
     void release_all_normal_game_identities();
     void note_lease_lost(const std::string &client_uuid);
+    // A Remote Monitor held for resume outlives its transport, but not the app it was showing.
+    // Once that app ends for good, an identity that is no longer ready has nothing left to
+    // resume into, so it is released here along with the display it owns.
+    void release_abandoned_remote_monitors(const std::string &reason);
     void disconnect_monitor(const std::string &client_uuid);
     void unpair_client(const std::string &client_uuid);
     /** Drop runtime state, optionally preserving every platform display untouched. */
@@ -142,6 +171,11 @@ namespace remote_display_topology {
       std::unordered_map<std::uint64_t, std::size_t> normal_capture_references;
       bool remote_monitor = false;
       bool lease_held = false;
+      // A topology was composed from geometry this role only asked for. No live peer may be
+      // moved until observe_shared_mode agrees, because a refusal here retains the old
+      // topology and reads exactly like a compositor fault.
+      bool shared_mode_unverified = false;
+      int shared_mode_deferrals = 0;
       uint64_t generation = 0;
       // Stable first-ownership order keeps existing displays in place when a
       // new owner has no saved layout. UUID ordering must not reshuffle the
@@ -158,7 +192,15 @@ namespace remote_display_topology {
     void release_locked(const std::string &client_uuid, client_state_t &state, const std::string &reason);
     static mode_t desired_mode(const client_state_t &state);
     void resolve_effective_mode_locked(const std::string &client_uuid, client_state_t &state);
+    // Adopt observed geometry for every role marked unverified except `except`. Returns false
+    // when an output could not be read, so the caller can defer instead of composing a guess.
+    bool refresh_unverified_shared_geometry_locked(const std::string &except = {});
     std::vector<node_t> compose_locked(std::vector<std::string> &warnings) const;
+    // An empty composition is the correct end state when no role wants a display, not a refused
+    // apply. The composition callback refuses to build a topology from zero nodes on purpose, so
+    // treating that refusal as failure made the last release roll back and keep its identity
+    // owned for the life of the process.
+    bool apply_composed_or_accept_empty_locked(std::vector<std::string> &warnings);
     static mode_t effective_mode(const node_t &node);
     static int layout_width(const node_t &node);
     static int layout_height(const node_t &node);

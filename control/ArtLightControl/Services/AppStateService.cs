@@ -134,6 +134,17 @@ namespace ArtLightControl.Services
         public void RaiseLiveSample(LiveSample sample)
             => LiveTelemetrySample?.Invoke(sample);
 
+        // ── The second screen's own stream ───────────────────────────────────
+        //
+        // A Remote Monitor window is a second ArtMoon process with its own sampler, sending its
+        // own SESSIONDATA batch tagged role="monitor". It is a separate stream, so its numbers are
+        // kept apart from the ordinary session: mixed into one feed they were a coin toss between
+        // the two streams, and the recorded session averages blended both.
+        public event Action<LiveSample>? MonitorTelemetrySample;
+
+        public void RaiseMonitorSample(LiveSample sample)
+            => MonitorTelemetrySample?.Invoke(sample);
+
         // ── Host metrics (idle vitals) ────────────────────────────────────────
         //
         // Exposes HostMetricsCollector.GetLatestSample() to the Dashboard so the
@@ -157,6 +168,13 @@ namespace ArtLightControl.Services
         /// SESSIONDATA batch, so it self-corrects when a different client connects.
         /// </summary>
         public float CurrentTargetBitrateMbps { get; set; }
+
+        /// <summary>
+        /// The monitor stream's own configured ceiling. Kept apart from the session's target
+        /// because a second screen is not sent at the game's bitrate, so comparing its delivered
+        /// rate against the game's target would read as a permanent shortfall.
+        /// </summary>
+        public float CurrentMonitorTargetBitrateMbps { get; set; }
 
         // ── Glossary deep-link ────────────────────────────────────────────────
         // An ⓘ InfoHint sets this to the term it wants, then navigates to the Glossary;

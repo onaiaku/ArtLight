@@ -17,8 +17,10 @@
   #include <filesystem>
   #include <functional>
   #include <limits>
+  #include <map>
   #include <mutex>
   #include <optional>
+  #include <sstream>
   #include <string>
   #include <string_view>
   #include <thread>
@@ -36,8 +38,10 @@
   #include "display_helper_integration.h"
   #include "src/globals.h"
   #include "src/logging.h"
+  #include "src/platform/windows/display_diagnostics.h"
   #include "src/platform/windows/display_helper_coordinator.h"
   #include "src/platform/windows/display_helper_request_helpers.h"
+  #include "src/platform/windows/display_helper_v2/snapshot_codec.h"
   #include "src/platform/windows/frame_limiter_nvcp.h"
   #include "src/platform/windows/impersonating_display_device.h"
   #include "src/platform/windows/ipc/display_settings_client.h"
@@ -534,18 +538,45 @@ namespace {
         const bool already_matches = ctx->display->isTopologyTheSame(current_topology, topology.topology);
         if (!already_matches) {
           BOOST_LOG(info) << "Display helper: applying requested topology (" << label << ").";
+          std::ostringstream request_summary;
+          request_summary << "setTopology before apply (" << label << "); requested nodes=" << topology.topology.size();
+          for (const auto &group : topology.topology) {
+            request_summary << " [";
+            for (std::size_t index = 0; index < group.size(); ++index) {
+              request_summary << (index == 0 ? "" : ",") << group[index];
+            }
+            request_summary << ']';
+          }
+          for (const auto &[device_id, point] : topology.monitor_positions) {
+            request_summary << " pos " << device_id << '=' << point.m_x << ',' << point.m_y;
+          }
+          if (topology.primary_device) {
+            request_summary << " primary=" << *topology.primary_device;
+          }
+          display_diagnostics::breadcrumb(request_summary.str());
+          // Written before the apply, not after it. The helper process is the one that
+          // dies mid-call, so a snapshot taken only on failure never reaches disk when
+          // the pipe is lost - which is exactly the case this has to explain.
+          display_diagnostics::snapshot(
+            "topology-apply-before", label, &topology.topology, &topology.monitor_positions,
+            "written immediately before setTopology so a helper death still records the request");
           topology_ok = ctx->display->setTopology(topology.topology);
           if (!topology_ok) {
             BOOST_LOG(warning) << "Display helper: requested topology apply failed (" << label << ").";
+            display_diagnostics::snapshot(
+              "topology-apply-failed", label, &topology.topology, &topology.monitor_positions,
+              "setTopology returned false; the OS rejected the composed topology");
           }
         } else {
           BOOST_LOG(debug) << "Display helper: requested topology already active (" << label << ").";
         }
       } catch (const std::exception &ex) {
         BOOST_LOG(warning) << "Display helper: topology inspection failed (" << label << "): " << ex.what();
+        display_diagnostics::snapshot("topology-apply-threw", label, &topology.topology, &topology.monitor_positions, ex.what());
         topology_ok = false;
       } catch (...) {
         BOOST_LOG(warning) << "Display helper: topology inspection failed (" << label << ") with an unknown error.";
+        display_diagnostics::snapshot("topology-apply-threw", label, &topology.topology, &topology.monitor_positions, "unknown exception");
         topology_ok = false;
       }
     }
@@ -1730,6 +1761,70 @@ namespace {
     return j.dump();
   }
 
+  // Ask the desktop where the streamed displays actually are, and keep it.
+  //
+  // The user drags a virtual display where they want it and Windows applies it, but the
+  // position is stored against a monitor that will not exist anymore in five minutes.
+  // Reading it back while the session is live is the only moment it can be captured; the
+  // next session hands it straight back.
+  //
+  // Every streamed display, not just the one this session captures: a client can hold a game
+  // and a Remote Monitor at once, each with its own display, and the second screen is the one
+  // that gets moved most often. The display ids come from the same remembered list the helper
+  // already keeps so its snapshots never treat a virtual display as part of the desktop.
+  static void remember_virtual_display_position() {
+    auto wanted = statefile::load_virtual_display_devices();
+    {
+      std::lock_guard<std::mutex> lg(g_session_mutex);
+      if (g_active_session_dd && g_active_session_dd->virtual_display &&
+          !g_active_session_dd->virtual_display_device_id.empty()) {
+        wanted.push_back(g_active_session_dd->virtual_display_device_id);
+      }
+    }
+    // No early return on an empty list: a Remote Monitor-only stream has no game display to name
+    // here, and that was exactly the case where a second screen's position was never sampled.
+    // What is ours is now decided by the device walk below, not by this list.
+    const auto devices = display_helper_integration::enumerate_devices(display_device::DeviceEnumerationDetail::Minimal);
+    if (!devices) {
+      return;
+    }
+
+    static std::mutex remembered_mutex;
+    static std::map<std::string, display_device::Point> remembered;
+
+    for (const auto &device : *devices) {
+      if (!device.m_info || device.m_device_id.empty()) {
+        continue;
+      }
+      // One of ours by identity, or one of ours because it is one of the driver's virtual
+      // displays at all. The session only ever names the game display. The Remote Monitor's
+      // second screen is created and composed by the topology coordinator and never enters that
+      // list, so its position was never read: drag it all evening and it still came back where
+      // the composer put it. Classifying by what the device *is* fixes that for every role,
+      // including ones nobody has written yet.
+      const bool is_ours =
+        display_helper::v2::codec::is_virtual_display_device(device) ||
+        std::any_of(wanted.begin(), wanted.end(), [&](const auto &id) {
+          return boost::iequals(id, device.m_device_id);
+        });
+      if (!is_ours) {
+        continue;
+      }
+
+      const auto origin = device.m_info->m_origin_point;
+
+      // Only write when it has actually moved, so a steady session does not rewrite the
+      // state file every five seconds.
+      std::lock_guard<std::mutex> lg(remembered_mutex);
+      if (const auto it = remembered.find(device.m_device_id);
+          it != remembered.end() && it->second.m_x == origin.m_x && it->second.m_y == origin.m_y) {
+        continue;
+      }
+      statefile::save_virtual_display_position(device.m_device_id, origin.m_x, origin.m_y);
+      remembered[device.m_device_id] = origin;
+    }
+  }
+
   static void watchdog_proc(std::stop_token st) {
     using namespace std::chrono_literals;
     constexpr auto kActiveInterval = 5s;
@@ -1777,6 +1872,11 @@ namespace {
           (rtsp_stream::session_count_no_cleanup() == 0) &&
           (proc::proc.current_app_id() > 0);
         const auto interval = suspended ? kSuspendedInterval : kActiveInterval;
+        if (!suspended) {
+          // A live session's display can be dragged anywhere on the desktop; this is
+          // where that ends up being remembered.
+          remember_virtual_display_position();
+        }
         sleep_interruptible(interval);
         if (st.stop_requested()) {
           break;

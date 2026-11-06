@@ -10,6 +10,7 @@
 #include "private_display_cleanup_policy.h"
 #include "private_display_mode_client.h"
 #include "private_display_configuration_policy.h"
+#include "private_display_diagnostic_policy.h"
 #include "private_display_mode_policy.h"
 #include "private_display_restore_policy.h"
 #include "private_display_resume_policy.h"
@@ -437,6 +438,28 @@ namespace platf::linux_private_display {
                                            static_cast<double>(rational.m_numerator) / rational.m_denominator;
     }
 
+    std::optional<double> mode_refresh_hz(const json &output, const std::string &mode_id) {
+      if (mode_id.empty()) {
+        return std::nullopt;
+      }
+      const auto modes = output.find("modes");
+      if (modes == output.end() || !modes->is_array()) {
+        return std::nullopt;
+      }
+      for (const auto &mode : *modes) {
+        if (mode.value("id", std::string {}) != mode_id) {
+          continue;
+        }
+        const auto refresh = mode.find("refreshRate");
+        if (refresh == mode.end() || !refresh->is_number()) {
+          return std::nullopt;
+        }
+        const auto value = refresh->get<double>();
+        return std::isfinite(value) && value > 0.0 ? std::optional<double> {value} : std::nullopt;
+      }
+      return std::nullopt;
+    }
+
     double output_refresh(const json &output) {
       const auto current_id = output.value("currentModeId", std::string {});
       for (const auto &mode : output.value("modes", json::array())) {
@@ -568,6 +591,52 @@ namespace platf::linux_private_display {
       std::optional<std::string> guard_output;
     };
 
+  /*
+   * A KScreen mode id is an index into the enumeration for that query, not a durable name: adding
+   * an output, removing one, or admitting a custom mode renumbers the others. A snapshot therefore
+   * remembers an id that can name a different mode - or nothing - by the time it is sent, which is
+   * how the restore guard asked eDP-2 for 'mode.1' while the panel's mode had become 99 and the
+   * enable was refused with no error at all.
+   *
+   * Resolve the saved mode by size and refresh against the output's current mode table and return
+   * the id that is true now. Empty when nothing matches, so the caller can omit the mode argument
+   * and let the compositor keep the output's own.
+   */
+  static std::optional<std::string> current_mode_id(const json &saved, const json *present) {
+    const auto saved_mode = saved.value("currentModeId", std::string {});
+    if (!present) {
+      return saved_mode.empty() ? std::nullopt : std::make_optional(saved_mode);
+    }
+    int width = 0;
+    int height = 0;
+    double refresh = 0.0;
+    for (const auto &mode : saved.value("modes", json::array())) {
+      if (mode.value("id", std::string {}) == saved_mode) {
+        const auto size = mode.value("size", json::object());
+        width = size.value("width", 0);
+        height = size.value("height", 0);
+        refresh = mode.value("refreshRate", 0.0);
+        break;
+      }
+    }
+    const auto modes = present->value("modes", json::array());
+    if (width > 0 && height > 0 && refresh > 0) {
+      for (const auto &mode : modes) {
+        const auto size = mode.value("size", json::object());
+        if (size.value("width", 0) == width && size.value("height", 0) == height &&
+            std::abs(mode.value("refreshRate", 0.0) - refresh) < 0.2) {
+          return mode.value("id", std::string {});
+        }
+      }
+    }
+    for (const auto &mode : modes) {
+      if (mode.value("id", std::string {}) == saved_mode) {
+        return saved_mode;
+      }
+    }
+    return std::nullopt;
+  }
+
     std::vector<std::string> output_activation_arguments(
       const json &saved,
       const json *present,
@@ -575,9 +644,8 @@ namespace platf::linux_private_display {
     ) {
       const auto prefix = "output." + name + ".";
       std::vector<std::string> arguments {prefix + "enable"};
-      const auto mode = saved.value("currentModeId", std::string {});
-      if (!mode.empty()) {
-        arguments.push_back(prefix + "mode." + mode);
+      if (const auto mode = current_mode_id(saved, present)) {
+        arguments.push_back(prefix + "mode." + *mode);
       }
       // KScreen serializes Output::Rotation as flags, while the doctor takes names.
       static const std::map<int, std::string> rotations {
@@ -716,6 +784,18 @@ namespace platf::linux_private_display {
 
     std::string client_reservation_identity(const std::string &client_uuid) {
       return "client:" + client_uuid;
+    }
+
+    /*
+     * The monitor role's own reservation identity.
+     *
+     * Windows derives the monitor's display GUID from remote_monitor_stable_id(); Linux keyed the
+     * reservation on the bare client uuid, so a client already streaming as the game role collided
+     * with its own game connector and the composed topology — whose monitor node carries the
+     * suffix — then looked for a reservation nobody had written. Two roles, two identities.
+     */
+    std::string remote_monitor_reservation_identity(const std::string &client_uuid) {
+      return client_reservation_identity(remote_display_topology::remote_monitor_stable_id(client_uuid));
     }
 
     std::optional<double> retained_scale(state_t &manager, const std::string &identity) {
@@ -1002,7 +1082,7 @@ namespace platf::linux_private_display {
         if (enabled(*output) && capture_available && (!allow_display_changes || shared)) {
           const bool requested_hdr = rtsp_stream::effective_hdr_requested(session);
           const bool current_hdr = output_hdr_capable(output, *output_name) && output->value("hdr", false);
-          if (requested_hdr && !current_hdr) session.force_sdr = true;
+          if (rtsp_stream::hdr_capture_required(session, config::video) && !current_hdr) session.force_sdr = true;
           session.virtual_display_hdr_enabled = requested_hdr && current_hdr;
           session.virtual_display_ready_since = std::chrono::steady_clock::now();
         }
@@ -1024,21 +1104,205 @@ namespace platf::linux_private_display {
       return true;
     }
 
+    diagnostic_policy::trace_t diagnostic_trace;
+    std::optional<display_device::Resolution> diagnostic_requested_resolution;
+    std::optional<double> diagnostic_requested_refresh_hz;
+    std::optional<display_device::Resolution> diagnostic_selected_mode_size;
+    std::optional<double> diagnostic_selected_mode_refresh_hz;
+    std::optional<double> diagnostic_expected_refresh_hz;
+    std::optional<double> diagnostic_expected_scale;
+    std::optional<bool> diagnostic_expected_hdr;
+    std::string diagnostic_refresh_selection = "unresolved";
+    std::string_view diagnostic_last_readback_stage = "not_observed";
+    std::string diagnostic_mode_id;
+    std::string diagnostic_current_mode_id;
+    std::optional<std::pair<std::uint32_t, std::uint32_t>> diagnostic_current_mode_size;
+    std::optional<double> diagnostic_current_refresh_hz;
+    std::optional<double> diagnostic_current_scale;
+    std::optional<bool> diagnostic_current_hdr;
+
+    const auto observe_readback = [&](const bool query_available, const json *output, const bool during_fallback = false) {
+      diagnostic_current_mode_id.clear();
+      diagnostic_current_mode_size.reset();
+      diagnostic_current_refresh_hz.reset();
+      diagnostic_current_scale.reset();
+      diagnostic_current_hdr.reset();
+
+      diagnostic_policy::readback_facts_t facts;
+      facts.query_available = query_available;
+      facts.requested_mode_known = !diagnostic_mode_id.empty();
+      facts.output_present = output != nullptr;
+      if (output) {
+        facts.output_connected = connected(*output);
+        facts.output_enabled = enabled(*output);
+        const auto connection = output->find("connected");
+        facts.connection_observed = connection != output->end() && connection->is_boolean();
+        const auto enabled_value = output->find("enabled");
+        facts.enabled_observed = enabled_value != output->end() && enabled_value->is_boolean();
+        diagnostic_current_mode_id = output->value("currentModeId", std::string {});
+        const auto [width, height] = mode_size(*output, diagnostic_current_mode_id);
+        if (width > 0 && height > 0) {
+          diagnostic_current_mode_size = std::pair {width, height};
+        }
+        diagnostic_current_refresh_hz = mode_refresh_hz(*output, diagnostic_current_mode_id);
+        const auto mode_id_value = output->find("currentModeId");
+        facts.mode_id_observed = mode_id_value != output->end() && mode_id_value->is_string() &&
+                                 !diagnostic_current_mode_id.empty();
+        const auto scale_value = output->find("scale");
+        if (scale_value != output->end() && scale_value->is_number()) {
+          const auto scale = scale_value->get<double>();
+          if (std::isfinite(scale)) {
+            diagnostic_current_scale = scale;
+          }
+        }
+        const auto hdr_value = output->find("hdr");
+        if (hdr_value != output->end() && hdr_value->is_boolean()) {
+          diagnostic_current_hdr = hdr_value->get<bool>();
+        }
+
+        if (facts.mode_id_observed && !diagnostic_mode_id.empty()) {
+          facts.mode_id_matches = diagnostic_current_mode_id == diagnostic_mode_id;
+        }
+        facts.size_required = diagnostic_requested_resolution.has_value();
+        facts.size_observed = diagnostic_current_mode_size.has_value();
+        if (diagnostic_requested_resolution) {
+          facts.size_matches = facts.size_observed &&
+                               diagnostic_current_mode_size->first == diagnostic_requested_resolution->m_width &&
+                               diagnostic_current_mode_size->second == diagnostic_requested_resolution->m_height;
+        }
+        facts.refresh_required = diagnostic_refresh_selection != "unspecified";
+        facts.refresh_expected = diagnostic_expected_refresh_hz.has_value();
+        facts.refresh_observed = diagnostic_current_refresh_hz.has_value();
+        if (diagnostic_expected_refresh_hz && diagnostic_current_refresh_hz) {
+          facts.refresh_matches = mode_policy::refresh_matches(
+            *diagnostic_current_refresh_hz,
+            *diagnostic_expected_refresh_hz
+          );
+        }
+        facts.scale_required = diagnostic_expected_scale.has_value();
+        facts.scale_observed = diagnostic_current_scale.has_value();
+        if (diagnostic_expected_scale && diagnostic_current_scale) {
+          facts.scale_matches = std::abs(*diagnostic_current_scale - *diagnostic_expected_scale) < 0.01;
+        }
+        facts.hdr_required = diagnostic_expected_hdr.has_value();
+        facts.hdr_observed = diagnostic_current_hdr.has_value();
+        if (diagnostic_expected_hdr && diagnostic_current_hdr) {
+          facts.hdr_matches = *diagnostic_current_hdr == *diagnostic_expected_hdr;
+        }
+      }
+      diagnostic_policy::record_readback(diagnostic_trace, facts, during_fallback);
+      diagnostic_last_readback_stage = during_fallback ? "fallback" : "kscreen_readback";
+    };
+
+    const auto log_mode_diagnostic = [&](const std::string_view outcome) {
+      const auto resolution_override = session.resolution_override ?
+                                         std::to_string(session.resolution_override->width) + "x" +
+                                           std::to_string(session.resolution_override->height) :
+                                         "none";
+      const auto requested_resolution = diagnostic_requested_resolution ?
+                                          std::to_string(diagnostic_requested_resolution->m_width) + "x" +
+                                            std::to_string(diagnostic_requested_resolution->m_height) :
+                                          "unresolved";
+      const auto selected_resolution = diagnostic_selected_mode_size ?
+                                         std::to_string(diagnostic_selected_mode_size->m_width) + "x" +
+                                           std::to_string(diagnostic_selected_mode_size->m_height) :
+                                         "unavailable";
+      const auto requested_refresh_hz = diagnostic_refresh_selection == "prefer_highest" ?
+                                          "highest" : diagnostic_requested_refresh_hz ?
+                                            std::to_string(*diagnostic_requested_refresh_hz) :
+                                            "unspecified";
+      const auto selected_refresh_hz = diagnostic_selected_mode_refresh_hz ?
+                                         std::to_string(*diagnostic_selected_mode_refresh_hz) :
+                                         "unavailable";
+      const auto expected_refresh_hz = diagnostic_expected_refresh_hz ?
+                                         std::to_string(*diagnostic_expected_refresh_hz) :
+                                         "unavailable";
+      const auto current_mode_size = diagnostic_current_mode_size ?
+                                       std::to_string(diagnostic_current_mode_size->first) + "x" +
+                                         std::to_string(diagnostic_current_mode_size->second) :
+                                       "unavailable";
+      const auto current_refresh_hz = diagnostic_current_refresh_hz ?
+                                        std::to_string(*diagnostic_current_refresh_hz) :
+                                        "unavailable";
+      const auto current_scale = diagnostic_current_scale ?
+                                   std::to_string(*diagnostic_current_scale) :
+                                   "unavailable";
+      const auto current_hdr = diagnostic_current_hdr ?
+                                 (*diagnostic_current_hdr ? "true" : "false") :
+                                 "unavailable";
+      const auto expected_scale = diagnostic_expected_scale ?
+                                    std::to_string(*diagnostic_expected_scale) :
+                                    "unspecified";
+      const auto expected_hdr = diagnostic_expected_hdr ?
+                                  (*diagnostic_expected_hdr ? "true" : "false") :
+                                  "unspecified";
+      BOOST_LOG(info) << "Linux private display [" << session.id << "]: mode_diagnostic outcome=" << outcome
+                      << " output=" << session.virtual_display_device_id
+                      << " rtsp_viewport=" << session.width << 'x' << session.height
+                      << " stream_fps=" << session.fps
+                      << " client_display_mode_override=" << (session.client_display_mode_override ? "true" : "false")
+                      << " client_display_refresh_millihz=" << session.client_display_refresh_millihz
+                      << " resolution_override=" << resolution_override
+                      << " requested_kscreen_resolution=" << requested_resolution
+                      << " selected_mode_resolution=" << selected_resolution
+                      << " requested_refresh_hz=" << requested_refresh_hz
+                      << " selected_mode_refresh_hz=" << selected_refresh_hz
+                      << " expected_readback_refresh_hz=" << expected_refresh_hz
+                      << " refresh_selection=" << diagnostic_refresh_selection
+                      << " primary_apply=" << diagnostic_policy::name(diagnostic_trace.primary)
+                      << " isolated_layout_retry=" << diagnostic_policy::name(diagnostic_trace.isolated_layout_retry)
+                      << " hdr_activation=" << diagnostic_policy::name(diagnostic_trace.hdr_activation)
+                      << " pre_fallback_readback=" << diagnostic_policy::name(diagnostic_trace.pre_fallback_readback)
+                      << " final_readback=" << diagnostic_policy::name(diagnostic_trace.readback)
+                      << " fallback_readback=" << diagnostic_policy::name(diagnostic_trace.fallback_readback)
+                      << " fallback=" << diagnostic_policy::name(diagnostic_trace.fallback)
+                      << " requested_mode_id=" << (diagnostic_mode_id.empty() ? "unavailable" : diagnostic_mode_id)
+                      << " last_observed_stage=" << diagnostic_last_readback_stage
+                      << " last_observed_mode_id=" << (diagnostic_current_mode_id.empty() ? "unavailable" : diagnostic_current_mode_id)
+                      << " last_observed_mode_size=" << current_mode_size
+                      << " last_observed_refresh_hz=" << current_refresh_hz
+                      << " last_observed_scale=" << current_scale
+                      << " expected_scale=" << expected_scale
+                      << " last_observed_hdr=" << current_hdr
+                      << " expected_hdr=" << expected_hdr << '.';
+    };
+
+    const auto run_session_configuration = [&](
+                                             const std::vector<std::string> &arguments,
+                                             const std::string_view operation,
+                                             const diagnostic_policy::configuration_e diagnostic_operation
+                                           ) {
+      if (arguments.empty()) {
+        return true;
+      }
+      const bool succeeded = execute_configuration(arguments, operation);
+      diagnostic_policy::record_configuration_result(diagnostic_trace, succeeded, diagnostic_operation);
+      BOOST_LOG(info) << "Linux private display [" << session.id << "]: KScreen operation=" << operation
+                      << " result=" << (succeeded ? "succeeded" : "failed") << '.';
+      return succeeded;
+    };
+
     const auto use_current_output = [&]() {
       // Capture availability is authoritative. A failed KScreen query or
       // preference verification must not veto a still-capturable output.
       // Keep the leased target: another client's display is not a substitute.
+      diagnostic_policy::begin_fallback(diagnostic_trace);
+      diagnostic_trace.fallback = diagnostic_policy::fallback_e::not_used;
       if (!wait_for_capture_publication(session.virtual_display_device_id)) {
+        diagnostic_trace.fallback = diagnostic_policy::fallback_choice(false);
         BOOST_LOG(error) << "Linux private display: no usable current capture output on "
                          << session.virtual_display_device_id << '.';
+        log_mode_diagnostic("no_capture_output");
         return false;
       }
       const auto current = query_configuration();
       const auto *output = current ? find_output(*current, session.virtual_display_device_id) : nullptr;
+      observe_readback(current.has_value(), output, true);
+      diagnostic_trace.fallback = diagnostic_policy::fallback_choice(true);
       if (output) {
         const bool current_hdr = output->value("hdr", false) &&
                                  output_hdr_capable(nullptr, session.virtual_display_device_id);
-        if (rtsp_stream::effective_hdr_requested(session) && !current_hdr) {
+        if (rtsp_stream::hdr_capture_required(session, config::video) && !current_hdr) {
           session.force_sdr = true;
         }
         session.virtual_display_hdr_enabled = current_hdr;
@@ -1052,6 +1316,7 @@ namespace platf::linux_private_display {
       session.virtual_display_needs_resume_apply = true;
       BOOST_LOG(warning) << "Linux private display: continuing capture on " << session.virtual_display_device_id
                          << " with its current settings after display configuration failed.";
+      log_mode_diagnostic("current_settings_fallback");
       return true;
     };
 
@@ -1114,8 +1379,14 @@ namespace platf::linux_private_display {
       refresh = display_device::Rational {static_cast<unsigned int>(std::max(1, session.fps)), 1};
     }
 
-    auto mode_id = best_mode_id(*target_before, resolution, refresh);
+    diagnostic_requested_resolution = resolution;
     const bool prefer_highest = refresh && floating_point(*refresh) >= 9999.0;
+    if (refresh && !prefer_highest) {
+      diagnostic_requested_refresh_hz = floating_point(*refresh);
+    }
+    diagnostic_refresh_selection = prefer_highest ? "prefer_highest" : refresh ? "requested" : "unspecified";
+
+    auto mode_id = best_mode_id(*target_before, resolution, refresh);
     if (mode_policy::should_admit_requested_mode(
           resolution.has_value(),
           refresh.has_value(),
@@ -1131,6 +1402,19 @@ namespace platf::linux_private_display {
       }
       mode_id = best_mode_id(*target_before, resolution, refresh);
     }
+    diagnostic_mode_id = mode_id;
+    if (!mode_id.empty()) {
+      const auto [width, height] = mode_size(*target_before, mode_id);
+      if (width > 0 && height > 0) {
+        diagnostic_selected_mode_size = display_device::Resolution {width, height};
+      }
+      diagnostic_selected_mode_refresh_hz = mode_refresh_hz(*target_before, mode_id);
+    }
+    diagnostic_expected_refresh_hz = diagnostic_policy::expected_refresh_hz(
+      diagnostic_requested_refresh_hz,
+      diagnostic_selected_mode_refresh_hz,
+      prefer_highest
+    );
     if (mode_id.empty() || (resolution && refresh && !prefer_highest &&
                             is_managed_output(session.virtual_display_device_id) &&
                             !mode_matches_refresh(*target_before, mode_id, *refresh))) {
@@ -1167,6 +1451,7 @@ namespace platf::linux_private_display {
       target_before->value("scale", 1.0),
       saved_scale
     );
+    diagnostic_expected_scale = target_scale;
     arguments.push_back(target_prefix + "scale." + std::to_string(target_scale));
 
     int right_edge = 0;
@@ -1227,13 +1512,13 @@ namespace platf::linux_private_display {
       arguments.push_back(target_prefix + "priority." + std::to_string(primary ? 1 : std::max(1, last_priority + 1)));
     }
 
-    const bool hdr_requested = rtsp_stream::effective_hdr_requested(session);
     const bool hdr_capable = output_hdr_capable(target_before, session.virtual_display_device_id);
     const auto hdr_policy = linux_hdr::resolve_output_state(
       parsed_hdr_state,
       hdr_capable,
       hdr_capable && target_before->value("hdr", false)
     );
+    diagnostic_expected_hdr = hdr_policy.command;
     const bool separate_hdr = linux_hdr::requires_post_modeset_transaction(hdr_policy.command);
     if (hdr_policy.command && !separate_hdr) {
       arguments.push_back(target_prefix + "hdr.disable");
@@ -1251,7 +1536,7 @@ namespace platf::linux_private_display {
                          << " does not advertise HDR10; the verified session will use SDR.";
     }
 
-    if (!execute_configuration(arguments, "apply")) {
+    if (!run_session_configuration(arguments, "apply", diagnostic_policy::configuration_e::primary)) {
       if (!isolated) {
         return use_current_output();
       }
@@ -1263,7 +1548,11 @@ namespace platf::linux_private_display {
         arguments.end()
       );
       arguments.push_back(target_prefix + "position." + std::to_string(right_edge) + ",0");
-      if (!execute_configuration(arguments, "isolated-layout fallback")) {
+      if (!run_session_configuration(
+            arguments,
+            "isolated-layout fallback",
+            diagnostic_policy::configuration_e::isolated_layout_retry
+          )) {
         return use_current_output();
       }
     }
@@ -1275,6 +1564,7 @@ namespace platf::linux_private_display {
     // HDR calibration UI to inherit.
     const auto base_matches = [&](const json &current) {
       const auto *output = find_output(current, session.virtual_display_device_id);
+      observe_readback(true, output);
       return output && connected(*output) && enabled(*output) &&
              output->value("currentModeId", std::string {}) == mode_id &&
              std::abs(output->value("scale", 1.0) - target_scale) < 0.01;
@@ -1291,16 +1581,16 @@ namespace platf::linux_private_display {
                        << session.virtual_display_device_id << '.';
       return use_current_output();
     }
-    if (!execute_configuration(hdr_arguments, "HDR activation")) {
+    if (!run_session_configuration(hdr_arguments, "HDR activation", diagnostic_policy::configuration_e::hdr_activation)) {
       return use_current_output();
     }
 
     bool verified_hdr_enabled = false;
     const bool verified = wait_for_configuration([&](const json &current) {
+      const auto *output = find_output(current, session.virtual_display_device_id);
       if (!base_matches(current)) {
         return false;
       }
-      const auto *output = find_output(current, session.virtual_display_device_id);
       if (hdr_policy.command && output->value("hdr", false) != *hdr_policy.command) {
         return false;
       }
@@ -1314,9 +1604,10 @@ namespace platf::linux_private_display {
       return use_current_output();
     }
 
-    if (hdr_requested && !verified_hdr_enabled) {
+    if (rtsp_stream::hdr_capture_required(session, config::video) && !verified_hdr_enabled) {
       session.force_sdr = true;
     }
+    log_mode_diagnostic("verified");
     session.virtual_display_hdr_enabled = verified_hdr_enabled;
     session.virtual_display_ready_since = std::chrono::steady_clock::now();
     session.virtual_display_recreated_on_demand = false;
@@ -1341,7 +1632,7 @@ namespace platf::linux_private_display {
     }
     const bool requested_hdr = rtsp_stream::effective_hdr_requested(session);
     const bool current_hdr = output_hdr_capable(output, session.virtual_display_device_id) && output->value("hdr", false);
-    if (requested_hdr && !current_hdr) session.force_sdr = true;
+    if (rtsp_stream::hdr_capture_required(session, config::video) && !current_hdr) session.force_sdr = true;
     session.virtual_display_hdr_enabled = requested_hdr && current_hdr;
     session.virtual_display_ready_since = std::chrono::steady_clock::now();
     return true;
@@ -1375,7 +1666,7 @@ namespace platf::linux_private_display {
     manager.cleanup_generation.fetch_add(1, std::memory_order_acq_rel);
     const auto output = reserve_output(
       manager,
-      client_reservation_identity(client_uuid),
+      remote_monitor_reservation_identity(client_uuid),
       false,
       false
     );
@@ -1393,7 +1684,7 @@ namespace platf::linux_private_display {
     const std::string &client_uuid,
     remote_display_topology::mode_t &mode
   ) {
-    const auto output_name = output_for_client(client_uuid);
+    const auto output_name = output_for_monitor(client_uuid);
     const auto configuration = query_configuration();
     const auto *output = output_name && configuration ? find_output(*configuration, *output_name) : nullptr;
     const bool capable = output_name && output_hdr_capable(output, *output_name);
@@ -1478,9 +1769,10 @@ namespace platf::linux_private_display {
         .owned_client = owned_client,
       };
       if (const auto existing = desired_indexes.find(output_name); existing != desired_indexes.end()) {
-        // A normal stream and Remote Monitor owned by the same paired client
-        // deliberately resolve to one connector. The explicit client node owns
-        // its requested mode and placement.
+        // Two roles of one paired client own two connectors of their own (the monitor's identity is
+        // <uuid>:remote-monitor), so this is defensive only: it exists for a retained reservation
+        // that still points both nodes at one output. When it does happen the explicit client node
+        // owns its requested mode and placement.
         if (owned_client || !desired[existing->second].owned_client) {
           desired[existing->second] = std::move(entry);
         }
@@ -1533,12 +1825,36 @@ namespace platf::linux_private_display {
       }
     }
 
-    const auto min_x = std::min_element(desired.begin(), desired.end(), [](const auto &lhs, const auto &rhs) {
-                         return lhs.node.x < rhs.node.x;
-                       })->node.x;
-    const auto min_y = std::min_element(desired.begin(), desired.end(), [](const auto &lhs, const auto &rhs) {
-                         return lhs.node.y < rhs.node.y;
-                       })->node.y;
+    /*
+     * admit_requested_mode() adds a custom mode when the connector does not offer the requested
+     * refresh, and adding one renumbers every mode id in the configuration. The ids resolved above
+     * were read before that, so they can name a different mode by the time this command runs - which
+     * is how the monitor connector came up at the game's own 3840x2160 instead of 2560x1440@144.
+     * Re-resolve each owned entry against the enumeration that will actually receive the command.
+     */
+    if (const auto fresh = query_configuration()) {
+      for (auto &entry : desired) {
+        if (!entry.owned_client) {
+          continue;
+        }
+        const auto *output = find_output(*fresh, entry.name);
+        if (!output) {
+          continue;
+        }
+        const display_device::Resolution resolution {
+          static_cast<unsigned int>(std::max(1, entry.node.configured_mode.width)),
+          static_cast<unsigned int>(std::max(1, entry.node.configured_mode.height)),
+        };
+        const display_device::FloatingPoint refresh = display_device::Rational {
+          static_cast<unsigned int>(std::max(1, entry.node.configured_mode.refresh_hz)),
+          1,
+        };
+        if (const auto resolved = best_mode_id(*output, resolution, refresh); !resolved.empty()) {
+          entry.mode_id = resolved;
+        }
+      }
+      configuration = fresh;
+    }
 
     std::size_t primary_index = desired.size();
     for (std::size_t i = 0; i < desired.size(); ++i) {
@@ -1605,7 +1921,6 @@ namespace platf::linux_private_display {
           return false;
         }
       }
-      activate_arguments.push_back(prefix + "position." + std::to_string(entry.node.x - min_x) + "," + std::to_string(entry.node.y - min_y));
       activate_arguments.push_back(prefix + "priority." + std::to_string(i == primary_index ? 1 : next_priority++));
     }
 
@@ -1613,6 +1928,62 @@ namespace platf::linux_private_display {
       const auto name = output.value("name", std::string {});
       if (connected(output) && !desired_names.contains(name)) {
         deactivate_arguments.push_back("output." + name + ".disable");
+      }
+    }
+
+    // KScreen positions are logical, not physical: an output's extent is its mode divided by its
+    // scale. The topology arrives in whole pixels, so a 3840x2160 game display at 170% occupies
+    // 2259 logical pixels, not 3840. Passing the pixel width therefore leaves a gap the width of
+    // the downscale, which KScreen stores happily and Plasma shows as an arrangement it cannot
+    // support - the same layout a person fixes by dragging the two displays together. Lay the
+    // roster out from the topology's own ordering, in the units KScreen is going to keep.
+    {
+      std::vector<std::size_t> order(desired.size());
+      for (std::size_t i = 0; i < order.size(); ++i) {
+        order[i] = i;
+      }
+      std::stable_sort(order.begin(), order.end(), [&](std::size_t lhs, std::size_t rhs) {
+        if (desired[lhs].node.y != desired[rhs].node.y) {
+          return desired[lhs].node.y < desired[rhs].node.y;
+        }
+        return desired[lhs].node.x < desired[rhs].node.x;
+      });
+      const auto logical_extent = [&](const desired_output_t &entry) {
+        const auto *output = find_output(*configuration, entry.name);
+        const auto fallback = output ? output->value("scale", 1.0) : 1.0;
+        const auto scale = std::max(0.25, entry.owned_client ? entry.scale : fallback);
+        auto width = entry.node.configured_mode.width;
+        auto height = entry.node.configured_mode.height;
+        if (!entry.owned_client && output) {
+          const auto size = output->value("size", json::object());
+          width = size.value("width", width);
+          height = size.value("height", height);
+        }
+        return std::pair {
+          static_cast<int>(std::ceil(std::max(1, width) / scale)),
+          static_cast<int>(std::ceil(std::max(1, height) / scale)),
+        };
+      };
+      int row_y = 0;
+      std::size_t row_start = 0;
+      while (row_start < order.size()) {
+        std::size_t row_end = row_start;
+        while (row_end < order.size() && desired[order[row_end]].node.y == desired[order[row_start]].node.y) {
+          ++row_end;
+        }
+        int x = 0;
+        int tallest = 0;
+        for (std::size_t i = row_start; i < row_end; ++i) {
+          auto &entry = desired[order[i]];
+          const auto [width, height] = logical_extent(entry);
+          activate_arguments.push_back(
+            "output." + entry.name + ".position." + std::to_string(x) + "," + std::to_string(row_y)
+          );
+          x += width;
+          tallest = std::max(tallest, height);
+        }
+        row_y += tallest;
+        row_start = row_end;
       }
     }
 
@@ -1683,11 +2054,43 @@ namespace platf::linux_private_display {
     return true;
   }
 
+  std::optional<remote_display_topology::mode_t> remote_observe_shared_mode(
+    const std::string &client_uuid,
+    const bool monitor_role
+  ) {
+    // The reservation, not the composition: this reports what the connector is set to right
+    // now, which is the only number another role may be placed beside. A requested mode that
+    // has not landed yet is a guess, and the compositor answers a guess by refusing the
+    // topology and keeping the old desktop.
+    const auto owned_output = monitor_role ? output_for_monitor(client_uuid) : output_for_client(client_uuid);
+    if (!owned_output) {
+      return std::nullopt;
+    }
+    const auto configuration = query_configuration();
+    if (!configuration) {
+      return std::nullopt;
+    }
+    const auto *output = find_output(*configuration, *owned_output);
+    if (!output || !connected(*output) || !enabled(*output)) {
+      return std::nullopt;
+    }
+    const auto size = output->value("size", json::object());
+    remote_display_topology::mode_t mode;
+    mode.width = size.value("width", 0);
+    mode.height = size.value("height", 0);
+    mode.refresh_hz = static_cast<int>(std::lround(output_refresh(*output)));
+    mode.hdr = output->value("hdr", false);
+    if (mode.width <= 0 || mode.height <= 0 || mode.refresh_hz <= 0) {
+      return std::nullopt;
+    }
+    return mode;
+  }
+
   std::optional<std::string> remote_exact_capture_output(
     const std::string &client_uuid,
     const remote_display_topology::mode_t &mode
   ) {
-    const auto owned_output = output_for_client(client_uuid);
+    const auto owned_output = output_for_monitor(client_uuid);
     if (!owned_output) {
       return std::nullopt;
     }
@@ -1720,13 +2123,8 @@ namespace platf::linux_private_display {
     return std::nullopt;
   }
 
-  bool remote_remove_owned_display(const std::string &client_uuid) {
-    if (process_shutdown_preserve_requested()) {
-      return true;
-    }
-    auto &manager = state();
-    std::lock_guard lock {manager.mutex};
-    const auto reservation = manager.reservations.find(client_reservation_identity(client_uuid));
+  static bool remove_owned_reservation(state_t &manager, const std::string &identity) {
+    const auto reservation = manager.reservations.find(identity);
     if (reservation == manager.reservations.end()) {
       return true;
     }
@@ -1759,6 +2157,28 @@ namespace platf::linux_private_display {
     return true;
   }
 
+  bool remote_remove_owned_display(const std::string &client_uuid) {
+    if (process_shutdown_preserve_requested()) {
+      return true;
+    }
+    auto &manager = state();
+    std::lock_guard lock {manager.mutex};
+    return remove_owned_reservation(manager, client_reservation_identity(client_uuid));
+  }
+
+  /*
+   * The coordinator's remove_owned_display callback is the monitor role's, so it must free the
+   * monitor's connector — the game's reservation is released by the session path, not this one.
+   */
+  bool remote_remove_monitor_display(const std::string &client_uuid) {
+    if (process_shutdown_preserve_requested()) {
+      return true;
+    }
+    auto &manager = state();
+    std::lock_guard lock {manager.mutex};
+    return remove_owned_reservation(manager, remote_monitor_reservation_identity(client_uuid));
+  }
+
   bool is_kernel_output(const std::string &output_name) {
     return is_managed_output(output_name);
   }
@@ -1772,6 +2192,41 @@ namespace platf::linux_private_display {
     std::lock_guard lock {manager.mutex};
     const auto reservation = manager.reservations.find(client_reservation_identity(client_uuid));
     return reservation == manager.reservations.end() ? std::nullopt : std::make_optional(reservation->second);
+  }
+
+  std::optional<std::string> output_for_monitor(const std::string &client_uuid) {
+    auto &manager = state();
+    std::lock_guard lock {manager.mutex};
+    const auto reservation = manager.reservations.find(remote_monitor_reservation_identity(client_uuid));
+    return reservation == manager.reservations.end() ? std::nullopt : std::make_optional(reservation->second);
+  }
+
+  static std::string describe_saved_output(const json &saved) {
+    const auto pos = saved.value("pos", json::object());
+    return "enabled=" + std::to_string(saved.value("enabled", false)) +
+           " mode=" + saved.value("currentModeId", std::string {"?"}) +
+           " scale=" + std::to_string(saved.value("scale", 1.0)) +
+           " pos=" + std::to_string(pos.value("x", 0)) + "," + std::to_string(pos.value("y", 0)) +
+           " rotation=" + std::to_string(saved.value("rotation", 1)) +
+           " hdr=" + std::to_string(saved.value("hdr", false));
+  }
+
+  static std::string describe_current_output(const json *present, const json &current) {
+    if (!present) {
+      return "absent from the compositor's " + std::to_string(current["outputs"].size()) + "-output list";
+    }
+    return describe_saved_output(*present);
+  }
+
+  static std::string join_arguments(const std::vector<std::string> &arguments) {
+    std::string joined;
+    for (const auto &argument : arguments) {
+      if (!joined.empty()) {
+        joined += ' ';
+      }
+      joined += argument;
+    }
+    return joined;
   }
 
   static bool revert_locked(state_t &manager) {
@@ -1815,8 +2270,16 @@ namespace platf::linux_private_display {
     }
     const auto guard_snapshot = snapshot_for_output(*manager.snapshot, *arguments.guard_output);
     if (!wait_for_snapshot_activation(guard_snapshot)) {
+      // Name what was asked for and what the compositor has, or this line costs another afternoon:
+      // the failure is identical for a refused transaction, an unapplied one, and a snapshot that
+      // remembers a mode the output no longer offers.
+      const auto live = query_configuration();
+      const auto *present = live ? find_output(*live, *arguments.guard_output) : nullptr;
       BOOST_LOG(error) << "Linux private display: saved output " << *arguments.guard_output
-                       << " did not activate as the topology restore guard; preserving the current private scanout.";
+                       << " did not activate as the topology restore guard; preserving the current private scanout."
+                       << " sent='" << join_arguments(arguments.guard_activate) << "'"
+                       << " expected[" << describe_saved_output(guard_snapshot["outputs"].front()) << ']'
+                       << " actual[" << describe_current_output(present, live ? *live : *manager.snapshot) << ']';
       return false;
     }
     if (!wait_for_capture_publication(*arguments.guard_output)) {

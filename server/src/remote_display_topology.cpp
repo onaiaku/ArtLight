@@ -4,7 +4,44 @@
 #include <set>
 #include <unordered_set>
 
+#include <sstream>
+
+// The composer is built on its own by a component test, which links no logging backend. So the
+// lines are compiled out there and go to the project loggers in the product: this file stays
+// dependency-free enough to be tested, and still says what it is doing on a real host.
+#ifdef SUNSHINE_TESTS
+  namespace {
+    // Swallows the stream without naming a logger, so a component test can build this file
+    // without a logging backend.
+    struct discarded_log_t {
+      template <typename T>
+      discarded_log_t &operator<<(const T &) { return *this; }
+    };
+  }  // namespace
+  #define REMOTE_MONITOR_LOG(level) discarded_log_t {}
+#else
+  // Only in the product build. The component test links no logging backend and carries only
+  // Boost's core headers, so this include is a compile error there: boost/log/trivial.hpp lives
+  // in Boost's log module, which the test does not have. It sat above the #ifdef and broke the
+  // Linux build the first time the suite reached this file (2026-11-04 17:40:54).
+  #include <boost/log/trivial.hpp>
+  #include "logging.h"
+  #define REMOTE_MONITOR_LOG(level) BOOST_LOG(level)
+#endif
+
 namespace remote_display_topology {
+
+  std::string_view remote_monitor_suffix() { return ":remote-monitor"; }
+
+  std::string remote_monitor_stable_id(const std::string &client_uuid) {
+    if (client_uuid.empty()) {
+      return {};
+    }
+    // A role suffix, not a second uuid: the game role keeps hashing the bare client uuid, so
+    // every existing game display and its recovery journal entry stays valid, and only the
+    // monitor moves to an identity of its own.
+    return client_uuid + std::string {remote_monitor_suffix()};
+  }
   namespace {
     constexpr int max_gap_px = 100000;
 
@@ -186,6 +223,11 @@ namespace remote_display_topology {
         if (state.normal_game || state.remote_monitor) state.effective_mode = desired_mode(state);
       }
     }
+    if (!refresh_unverified_shared_geometry_locked()) {
+      // A geometry change is still landing. Replacing the topology now would move live peers
+      // onto coordinates that do not exist yet, and the compositor would refuse the lot.
+      return false;
+    }
     std::vector<std::string> ignored;
     return callbacks_.apply_composed_topology(compose_locked(ignored));
   }
@@ -289,7 +331,7 @@ namespace remote_display_topology {
     // compositor with zero outputs and force a physical-link retrain.
     if (callbacks_.apply_composed_topology) {
       std::vector<std::string> ignored;
-      if (!callbacks_.apply_composed_topology(compose_locked(ignored))) {
+      if (!apply_composed_or_accept_empty_locked(ignored)) {
         state.normal_game = true;
         state.normal_requested_mode = requested_mode;
         state.normal_game_token = token;
@@ -333,13 +375,18 @@ namespace remote_display_topology {
   activation_result_t coordinator_t::resume_remote_monitor(const std::string &client_uuid) {
     std::lock_guard lock(mutex_);
     const auto it = clients_.find(client_uuid);
-    if (it == clients_.end() || !it->second.remote_monitor) return {false, false, "Remote Monitor is not owned by this paired client."};
+    if (it == clients_.end() || !it->second.remote_monitor) {
+      REMOTE_MONITOR_LOG(warning) << "Remote Monitor resume refused: client '" << client_uuid << "' does not hold the monitor role.";
+      return {false, false, "Remote Monitor is not owned by this paired client."};
+    }
     return activate_locked(client_uuid, it->second);
   }
 
   monitor_runtime_state_t coordinator_t::activate_or_resume(const std::string &client_uuid, const std::string &label, mode_t mode, uint64_t generation) {
     std::lock_guard lock(mutex_);
     if (!clients_.contains(client_uuid) && clients_.size() >= max_client_identities) {
+      REMOTE_MONITOR_LOG(warning) << "Remote Monitor refused: capacity reached (" << clients_.size() << "/"
+                         << max_client_identities << " client identities).";
       return {false, false, true, {}, "Remote display capacity is four paired-client identities."};
     }
     auto [state_it, inserted] = clients_.try_emplace(client_uuid);
@@ -391,20 +438,74 @@ namespace remote_display_topology {
       state.warning = "Remote Monitor runtime wiring is unavailable; ownership was retained for Resume.";
       return {true, false, state.warning};
     }
+    // Another role's shared output may still be landing a mode it was asked for. Every node is
+    // placed from these numbers, so composing a requested one that has not taken effect moves
+    // live peers onto a rectangle the desktop does not have - and the compositor refuses the
+    // whole topology and keeps the old one, which is exactly what the refusal looks like.
+    if (!refresh_unverified_shared_geometry_locked(client_uuid)) {
+      state.lifecycle = lifecycle_e::retryable;
+      state.warning = "A shared display mode is awaiting verification; topology changes are deferred.";
+      return {true, false, state.warning};
+    }
+    // A lease taken on this call is a connector nothing else is capturing: its mode is the
+    // pool's default rather than a promise, and the apply below is what sets it. Verifying it
+    // beforehand can only ever disagree, and returning a 503 to a client that asks once per
+    // launch turns that disagreement into a Remote Monitor that never opens. A lease that was
+    // already held is the opposite case - a live peer we must not move onto unverified numbers.
+    bool took_lease_now = false;
     if (!state.lease_held) {
       state.lifecycle = lifecycle_e::leased;
       if (!callbacks_.create_or_reclaim(client_uuid, state.label, desired_mode(state))) {
+        const auto want = desired_mode(state);
+        REMOTE_MONITOR_LOG(warning) << "Remote monitor activation: create_or_reclaim failed for client '" << client_uuid
+                           << "' (label '" << state.label << "') mode=" << want.width << "x" << want.height << "x"
+                           << want.refresh_hz << "; ownership retained for Resume.";
         state.lifecycle = lifecycle_e::retryable;
         state.warning = "The owned virtual display could not be created or reclaimed; Resume will retry the same identity.";
         return {true, false, state.warning};
       }
       state.lease_held = true;
+      took_lease_now = true;
     }
     resolve_effective_mode_locked(client_uuid, state);
+    // A retained lease is a live peer: its geometry must be observed before anything is placed
+    // against it. A lease taken on this call is the only case that skips the check, because its
+    // mode is the pool default until the apply below sets it.
+    if (callbacks_.observe_shared_mode && !took_lease_now) {
+      // A successful create/reclaim does not prove the geometry took effect, and a role that
+      // owns a live output can be asked for more than its panel or driver granted.
+      const auto observed = callbacks_.observe_shared_mode(client_uuid, state.remote_monitor);
+      const bool disagrees = observed && (observed->width != state.effective_mode.width ||
+                                          observed->height != state.effective_mode.height ||
+                                          observed->refresh_hz != state.effective_mode.refresh_hz);
+      if (disagrees && state.shared_mode_deferrals < max_shared_geometry_deferrals) {
+        ++state.shared_mode_deferrals;
+        REMOTE_MONITOR_LOG(warning) << "Remote monitor activation: shared geometry for client '" << client_uuid
+                           << "' is " << observed->width << "x" << observed->height << "x" << observed->refresh_hz
+                           << " but " << state.effective_mode.width << "x" << state.effective_mode.height << "x"
+                           << state.effective_mode.refresh_hz << " was requested; deferring the topology.";
+        state.effective_mode.width = observed->width;
+        state.effective_mode.height = observed->height;
+        state.effective_mode.refresh_hz = observed->refresh_hz;
+        state.shared_mode_unverified = true;
+        state.lifecycle = lifecycle_e::retryable;
+        state.warning = "The shared display does not yet match the requested geometry; Resume will retry.";
+        return {true, false, state.warning};
+      }
+      if (!disagrees) {
+        // Unknown geometry is not a disagreement: the platform simply could not read it, and
+        // refusing to stream because a query failed would be worse than the old behaviour.
+        state.shared_mode_unverified = false;
+        state.shared_mode_deferrals = 0;
+      }
+    }
     state.lifecycle = lifecycle_e::applying;
     std::vector<std::string> warnings;
     const auto composed = compose_locked(warnings);
     if (!callbacks_.apply_composed_topology(composed)) {
+      REMOTE_MONITOR_LOG(warning) << "Remote monitor activation: composed topology did not apply for client '" << client_uuid
+                         << "' (" << composed.size() << " node(s)); ownership retained for Resume.";
+      state.shared_mode_unverified = true;
       state.lifecycle = lifecycle_e::retryable;
       state.warning = "The composed display topology did not apply; existing owners and their displays were retained.";
       return {true, false, state.warning};
@@ -412,11 +513,19 @@ namespace remote_display_topology {
     if (!warnings.empty()) state.warning = warnings.front();
     const auto exact_output = callbacks_.exact_target_has_current_mode_and_dxgi(client_uuid, state.effective_mode);
     if (!exact_output || exact_output->empty()) {
+      REMOTE_MONITOR_LOG(warning) << "Remote monitor activation: no exact capture output for client '" << client_uuid
+                         << "' mode=" << state.effective_mode.width << "x" << state.effective_mode.height << "x"
+                         << state.effective_mode.refresh_hz << "; ownership retained for Resume.";
+      // The output is not capture-ready yet, which is the same obligation as an unverified
+      // geometry: do not let the next composition assume the mode landed.
+      state.shared_mode_unverified = true;
       state.lifecycle = lifecycle_e::retryable;
       state.warning = "The requested client display is not yet capture-ready. Existing streamed physical or virtual displays remain topology anchors, but capture will wait rather than mirror another screen.";
       return {true, false, state.warning};
     }
     state.exact_output = *exact_output;
+    state.shared_mode_unverified = false;
+    state.shared_mode_deferrals = 0;
     state.lifecycle = lifecycle_e::ready;
     state.warning.clear();
     return {true, true, {}};
@@ -428,6 +537,34 @@ namespace remote_display_topology {
       it->second.lease_held = false;
       it->second.lifecycle = lifecycle_e::retryable;
       it->second.warning = "Remote Monitor lease was lost; desired settings and identity are retained for Resume.";
+    }
+  }
+
+  void coordinator_t::release_abandoned_remote_monitors(const std::string &reason) {
+    std::lock_guard lock(mutex_);
+    for (auto it = clients_.begin(); it != clients_.end();) {
+      // ready means a live transport is still capturing this role: a monitor someone is
+      // actually watching is never abandoned. Everything else - retryable after its transport
+      // went away, leased or applying with no session left - is a display kept only for a
+      // resume that cannot happen now that the app has ended.
+      if (!it->second.remote_monitor || it->second.lifecycle == lifecycle_e::ready) {
+        ++it;
+        continue;
+      }
+      const auto released_uuid = it->first;
+      REMOTE_MONITOR_LOG(info) << "Releasing Remote Monitor role for client '" << released_uuid << "' (" << reason << ").";
+      release_locked(released_uuid, it->second, reason);
+      // The composition no longer names this client and an empty compose is accepted without
+      // asking Windows for anything, so nothing else will retire this output. Whoever releases a
+      // role on the app's last breath removes the display it owned, right here.
+      if (callbacks_.remove_owned_display) {
+        callbacks_.remove_owned_display(released_uuid);
+      }
+      if (!it->second.normal_game && !it->second.remote_monitor) {
+        it = clients_.erase(it);
+      } else {
+        ++it;
+      }
     }
   }
 
@@ -479,9 +616,16 @@ namespace remote_display_topology {
     const auto previous_lease = state.lease_held;
     const auto previous_lifecycle = state.lifecycle;
     const auto previous_warning = state.warning;
-    // A normal game and Remote Monitor for one paired client share the same
-    // deterministic VDD. Ending either role cannot remove the other's display.
-    const bool remove_display = !state.normal_game;
+    /*
+     * Each role owns its own VDD identity - the monitor's display is created under
+     * "<uuid>:remote-monitor", the game's under the bare uuid - so ending the monitor role must
+     * retire the monitor's display whether or not the same client's game role is still streaming.
+     * The old rule ("ending either role cannot remove the other's display") was true while the two
+     * roles shared one connector. Since the split it retires nothing and leaves the monitor's
+     * display behind, which is the ghost that makes every later setDisplayConfig call fail.
+     */
+    const bool remove_display = callbacks_.remove_owned_display != nullptr;
+    bool display_removed = false;
     state.remote_monitor = false;
     state.monitor_requested_mode.reset();
     if (state.normal_game) {
@@ -498,7 +642,22 @@ namespace remote_display_topology {
     // not restore a saved/global topology or remove any peer identity.
     if (callbacks_.apply_composed_topology) {
       std::vector<std::string> ignored;
-      if (!callbacks_.apply_composed_topology(compose_locked(ignored))) {
+      bool applied = apply_composed_or_accept_empty_locked(ignored);
+      if (!applied && remove_display) {
+        /*
+         * A departing display whose own session has ended can still sit in Windows' database as an
+         * active path with no target mode. setDisplayConfig then rejects the request during
+         * validation with ERROR_INVALID_PARAMETER before it looks at it at all (2026-11-04
+         * 15:20:34: one requested node, game display on DISPLAY15, monitor display left active on
+         * DISPLAY16 with target_mode absent), so shrinking the topology first can never succeed
+         * while that ghost exists. Retire the display this role owns - the other role's display has
+         * a different identity and is not touched - and ask once more: with the ghost gone the
+         * request is valid and the handoff completes.
+         */
+        display_removed = callbacks_.remove_owned_display(client_uuid);
+        applied = display_removed && apply_composed_or_accept_empty_locked(ignored);
+      }
+      if (!applied) {
         state.remote_monitor = true;
         state.monitor_requested_mode = monitor_mode;
         state.lease_held = previous_lease;
@@ -516,7 +675,7 @@ namespace remote_display_topology {
       resolve_effective_mode_locked(client_uuid, state);
       return;
     }
-    if (remove_display && callbacks_.remove_owned_display && !callbacks_.remove_owned_display(client_uuid)) {
+    if (remove_display && !display_removed && !callbacks_.remove_owned_display(client_uuid)) {
       state.remote_monitor = true;
       state.monitor_requested_mode = monitor_mode;
       state.lease_held = previous_lease;
@@ -549,7 +708,56 @@ namespace remote_display_topology {
     if (callbacks_.resolve_mode) callbacks_.resolve_mode(client_uuid, state.effective_mode);
   }
 
+  bool coordinator_t::refresh_unverified_shared_geometry_locked(const std::string &except) {
+    if (!callbacks_.observe_shared_mode) {
+      return true;
+    }
+    for (auto &[uuid, state] : clients_) {
+      if (uuid == except || (!state.normal_game && !state.remote_monitor)) continue;
+      if (!state.shared_mode_unverified) continue;
+      const auto observed = callbacks_.observe_shared_mode(uuid, state.remote_monitor);
+      if (!observed || observed->width <= 0 || observed->height <= 0 || observed->refresh_hz <= 0) {
+        // The output exists but its geometry is not readable yet. Composing the requested
+        // numbers here is what made the compositor refuse and retain the old topology.
+        return false;
+      }
+      state.effective_mode.width = observed->width;
+      state.effective_mode.height = observed->height;
+      state.effective_mode.refresh_hz = observed->refresh_hz;
+    }
+    return true;
+  }
+
+  bool coordinator_t::apply_composed_or_accept_empty_locked(std::vector<std::string> &warnings) {
+    const auto composed = compose_locked(warnings);
+    const bool nothing_to_place = composed.empty();
+    const bool applied = callbacks_.apply_composed_topology ? callbacks_.apply_composed_topology(composed) : false;
+    if (!applied && nothing_to_place) {
+      // No role wants a display: there is no topology to apply, and asking for one would be a
+      // request to place nothing rather than a request that failed. Reported as a refusal, the
+      // last release rolled its identity back (release_locked and release_normal_game_identity_
+      // locked both undo on a false return), which kept normal_game set for the life of the
+      // process: generic_virtual_display_cleanup_allowed() then answered false forever, every
+      // teardown deferred, and the physical outputs were never restored - the black KVM after a
+      // session ended (2026-11-04 16:24:36: three deferrals in thirty-one milliseconds, with the
+      // roster already reading game=false monitor=false).
+      REMOTE_MONITOR_LOG(info) << "Remote monitor composition: no role wants a display; accepting the refusal.";
+      return true;
+    }
+    return applied;
+  }
+
   std::vector<node_t> coordinator_t::compose_locked(std::vector<std::string> &warnings) const {
+    // Name the roster every time a topology is built. A compose that silently carries one client
+    // fewer than the caller expected is indistinguishable from one that was correct, and the log
+    // of a refusal then reads like a clean run - which is exactly how a missing node stayed
+    // invisible for a night.
+    for (const auto &[uuid, state] : clients_) {
+      REMOTE_MONITOR_LOG(info) << "Remote monitor compose roster: client '" << uuid << "' game=" << state.normal_game
+                      << " monitor=" << state.remote_monitor << " lifecycle=" << static_cast<int>(state.lifecycle)
+                      << " mode=" << state.effective_mode.width << "x" << state.effective_mode.height << "x"
+                      << state.effective_mode.refresh_hz;
+    }
     auto nodes = physical_baseline_;
     int rightmost = 0;
     for (const auto &node : nodes) rightmost = std::max(rightmost, node.x + layout_width(node));
@@ -571,12 +779,28 @@ namespace remote_display_topology {
       const auto state_it = clients_.find(uuid);
       if (state_it == clients_.end() || (!state_it->second.remote_monitor && !state_it->second.normal_game)) return;
 
+      /*
+       * Per role, not per client: effective_mode is a single field and the monitor's activation
+       * overwrites it, so the game node was wearing the monitor's mode. Each role's own request is
+       * what belongs on its node.
+       */
+      const auto role_mode = state_it->second.remote_monitor && state_it->second.normal_game
+                                 ? state_it->second.normal_requested_mode.value_or(state_it->second.effective_mode)
+                                 : state_it->second.effective_mode;
+      /*
+       * The monitor role's display is created under "<uuid>:remote-monitor", never the bare uuid,
+       * so a client holding only the monitor role must carry that identity on its node or the
+       * compose step looks the display up under an identity nothing was ever created with. Before
+       * the per-role identity existed the monitor borrowed the client's display, which is why a
+       * second device used to work and stopped once the role got its own display.
+       */
+      const bool monitor_only = state_it->second.remote_monitor && !state_it->second.normal_game;
       node_t node {
-        .id = uuid,
+        .id = monitor_only ? remote_monitor_stable_id(uuid) : uuid,
         .label = state_it->second.label,
         .active = true,
-        .configured_mode = state_it->second.effective_mode,
-        .last_requested_mode = state_it->second.effective_mode,
+        .configured_mode = role_mode,
+        .last_requested_mode = role_mode,
       };
       const auto append_right = [&](const std::string &warning) {
         node.x = rightmost;
@@ -609,7 +833,11 @@ namespace remote_display_topology {
         }
       }
 
-      const auto anchor = std::find_if(nodes.begin(), nodes.end(), [&](const node_t &candidate) { return candidate.id == anchor_id; });
+      // Saved anchors are client uuids, but a monitor-only node carries the role suffix, so match
+      // the anchor on either form or an existing placement stops resolving.
+      const auto anchor = std::find_if(nodes.begin(), nodes.end(), [&](const node_t &candidate) {
+        return candidate.id == anchor_id || candidate.id == remote_monitor_stable_id(anchor_id);
+      });
       if (anchor == nodes.end()) {
         append_right("Saved anchor '" + anchor_id + "' is unavailable; the client display was appended to the right for this activation.");
         visiting.erase(uuid);
@@ -636,6 +864,47 @@ namespace remote_display_topology {
     };
 
     for (const auto &uuid : active_ids) emit(uuid);
+
+
+    // A paired client can hold a game role and a Remote Monitor role at once, and each role owns
+    // a separate display. The list above carries one node per client, so the monitor's display
+    // had no place in the model at all - the composer kept the game's node and the capture was
+    // refused ("capture will wait rather than mirror another screen") instead of being aimed at
+    // the wrong screen. Give the monitor its own node, on its own stable identity, beside its
+    // owner's. Two-device setups are untouched by construction: each client there holds a single
+    // role, so this loop never runs and the node list is byte-identical to before.
+    for (const auto &uuid : active_ids) {
+      const auto state_it = clients_.find(uuid);
+      if (state_it == clients_.end()) continue;
+      const auto &state = state_it->second;
+      if (!state.remote_monitor || !state.normal_game) continue;
+
+      const auto monitor_mode = state.monitor_requested_mode.value_or(state.effective_mode);
+      node_t monitor {
+        .id = remote_monitor_stable_id(uuid),
+        .label = state.label,
+        .active = true,
+        .configured_mode = monitor_mode,
+        .last_requested_mode = monitor_mode,
+      };
+      monitor.x = rightmost;
+      rightmost += layout_width(monitor);
+      nodes.push_back(std::move(monitor));
+      warnings.push_back("Client '" + uuid + "' owns both a game display and a Remote Monitor display; the monitor was placed to the right for this activation.");
+    }
+
+    // One place that says what the topology will actually ask Windows for. A refusal is otherwise
+    // read against the roster and the node list guessed at, and a node that never got emitted looks
+    // exactly like a node that was emitted and rejected.
+    REMOTE_MONITOR_LOG(info) << "Remote monitor compose result: " << nodes.size() << " node(s)";
+    for (const auto &node : nodes) {
+      REMOTE_MONITOR_LOG(info) << "Remote monitor compose result: node id='" << node.id << "' label='" << node.label
+                      << "' device_id='" << node.device_id << "' physical=" << node.physical
+                      << " preexisting=" << node.preexisting << " mode=" << node.configured_mode.width << "x"
+                      << node.configured_mode.height << "x" << node.configured_mode.refresh_hz << " at " << node.x
+                      << "," << node.y << (node.primary ? " primary" : "");
+    }
+
     return nodes;
   }
 

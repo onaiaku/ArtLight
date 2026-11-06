@@ -3,6 +3,7 @@
  * @brief Windows PyroWave host encoder: Sunshine adapter around pyrowave_d3d11_core.
  */
 // standard includes
+#include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <map>
@@ -16,6 +17,10 @@
 #include <wrl/client.h>
 
 // local includes
+#ifdef SUNSHINE_ENABLE_NV_TRUEHDR
+  #include "nv_truehdr.h"
+  #include "rtx_hdr_runtime.h"
+#endif
 #include "display.h"
 #include "display_vram.h"
 #include "pyrowave_d3d11_core.h"
@@ -130,11 +135,22 @@ namespace pyrowave::host {
             failed = true;
             return -1;
           }
-          source.srv = ctx->srv.Get();
+          auto *frame_srv = ctx->srv.Get();
+          auto transfer = transfer_for(img->format);
+#ifdef SUNSHINE_ENABLE_NV_TRUEHDR
+          // RTX HDR runs before PyroWave's own RGB->YUV pass, on the frame PyroWave has
+          // already opened, so an HDR stream carries synthesized HDR rather than a PQ
+          // curve stretched over an SDR capture.
+          if (auto *converted = truehdr_view(*img, *ctx)) {
+            frame_srv = converted;
+            transfer = d3d11::transfer_e::pq;
+          }
+#endif
+          source.srv = frame_srv;
           source.mutex = ctx->mutex.Get();
           source.width = unsigned(img->width);
           source.height = unsigned(img->height);
-          source.transfer = transfer_for(img->format);
+          source.transfer = transfer;
           source.rotate_texture_steps = rotate_texture_steps();
         }
 
@@ -253,6 +269,82 @@ namespace pyrowave::host {
         return hdr ? d3d11::transfer_e::sdr_to_pq : d3d11::transfer_e::unorm;
       }
 
+#ifdef SUNSHINE_ENABLE_NV_TRUEHDR
+      /**
+       * @brief TrueHDR output for this frame, or nullptr to encode the capture as it is.
+       *
+       * The per-app RTX HDR runtime decides whether this stream converts, so an app that
+       * has not opted in is never silently upconverted. The model runs on PyroWave's own
+       * D3D11 device over the already-opened capture texture, holding the capture keyed
+       * mutex for the read and releasing it before the encoder takes it again.
+       */
+      ID3D11ShaderResourceView *truehdr_view(platf::dxgi::img_d3d_t &img, img_ctx_t &ctx) {
+        if (!video::colorspace_is_hdr(params.colorspace)) {
+          return nullptr;
+        }
+        if (img.format != DXGI_FORMAT_B8G8R8A8_UNORM && img.format != DXGI_FORMAT_R8G8B8A8_UNORM &&
+            img.format != DXGI_FORMAT_R10G10B10A2_UNORM) {
+          if (!truehdr_unavailable_logged) {
+            BOOST_LOG(warning) << "PyroWave: RTX HDR does not support this capture format; encoding the captured frame"sv;
+            truehdr_unavailable_logged = true;
+          }
+          return nullptr;
+        }
+        const auto state = rtx_hdr_runtime.update_for_frame(std::nullopt);
+        if (!state.enabled) {
+          return nullptr;
+        }
+        if (!truehdr_engine) {
+          truehdr_engine = std::make_unique<platf::dxgi::nv_truehdr_t>();
+        }
+        if (!truehdr_engine->available()) {
+          // Feature creation is asynchronous; keep streaming through the SDR path until it lands.
+          truehdr_engine->init(core->device());
+          if (!truehdr_engine->available()) {
+            return nullptr;
+          }
+        }
+
+        platf::dxgi::truehdr_params_t p;
+        p.contrast = state.contrast;
+        p.saturation = state.saturation;
+        p.middle_gray = state.middle_gray;
+        p.peak_brightness = std::clamp(state.peak_brightness, 400, 2000);
+
+        if (ctx.mutex && FAILED(ctx.mutex->AcquireSync(0, 100))) {
+          return nullptr;
+        }
+        auto *texture = truehdr_engine->convert(ctx.texture.Get(), p);
+        if (ctx.mutex) {
+          ctx.mutex->ReleaseSync(0);
+        }
+        if (!texture) {
+          if (!truehdr_logged) {
+            BOOST_LOG(warning) << "PyroWave: RTX HDR conversion failed; encoding the captured frame"sv;
+            truehdr_logged = true;
+          }
+          return nullptr;
+        }
+        if (texture != truehdr_srv_texture) {
+          truehdr_srv.Reset();
+          truehdr_srv_texture = nullptr;
+          ID3D11ShaderResourceView *view = nullptr;
+          if (SUCCEEDED(core->device()->CreateShaderResourceView(texture, nullptr, &view))) {
+            truehdr_srv.Attach(view);
+            truehdr_srv_texture = texture;
+          }
+        }
+        if (!truehdr_srv) {
+          return nullptr;
+        }
+        if (!truehdr_logged) {
+          BOOST_LOG(info) << "PyroWave: RTX HDR is converting the SDR capture to HDR before encoding"sv;
+          truehdr_logged = true;
+        }
+        return truehdr_srv.Get();
+      }
+#endif
+
       int rotate_texture_steps() const {
         // Same convention as the vertex shaders of the other D3D11 converters.
         const auto base = std::dynamic_pointer_cast<platf::dxgi::display_base_t>(display);
@@ -270,6 +362,14 @@ namespace pyrowave::host {
       std::map<std::uint32_t, img_ctx_t> img_ctxs;
       bool failed = false;
       bool warned_unorm_hdr = false;
+#ifdef SUNSHINE_ENABLE_NV_TRUEHDR
+      std::unique_ptr<platf::dxgi::nv_truehdr_t> truehdr_engine;
+      platf::rtx_hdr::runtime_t rtx_hdr_runtime;
+      ComPtr<ID3D11ShaderResourceView> truehdr_srv;
+      ID3D11Texture2D *truehdr_srv_texture = nullptr;
+      bool truehdr_logged = false;
+      bool truehdr_unavailable_logged = false;
+#endif
       logging::min_max_avg_periodic_logger<double> encode_logger;
       logging::min_max_avg_periodic_logger<double> frame_size_logger;
       logging::min_max_avg_periodic_logger<double> padding_logger;

@@ -170,9 +170,17 @@ namespace remote_session {
     // is happening on it. What an active game is doing is a fact about the HOST, not about
     // the caller, so it is not the owner's private information.
     //
-    // Kept unexposed: no game running, a caller holding a role of its own (a retained
-    // Remote Monitor follows its own path), and a caller without view permission.
-    if (owner.role != role_e::none) return false;
+    // Kept unexposed: no game running, a caller without view permission, and a caller holding
+    // a role that is IN the session it would be told about.
+    //
+    // A retained Remote Monitor is the exception, and it is not a small one: the monitor is a
+    // second session beside the game, so its holder is exactly the person most likely to be
+    // looking at the list while something runs. Excluding it meant the badge vanished at the
+    // moment the second screen came up - the one row you needed to read, with no way to read
+    // it. The monitor owns no part of the game (that is what role_e::game is), so telling it
+    // what the game is doing leaks nothing it cannot already see: the whole catalogue, and
+    // Resume.
+    if (owner.role != role_e::none && owner.role != role_e::monitor) return false;
     return caller.paired && caller.may_view;
   }
 
@@ -188,7 +196,35 @@ namespace remote_session {
       return control != control_e::input && control != control_e::monitor && !reserved_name(app.title);
     });
     if (owner.role == role_e::monitor) {
-      result.catalogue = {synthetic(control_e::resume), synthetic(control_e::disconnect_monitor)};
+      // Holding a Remote Monitor used to collapse the whole catalogue to these two entries. That
+      // was honest while leaving a monitor ended its role: the collapse lasted exactly as long as
+      // the second screen was streaming. Leaving no longer ends the role (4 Nov 2026), so the
+      // collapse outlived the stream, and for as long as the second screen existed the client saw
+      // nothing but Resume and Disconnect Monitor - no way back to a game, and no way to start one.
+      //
+      // The monitor's own two controls go on the front; under them the caller sees exactly the list
+      // it would see holding no role at all. The game and the monitor are separate sessions, and
+      // running one while the other is up is the point of the feature.
+      //
+      // A catalogue that already carries a resume entry keeps it: two resume tiles on one screen
+      // would differ only by which stream they reopen, which is not something a list can say.
+      auto as_if_idle = owner;
+      as_if_idle.role = role_e::none;
+      result = project(caller, game, as_if_idle, configured, remote_sessions_active);
+      // Remote Input is refused while this client holds a role (dispatch allows it only from
+      // role none), so offering the tile would be a button that cannot act.
+      result.catalogue.erase(
+        std::remove_if(result.catalogue.begin(), result.catalogue.end(), [](const app_t &entry) {
+          return identify(entry.id, entry.uuid) == control_e::input;
+        }),
+        result.catalogue.end()
+      );
+      const auto already_resumable = std::any_of(result.catalogue.begin(), result.catalogue.end(), [](const app_t &entry) {
+        const auto control = identify(entry.id, entry.uuid);
+        return control == control_e::resume || control == control_e::running_game;
+      });
+      result.catalogue.insert(result.catalogue.begin(), synthetic(control_e::disconnect_monitor));
+      if (!already_resumable) result.catalogue.insert(result.catalogue.begin(), synthetic(control_e::resume));
       return result;
     }
     if (!game.running && !remote_sessions_active && owner.role == role_e::none) {

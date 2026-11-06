@@ -796,6 +796,11 @@ namespace platf {
         }
         presentation_rate_limiter.set_interval(delay);
 
+    // Name of the output this capture landed on, for the dimension log at the end of init.
+    // Empty when the crtc could not be matched to a monitor, which that log reports as
+    // "unresolved" rather than guessing at a name.
+    std::string input_output_name;
+
         // Empty historically selected monitor 0. Explicit decimal names remain
         // legacy aliases, while every other value resolves through the stable
         // connector names produced by kms_display_names().
@@ -936,6 +941,7 @@ namespace platf {
 
             auto monitor = pos->crtc_to_monitor.find(plane->crtc_id);
             if (monitor != std::end(pos->crtc_to_monitor)) {
+              input_output_name = monitor->second.connector_name;
               auto &viewport = monitor->second.viewport;
 
               width = viewport.width;
@@ -1033,6 +1039,12 @@ namespace platf {
           return -1;
         }
 
+        BOOST_LOG(info) << "Linux KMS capture dimensions: output="
+                        << (input_output_name.empty() ? "unresolved" : input_output_name)
+                        << " framebuffer=" << img_width << 'x' << img_height
+                        << " viewport=" << width << 'x' << height
+                        << " logical=" << logical_width << 'x' << logical_height
+                        << " stream_request=" << config.width << 'x' << config.height << '.';
         return 0;
       }
 
@@ -1576,6 +1588,7 @@ namespace platf {
         presentation_pending = presentation_latch.capture_ready();
         presentation_trace_sequence = presentation_sequence;
         presentation_trace_available = true;
+        gl::begin_capture_session();
         BOOST_LOG(info) << "Using event-driven KMS capture for ArtLight DRM CRTC ["sv << crtc_id << "]."sv;
         if (drm_timing_trace::writer().available()) {
           BOOST_LOG(info) << "Always-on DRM timing trace is buffered in "sv << drm_timing_trace::TRACE_PATH

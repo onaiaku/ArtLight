@@ -640,20 +640,40 @@ namespace ArtLightControl
                     _dispatcher.TryEnqueue(EnsureHeartbeatWatchdog);
 
                 var hostSample = _metricsCollector.GetLatestSample();
-                _telemetryAccumulator.AddBatch(batch, hostSample);
 
-                // Session-constant, so it rides the batch rather than each sample.
-                // Assigned unconditionally: an older client reports 0 and the Dashboard
-                // falls back to showing the delivered rate alone.
-                AppStateService.Instance.CurrentTargetBitrateMbps = batch.TargetBitrateMbps;
+                // The second screen is its own stream, tagged role="monitor" by the client. It is
+                // shown beside the session, never folded into it: mixed together, the dashboard's
+                // numbers were whichever stream sampled last, and the session record averaged two
+                // streams as if they were one. Host compute is shared, so it is read either way.
+                var isMonitor = string.Equals(batch.Role, "monitor", StringComparison.OrdinalIgnoreCase);
+                if (!isMonitor)
+                {
+                    _telemetryAccumulator.AddBatch(batch, hostSample);
+
+                    // Session-constant, so it rides the batch rather than each sample.
+                    // Assigned unconditionally: an older client reports 0 and the Dashboard
+                    // falls back to showing the delivered rate alone. The monitor stream has its
+                    // own ceiling and must not overwrite the game's target.
+                    AppStateService.Instance.CurrentTargetBitrateMbps = batch.TargetBitrateMbps;
+                }
+                else
+                {
+                    // The monitor's ceiling is its own; recording it here is what lets the second
+                    // screen say "of N Mbps target" instead of borrowing the game's 500.
+                    AppStateService.Instance.CurrentMonitorTargetBitrateMbps = batch.TargetBitrateMbps;
+                }
 
                 // Forward every sample to the live Dashboard cockpit (preserves
                 // chronological order even on the final flush batch). Client fields
                 // come from the sample; host compute from the just-read host snapshot.
                 foreach (var s in batch.Samples)
-                    AppStateService.Instance.RaiseLiveSample(new AppStateService.LiveSample(
+                {
+                    var sample = new AppStateService.LiveSample(
                         s.RttAvg, s.JitterAvg, s.BitrateAvgMbps, s.Drops, s.FpsAvg,
-                        s.HostLatencyAvg, hostSample.Gpu, hostSample.GpuEnc, hostSample.Cpu));
+                        s.HostLatencyAvg, hostSample.Gpu, hostSample.GpuEnc, hostSample.Cpu);
+                    if (isMonitor) AppStateService.Instance.RaiseMonitorSample(sample);
+                    else           AppStateService.Instance.RaiseLiveSample(sample);
+                }
             }
             catch (Exception ex) { DebugLogger.Log($"[Bridge] OnSessionDataReceived failed: {ex}"); }
         }

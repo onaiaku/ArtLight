@@ -16,6 +16,12 @@ namespace pyrowave::linux_gpu {
     bool yuv444 = false, ten_bit = false, hdr = false;
     std::array<float, 12> matrix {};
     std::string render_device;
+    // RTX HDR: the model runs between two dispatches. An empty runtime keeps it out
+    // of the path entirely, and external_sync keeps CUDA and Vulkan on one timeline
+    // instead of stalling the CPU between the passes.
+    std::string truehdr_runtime;
+    bool truehdr_external_sync = true;
+    int truehdr_contrast = 100, truehdr_saturation = 100, truehdr_middle_gray = 50, truehdr_peak = 1000;
   };
 
   struct source_t {
@@ -25,6 +31,9 @@ namespace pyrowave::linux_gpu {
     int width = 0, height = 0, stride = 0;
     int offset_x = 0, offset_y = 0;
     bool y_invert = false;
+    // Capture color state is independent of framebuffer component precision.
+    // An 8-bit KMS framebuffer can already contain BT.2020/PQ pixels.
+    bool hdr10 = false;
     const std::uint8_t *cursor = nullptr;
     int cursor_width = 0, cursor_height = 0;
     int cursor_x = 0, cursor_y = 0, cursor_dst_width = 0, cursor_dst_height = 0;
