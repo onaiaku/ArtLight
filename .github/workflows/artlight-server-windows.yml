@@ -466,7 +466,18 @@ jobs:
           mkdir -p /tmp/pinned
           for p in $PKGS; do
             echo "fetching $p"
-            curl -fsSL --retry 3 -o "/tmp/pinned/$p" "$MIRROR/$p"
+            # The hosted runner's Windows curl uses schannel, which refuses the
+            # connection outright when it cannot reach the CA's revocation
+            # endpoints — CRYPT_E_REVOCATION_OFFLINE, curl exit 35, before a byte
+            # is sent. That is the runner's network, not the mirror, and it cost
+            # two release builds in a row. These packages are pinned by exact
+            # filename and revision, so the revocation check buys nothing here:
+            # skip it, and fall back to wget (no schannel) if this curl has no
+            # such option.
+            if ! curl -fsSL --retry 3 --ssl-no-revoke -o "/tmp/pinned/$p" "$MIRROR/$p"; then
+              rm -f "/tmp/pinned/$p"
+              wget -q --tries=3 -O "/tmp/pinned/$p" "$MIRROR/$p"
+            fi
           done
           ls -l /tmp/pinned
           # gcc may declare a minimum version on crt/headers; fall back to
