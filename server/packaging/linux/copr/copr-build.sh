@@ -42,28 +42,16 @@ TAG=$(git tag --points-at HEAD | head -n1)
 REMOTE_TAGS=$(git ls-remote --tags --refs origin 2>/dev/null \
   | sed -n 's#.*refs/tags/v\?\([0-9][0-9.]*\)$#\1#p')
 if [ -z "$TAG" ]; then
-  # Untagged tip. Two different things live here, and they must not be given the
-  # same number.
-  #
-  # 1. A packaging rebuild of a version that has already shipped: the tree still
-  #    carries the released number (server/CMakeLists.txt is the single version
-  #    source, and the release gate refuses a tag that disagrees with it), and the
-  #    only changes are to the packaging. That package belongs to the release that
-  #    already exists, and a user installing it must get the number they can see on
-  #    the release page -- so it keeps that number rather than gaining a new one.
-  # 2. An ordinary dev build between releases, whose number has been bumped ahead
-  #    of the newest tag. That one must NOT wear a released number.
-  #
-  # So: keep the released number only when server/CMakeLists.txt already names a
-  # version that has a tag on origin. Everything else falls back to a prerelease,
-  # which sorts below the release it follows and still gets past the build's own
-  # version guard (a bare 0.0.0 is refused by design, so a tree with no tags at all
-  # is still refused -- that fail-safe is kept).
+  # Untagged tip. Keep a released number only when the tree still names a version
+  # that already has a tag: that is a packaging-only rebuild of something already
+  # shipped, and the package must carry the number on the release page rather than
+  # a new one. A tree bumped ahead of the newest tag is an ordinary dev build and
+  # must not wear a released number, so it keeps the prerelease fallback.
   PROJECT_VERSION=$(sed -n 's/^project(ArtLightServer VERSION \([0-9][0-9.]*\).*/\1/p' \
     server/CMakeLists.txt | head -n1)
   if [ -n "$PROJECT_VERSION" ] && printf '%s\n' "$REMOTE_TAGS" | grep -qx "$PROJECT_VERSION"; then
     TAG="$PROJECT_VERSION"
-    echo "Untagged HEAD: rebuilding shipped version ${PROJECT_VERSION} (packaging-only change)"
+    echo "Untagged HEAD: rebuilding shipped version ${PROJECT_VERSION}"
   else
     LAST=$(printf '%s\n' "$REMOTE_TAGS" | sort -V | tail -n1)
     TAG="${LAST:-0.0.0}-dev.$(git rev-parse --short=8 HEAD)"
