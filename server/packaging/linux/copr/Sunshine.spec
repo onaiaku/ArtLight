@@ -19,6 +19,13 @@
 
 %undefine _hardened_build
 
+# The RTX HDR runtime is a private, dlopen'd bundle: it is not part of the
+# system library namespace, and nothing in Fedora provides the CUDA sonames its
+# libraries link against. Generating provides/requires for it would both leak
+# libnpp*.so into the namespace and make the package uninstallable.
+%global __provides_exclude_from ^%{_libdir}/vibeshine/truehdr/
+%global __requires_exclude_from ^%{_libdir}/vibeshine/truehdr/
+
 # Source0 is the whole repository: the server build reaches ../service for the input helper.
 %global srcroot %{_builddir}/Sunshine/server
 
@@ -1823,6 +1830,10 @@ fi
 %attr(0755,root,root) %{_prefix}/libexec/vibeshine/artlight-input-service
 %attr(0750,root,artlight) %caps(cap_sys_admin,cap_sys_nice+p) %{_prefix}/libexec/vibeshine/artlight-host
 %attr(4755,root,root) %{_libdir}/libvibeshine-kwin-gpu.so
+# The pinned NVIDIA VFX runtime (RTX HDR). Installed wholesale by the CMake
+# stage, opened by absolute path from this directory, and shipped with NVIDIA's
+# own licence files beside it.
+%{_libdir}/vibeshine/truehdr
 
 # Dedicated access group for the privileged virtual-display control socket
 %{_prefix}/lib/sysusers.d/vibeshine-vkms.conf
