@@ -5,6 +5,30 @@ ArtLight Control - Changelog
 https://github.com/onaiaku/ArtLight
 
 ------------------------------------------------
+Version 1.6.1 (06/11/2026)
+------------------------------------------------
+ArtLight 1.6.1 fixes the Fedora package so the
+Fedora builds ship again, and adds Fedora 45.
+
+The Fedora package failed at the final packaging
+check: the bundled NVIDIA VFX runtime is a
+prebuilt wheel whose libraries carried the CUDA
+toolkit path of the machine it was built on. That
+path exists nowhere else, and Fedora rejects a
+package that contains it. The libraries now point
+at the directory they actually live in.
+
+Fedora 45 joins Fedora 43 and 44 as a build
+target, using the same GCC 14 pulled from Fedora
+43 that 44 already needs, because CUDA 12.9
+refuses anything newer.
+
+The Windows installer and ArtLight Control now
+report the same version as the server. 1.6.0
+shipped a server at 1.6.0 with an installer and
+Control still labelled 1.5.7.
+
+------------------------------------------------
 Version 1.5.7 (15/10/2026)
 ------------------------------------------------
 ArtLight 1.5.7 fixes the Linux installer and an
