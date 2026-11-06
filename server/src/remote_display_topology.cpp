@@ -468,7 +468,10 @@ namespace remote_display_topology {
       took_lease_now = true;
     }
     resolve_effective_mode_locked(client_uuid, state);
-    if (callbacks_.observe_shared_mode && !took_lease_now && (state.normal_game || state.shared_mode_unverified)) {
+    // A retained lease is a live peer: its geometry must be observed before anything is placed
+    // against it. A lease taken on this call is the only case that skips the check, because its
+    // mode is the pool default until the apply below sets it.
+    if (callbacks_.observe_shared_mode && !took_lease_now) {
       // A successful create/reclaim does not prove the geometry took effect, and a role that
       // owns a live output can be asked for more than its panel or driver granted.
       const auto observed = callbacks_.observe_shared_mode(client_uuid, state.remote_monitor);
