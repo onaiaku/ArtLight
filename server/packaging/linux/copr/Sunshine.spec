@@ -57,6 +57,7 @@ BuildRequires: libXinerama-devel
 BuildRequires: libXrandr-devel
 BuildRequires: libXtst-devel
 BuildRequires: openssl-devel
+BuildRequires: patchelf
 BuildRequires: pipewire-devel
 # PNG, JPEG and WebP enable game-artwork conversion; without all three CMake silently
 # builds without it (ARTLIGHT_STEAM_ARTWORK_IMAGE_LIBS).
@@ -377,6 +378,14 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/*.desktop
 
 %install
 DESTDIR=%{buildroot} cmake --install %{srcroot}/build
+# The pinned NVIDIA VFX runtime is a prebuilt wheel, and its libraries carry the
+# rpath of the machine NVIDIA built them on (/usr/local/cuda-12.8/...). That path
+# exists on no user machine, and Fedora's check-rpaths rejects the package for it
+# (ERROR 0002 invalid rpath / ERROR 0010 empty rpath). The runtime opens these
+# libraries by absolute path, so the only thing the entry has to do is let them
+# find each other: point it at the directory they actually sit in.
+find %{buildroot}%{_libdir}/vibeshine/truehdr -name '*.so*' -type f \
+  -exec patchelf --set-rpath '$ORIGIN' {} +
 # The shared CMake stage includes ALPM-only pretransaction files. RPM has its
 # own package scriptlets and must not ship files outside its manifest.
 rm -f %{buildroot}%{_prefix}/libexec/vibeshine/artlight-package-preflight
