@@ -54,6 +54,7 @@ namespace gl {
     std::mutex context_seed_mutex;
     GladGLContext context_seed {};
     PFNGLEGLIMAGETARGETTEXTURE2DOESPROC egl_image_target_texture_2d_seed = nullptr;
+    PFNGLEGLIMAGETARGETTEXSTORAGEEXTPROC egl_image_target_tex_storage_seed = nullptr;
 
     GladGLContext initial_context_dispatch() {
       std::lock_guard lock {context_seed_mutex};
@@ -65,6 +66,11 @@ namespace gl {
       return egl_image_target_texture_2d_seed;
     }
 
+    PFNGLEGLIMAGETARGETTEXSTORAGEEXTPROC initial_egl_image_target_tex_storage() {
+      std::lock_guard lock {context_seed_mutex};
+      return egl_image_target_tex_storage_seed;
+    }
+
     // These reports used to be once per process, which silently destroyed the evidence
     // whenever two runs were compared inside one host lifetime: the second run looked
     // clean because the first had already spent the single line. Key them to a session
@@ -72,6 +78,7 @@ namespace gl {
     std::atomic<std::uint64_t> capture_session_generation {0};
     std::atomic<std::uint64_t> import_rejected_generation {0};
     std::atomic<std::uint64_t> cpu_fallback_generation {0};
+    std::atomic<std::uint64_t> direct_import_generation {0};
   }  // namespace
 
   void begin_capture_session() {
@@ -85,6 +92,7 @@ namespace gl {
   thread_local GladGLContext ctx = initial_context_dispatch();
 
   static thread_local PFNGLEGLIMAGETARGETTEXTURE2DOESPROC egl_image_target_texture_2d_fn = initial_egl_image_target_texture_2d();
+  static thread_local PFNGLEGLIMAGETARGETTEXSTORAGEEXTPROC egl_image_target_tex_storage_fn = initial_egl_image_target_tex_storage();
 
   bool load_context_dispatch() {
     GladGLContext loaded_context {};
@@ -94,17 +102,25 @@ namespace gl {
 
     auto loaded_egl_image_target =
       (PFNGLEGLIMAGETARGETTEXTURE2DOESPROC) (GLADapiproc) eglGetProcAddress("glEGLImageTargetTexture2DOES");
+    auto loaded_egl_image_storage =
+      (PFNGLEGLIMAGETARGETTEXSTORAGEEXTPROC) (GLADapiproc) eglGetProcAddress("glEGLImageTargetTexStorageEXT");
     ctx = loaded_context;
     egl_image_target_texture_2d_fn = loaded_egl_image_target;
+    egl_image_target_tex_storage_fn = loaded_egl_image_storage;
 
     std::lock_guard lock {context_seed_mutex};
     context_seed = loaded_context;
     egl_image_target_texture_2d_seed = loaded_egl_image_target;
+    egl_image_target_tex_storage_seed = loaded_egl_image_storage;
     return true;
   }
 
   PFNGLEGLIMAGETARGETTEXTURE2DOESPROC egl_image_target_texture_2d() {
     return egl_image_target_texture_2d_fn;
+  }
+
+  PFNGLEGLIMAGETARGETTEXSTORAGEEXTPROC egl_image_target_tex_storage() {
+    return egl_image_target_tex_storage_fn;
   }
 
   void drain_errors(const std::string_view &prefix) {
@@ -737,15 +753,47 @@ namespace egl {
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
-    if (!gl::egl_image_target_texture_2d()) {
-      BOOST_LOG(error) << "glEGLImageTargetTexture2DOES is not available; cannot import RGB DMA-BUF"sv;
+    auto storage_target = gl::egl_image_target_tex_storage();
+    auto oes_target = gl::egl_image_target_texture_2d();
+    if (!storage_target && !oes_target) {
+      BOOST_LOG(error) << "Neither glEGLImageTargetTexStorageEXT nor glEGLImageTargetTexture2DOES is available; cannot import RGB DMA-BUF"sv;
       return std::nullopt;
     }
+
     // GL errors are sticky. Discard errors from earlier conversion work so
     // only this DMA-BUF binding decides whether the import succeeded.
     while (gl::ctx.GetError() != GL_NO_ERROR) {
     }
-    gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, rgb->xrgb8);
+
+    // GL_EXT_EGL_image_storage first. The NVIDIA driver still advertises
+    // GL_OES_EGL_image and hands back a non-null glEGLImageTargetTexture2DOES, but the call
+    // rejects every DMA-BUF with GL_INVALID_OPERATION — 8-bit and 10-bit, same-device and
+    // cross-device alike — which forced every frame through the CPU upload copy. The
+    // TexStorageEXT entry point imports the same buffers as a GPU texture.
+    if (storage_target) {
+      storage_target(GL_TEXTURE_2D, rgb->xrgb8, nullptr);
+      if (gl::ctx.GetError() == GL_NO_ERROR) {
+        gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
+        const auto session = gl::capture_session_generation.load(std::memory_order_relaxed);
+        if (gl::direct_import_generation.exchange(session, std::memory_order_relaxed) != session) {
+          BOOST_LOG(info) << "Imported RGB DMA-BUF directly through GL_EXT_EGL_image_storage (fourcc="
+                          << util::hex(xrgb.fourcc).to_string_view()
+                          << ", modifier=" << util::hex(xrgb.modifier).to_string_view() << ").";
+        }
+        return rgb;
+      }
+      // Immutable storage may now be half-set; retire this texture before retrying.
+      gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
+      gl::ctx.DeleteTextures(1, rgb->tex.begin());
+      gl::ctx.GenTextures(1, rgb->tex.begin());
+      gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
+    }
+
+    if (!oes_target) {
+      BOOST_LOG(error) << "glEGLImageTargetTexture2DOES is not available; cannot import RGB DMA-BUF"sv;
+      return std::nullopt;
+    }
+    oes_target(GL_TEXTURE_2D, rgb->xrgb8);
     const auto import_error = gl::ctx.GetError();
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
 

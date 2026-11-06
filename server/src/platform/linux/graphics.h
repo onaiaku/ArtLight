@@ -45,6 +45,12 @@ namespace gl {
   using PFNGLEGLIMAGETARGETTEXTURE2DOESPROC = void (*)(GLenum target, void *image);
   PFNGLEGLIMAGETARGETTEXTURE2DOESPROC egl_image_target_texture_2d();
 
+  // glEGLImageTargetTexStorageEXT (GL_EXT_EGL_image_storage) is the modern way to bind an
+  // EGLImage to a texture. The older GL_OES_EGL_image entry point is still advertised by the
+  // NVIDIA driver but rejects every DMA-BUF with GL_INVALID_OPERATION, so it is tried second.
+  using PFNGLEGLIMAGETARGETTEXSTORAGEEXTPROC = void (*)(GLenum target, void *image, const GLint *attrib_list);
+  PFNGLEGLIMAGETARGETTEXSTORAGEEXTPROC egl_image_target_tex_storage();
+
   /**
    * @brief Start a new capture session so per-session reports can be emitted again.
    * @details The capture path (GPU import or CPU copy) is reported once per session
