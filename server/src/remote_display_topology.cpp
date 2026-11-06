@@ -447,6 +447,12 @@ namespace remote_display_topology {
       state.warning = "A shared display mode is awaiting verification; topology changes are deferred.";
       return {true, false, state.warning};
     }
+    // A lease taken on this call is a connector nothing else is capturing: its mode is the
+    // pool's default rather than a promise, and the apply below is what sets it. Verifying it
+    // beforehand can only ever disagree, and returning a 503 to a client that asks once per
+    // launch turns that disagreement into a Remote Monitor that never opens. A lease that was
+    // already held is the opposite case - a live peer we must not move onto unverified numbers.
+    bool took_lease_now = false;
     if (!state.lease_held) {
       state.lifecycle = lifecycle_e::leased;
       if (!callbacks_.create_or_reclaim(client_uuid, state.label, desired_mode(state))) {
@@ -459,9 +465,10 @@ namespace remote_display_topology {
         return {true, false, state.warning};
       }
       state.lease_held = true;
+      took_lease_now = true;
     }
     resolve_effective_mode_locked(client_uuid, state);
-    if (callbacks_.observe_shared_mode && (state.normal_game || state.lease_held || state.shared_mode_unverified)) {
+    if (callbacks_.observe_shared_mode && !took_lease_now && (state.normal_game || state.shared_mode_unverified)) {
       // A successful create/reclaim does not prove the geometry took effect, and a role that
       // owns a live output can be asked for more than its panel or driver granted.
       const auto observed = callbacks_.observe_shared_mode(client_uuid, state.remote_monitor);

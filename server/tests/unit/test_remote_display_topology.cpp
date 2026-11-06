@@ -1143,20 +1143,31 @@ TEST(RemoteDisplayTopology, SharedGeometryIsObservedBeforeLivePeersAreMoved) {
     },
   });
 
+  // A lease taken by this activation is a connector nothing else is capturing: its mode is the
+  // pool's default, and the apply is what sets it. Refusing to apply because the default is not
+  // the request yet would deadlock - a client that asks once per launch would get a 503 every
+  // time and no monitor would ever open.
+  const auto first = coordinator.activate_or_resume("peer", "Peer", {3840, 2160, 120, false}, 1);
+  EXPECT_TRUE(first.accepted);
+  EXPECT_TRUE(first.ready);
+  EXPECT_EQ(applies, 1) << "a fresh lease must apply the mode it is asking for";
+  ASSERT_FALSE(applied.empty());
+  EXPECT_EQ(applied.front().configured_mode.width, 3840);
+
+  // A lease that was already held is a live peer. Geometry it has not reached yet must not be
+  // composed against, because everything is placed from those numbers.
   const auto deferred = coordinator.activate_or_resume("peer", "Peer", {3840, 2160, 120, false}, 1);
   EXPECT_TRUE(deferred.accepted);
   EXPECT_FALSE(deferred.ready);
   EXPECT_TRUE(deferred.retryable);
-  EXPECT_EQ(applies, 0) << "a topology must not be applied from geometry that was only requested";
+  EXPECT_EQ(applies, 1) << "a topology must not be applied from geometry that was only requested";
   EXPECT_NE(deferred.error.find("does not yet match the requested geometry"), std::string::npos);
 
-  // The connector catches up, the second attempt observes it, and only then is anything moved.
+  // The connector catches up, the next attempt observes it, and only then is anything moved.
   actual = {3840, 2160, 120, false};
   const auto ready = coordinator.activate_or_resume("peer", "Peer", {3840, 2160, 120, false}, 1);
   EXPECT_TRUE(ready.ready);
-  EXPECT_EQ(applies, 1);
-  ASSERT_FALSE(applied.empty());
-  EXPECT_EQ(applied.front().configured_mode.width, 3840);
+  EXPECT_EQ(applies, 2);
 }
 
 TEST(RemoteDisplayTopology, UnknownSharedGeometryDoesNotBlockAStream) {
