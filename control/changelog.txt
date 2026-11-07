@@ -5,6 +5,25 @@ ArtLight Control - Changelog
 https://github.com/onaiaku/ArtLight
 
 ------------------------------------------------
+Version 1.6.1 (07/11/2026)
+------------------------------------------------
+ArtLight 1.6.1 adds Fedora 45, and fixes a virtual
+display that could outlive the app on Windows.
+
+Fedora 45 ships OpenSSL 4.0, which handles the
+crypto code differently. ArtLight now builds
+against it, so Fedora 45 finally has a package of
+its own alongside Fedora 43 and 44.
+
+On Windows, a virtual display could be left behind
+once ArtLight closed. It is now released with the
+app, and the layout it took over is restored.
+
+The installer and Control now carry the same
+version as the server, so what Add/Remove Programs
+reports matches what is actually running.
+
+------------------------------------------------
 Version 1.5.7 (15/10/2026)
 ------------------------------------------------
 ArtLight 1.5.7 fixes the Linux installer and an
