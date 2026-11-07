@@ -296,15 +296,29 @@ function install_cuda() {
     --tries=3 \
     -q -O "%{_builddir}/cuda.run"
   chmod a+x "%{_builddir}/cuda.run"
-  "%{_builddir}/cuda.run" \
-    --no-drm \
-    --no-man-page \
-    --no-opengl-libs \
-    --override \
-    --silent \
-    --toolkit \
-    --toolkitpath="%{cuda_dir}"
-  rm "%{_builddir}/cuda.run"
+
+  # Unpack the runfile. Do NOT execute it.
+  #
+  # The runfile's own ./cuda-installer is linked against libxml2.so.2. Fedora 45 ships
+  # libxml2 2.15, whose soname is libxml2.so.16, so that binary cannot start there at all:
+  #   ./cuda-installer: error while loading shared libraries: libxml2.so.2
+  # and the build dies before a single toolkit file is installed. That is NVIDIA's binary
+  # against Fedora's library bump, not anything in this spec.
+  #
+  # The runfile is a Makeself archive, so it can be unpacked without running anything. Its
+  # builds/ tree is already the component layout --toolkitpath would have produced (bin/,
+  # include/, lib64/, nvvm/, targets/), so laying those components out ourselves gives the
+  # same toolkit without executing an NVIDIA binary at all. Verified on Fedora 45: the
+  # merged tree's nvcc compiles and links a kernel against gcc14 with the maths patch below.
+  local unpack="%{_builddir}/cuda-unpacked"
+  sh "%{_builddir}/cuda.run" --noexec --target "${unpack}" --silent
+  rm -f "%{_builddir}/cuda.run"
+  mkdir -p "%{cuda_dir}"
+  for component in "${unpack}"/builds/cuda_* "${unpack}"/builds/lib*; do
+    [ -d "${component}" ] || continue
+    cp -a "${component}"/. "%{cuda_dir}/"
+  done
+  rm -rf "${unpack}"
 
   # we need to patch math_functions.h depending on the CUDA major version
   # see https://forums.developer.nvidia.com/t/error-exception-specification-is-incompatible-for-cospi-sinpi-cospif-sinpif-with-glibc-2-41/323591/3
