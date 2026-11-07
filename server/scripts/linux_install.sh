@@ -125,7 +125,7 @@ require_package_manager() {
     # No signed Fedora repository exists; packages come from --package or a release RPM.
     use_repo=0
   else
-    die 'neither pacman nor dnf was found. ArtLight's Linux host supports Arch Linux, CachyOS and Fedora.'
+    die "neither pacman nor dnf was found. ArtLight's Linux host supports Arch Linux, CachyOS and Fedora."
   fi
 }
 
