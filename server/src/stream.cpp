@@ -3653,6 +3653,23 @@ namespace stream {
 #endif
         }
 
+#if defined(_WIN32) || defined(__linux__)
+        // A Remote Monitor retained for resume outlives its transport, but not the app it was
+        // showing. Once the last transport ends and no app is running there is nothing left to
+        // resume into, yet the retained role still counts as a shared-runtime owner: the
+        // finalize below answers "still owned", the virtual display and the deferred revert are
+        // both left pending, and the next launch inherits a display whose owner is a stream that
+        // no longer exists (2026-11-07 00:48:32: the game app exited with a monitor connected and
+        // the release above skipped it as still-capturing; the monitor's own transport ended a
+        // second later and nothing asked again, so the following desktop stream could not replace
+        // the stale display and the monitor was refused 503).
+        if (!is_paused) {
+          remote_display_topology::instance().release_abandoned_remote_monitors(
+            "stream ended without an app"
+          );
+        }
+#endif
+
 #ifdef _WIN32
         clear_deferred_stream_start_actions();
         const session::shared_runtime_finalize_context_t finalize_context {

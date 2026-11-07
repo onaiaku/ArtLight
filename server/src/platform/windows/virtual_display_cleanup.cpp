@@ -232,6 +232,20 @@ namespace platf::virtual_display_cleanup {
       }
     }
 
+    // Removing a virtual display changes the desktop's topology, and the revert that would
+    // have put the user's layout back is only dispatched when the caller enforced it. A
+    // cleanup that removed displays and skipped the revert therefore leaves the desktop
+    // wherever the removal put it (2026-11-07 00:49:25: the revert apply failed with
+    // ERROR_INVALID_PARAMETER and retried relaxed; cleanup then finished with
+    // database_restore_applied=false and the monitors came back side by side). The saved
+    // database is the state the user chose, so restore it whenever we removed a display.
+    if (!result.database_restore_applied && result.virtual_displays_removed) {
+      result.database_restore_applied = restore_windows_display_database();
+      BOOST_LOG(info) << "Virtual display cleanup: restored the saved display database after removing a "
+                         "virtual display without an enforced revert (result="
+                      << (result.database_restore_applied ? "true" : "false") << ").";
+    }
+
     BOOST_LOG(info) << "Virtual display cleanup: finished (reason=" << reason_text
                     << ", had_active_virtual_display=" << (had_active_virtual_display ? "true" : "false")
                     << ", virtual_displays_removed=" << (result.virtual_displays_removed ? "true" : "false")
