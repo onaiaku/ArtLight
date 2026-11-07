@@ -652,12 +652,16 @@ download_release_package() {
   local provenance expected actual
   provenance=$(curl -fsSL --max-time 60 \
     "${REPO_URL}/releases/download/${tag}/release-provenance.json" 2>/dev/null || true)
-  if [[ -n "$provenance" ]]; then
+  if [[ -z "$provenance" ]]; then
+    warn "Release ${tag} publishes no provenance manifest; installing ${asset_name} without a checksum to compare against."
+  else
     expected=$(jq -r --arg n "$asset_name" '.assets[$n] // empty' <<<"$provenance" | awk '{print $1}')
     if [[ "$expected" =~ ^[0-9a-f]{64}$ ]]; then
       actual=$(sha256sum "$local_package" | awk '{print $1}')
       [[ "$actual" == "$expected" ]] || die "checksum mismatch for ${asset_name}; refusing to install"
       ok "Package checksum matches the release provenance."
+    else
+      warn "The provenance manifest for ${tag} records no checksum for ${asset_name}; installing without provenance verification."
     fi
   fi
 }
