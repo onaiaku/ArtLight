@@ -8,7 +8,8 @@
 #   1. checks the machine against the documented requirements,
 #   2. installs the kernel headers the virtual-display driver needs,
 #   3. installs the ArtLight package from the signed onaiaku repository, or
-#      from the newest GitHub release when the repository is unavailable
+#      from the newest GitHub release when that release is newer than the
+#      repository's, or when the repository is unavailable
 #      (on Fedora: from a local RPM given with --package, or a release RPM),
 #   4. opens the firewall (firewalld or ufw) when one is active, and
 #   5. offers to reboot when one is required, and says what to do next (skip
@@ -374,6 +375,72 @@ repo_is_available() {
   curl -fsSIL --max-time 15 "${PACMAN_REPO_SERVER}/${PACMAN_REPO_NAME}.db" >/dev/null 2>&1
 }
 
+# pacman's own version ordering. On a host without pacman (the packaging tests,
+# and nothing else) fall back to deciding only simple dotted numbers, and only
+# when they differ: anything uncertain counts as "not newer", which keeps the
+# signed repository and can never turn into an accidental downgrade.
+version_is_newer() {
+  [[ -n "${1:-}" && -n "${2:-}" ]] || return 1
+  if command -v vercmp >/dev/null 2>&1; then
+    (( $(vercmp "$1" "$2") > 0 ))
+    return
+  fi
+  local a=$1 b=$2 a_rel=1 b_rel=1
+  # A trailing numeric -N is pkgrel, and a bare version counts as pkgrel 1 —
+  # which is what vercmp reports. Anything more exotic than that is undecidable
+  # here, and undecidable means "not newer".
+  if [[ $a =~ ^([0-9]+(\.[0-9]+)*)-([0-9]+)$ ]]; then a=${BASH_REMATCH[1]} a_rel=${BASH_REMATCH[3]}; fi
+  if [[ $b =~ ^([0-9]+(\.[0-9]+)*)-([0-9]+)$ ]]; then b=${BASH_REMATCH[1]} b_rel=${BASH_REMATCH[3]}; fi
+  [[ $a =~ ^[0-9]+(\.[0-9]+)*$ && $b =~ ^[0-9]+(\.[0-9]+)*$ ]] || return 1
+  local IFS=. i n
+  local -a left=($a) right=($b)
+  n=${#left[@]}
+  (( ${#right[@]} > n )) && n=${#right[@]}
+  for ((i = 0; i < n; i++)); do
+    (( 10#${left[i]:-0} > 10#${right[i]:-0} )) && return 0
+    (( 10#${left[i]:-0} < 10#${right[i]:-0} )) && return 1
+  done
+  if (( 10#$a_rel > 10#$b_rel )); then return 0; fi
+  return 1
+}
+
+installed_package_version() {
+  pacman -Q artlight 2>/dev/null | awk '{print $2; exit}'
+}
+
+require_jq() {
+  command -v jq >/dev/null 2>&1 || pkg_install jq
+}
+
+# The tag of the newest published release carrying a package for this package
+# manager. Best effort on purpose: when GitHub cannot be reached the caller
+# keeps using the signed repository, which is the path that needs no network
+# beyond it.
+newest_release_version() {
+  local releases selector asset_pattern='^artlight-.*\.pkg\.tar\.zst$'
+  if [[ -n "${requested_version:-}" ]]; then
+    printf '%s\n' "$requested_version"
+    return 0
+  fi
+  command -v curl >/dev/null 2>&1 || return 1
+  require_jq >/dev/null 2>&1 || return 1
+  if [[ $pkg_mgr == dnf ]]; then
+    asset_pattern='^artlight-[0-9].*\.x86_64\.rpm$'
+  fi
+  releases=$(curl -fsSL --max-time 20 -H 'Accept: application/vnd.github+json' \
+    "${API_URL}/releases?per_page=30" 2>/dev/null) || return 1
+  if ((allow_prerelease)); then
+    selector='.[] | select(.draft == false)'
+  else
+    selector='.[] | select(.draft == false and .prerelease == false)'
+  fi
+  jq -r --arg pattern "$asset_pattern" "
+    [${selector} | . as \$r | .assets[]
+      | select(.name | test(\$pattern))
+      | select(.name | test(\"-debug-\") | not)
+      | \$r.tag_name] | first // empty" <<<"$releases"
+}
+
 configure_pacman_repo() {
   local keyfile fingerprint
   log 'Importing the onaiaku repository signing key'
@@ -499,6 +566,28 @@ install_from_repo() {
     return
   fi
   local -a repo_target candidates
+  local repo_version release_version installed_version
+  # A repository can be reachable and still be behind: a release whose package
+  # is too large to publish there never lands, and pacman then offers to
+  # "upgrade" a newer install down to whatever the repository still holds. The
+  # newer of the two wins, and a machine already ahead of both is left alone.
+  if [[ -z "${requested_version:-}" ]]; then
+    repo_version=$(pacman -Si artlight 2>/dev/null | awk -F': *' '/^Version[[:space:]]*:/{print $2; exit}')
+    if [[ -n "$repo_version" ]]; then
+      release_version=$(newest_release_version || true)
+      if version_is_newer "$release_version" "$repo_version"; then
+        warn "The signed repository offers ${repo_version}, but release ${release_version} is newer; installing that release instead."
+        download_release_package
+        install_from_package
+        return
+      fi
+      installed_version=$(installed_package_version)
+      if version_is_newer "$installed_version" "$repo_version" &&
+        { [[ -z "$release_version" ]] || ! version_is_newer "$release_version" "$installed_version"; }; then
+        die "ArtLight ${installed_version} is installed and nothing newer is published (repository: ${repo_version}, newest release: ${release_version:-unavailable}). Refusing to downgrade; pass --version VERSION to install a specific release."
+      fi
+    fi
+  fi
   if [[ -n "$requested_version" ]]; then
     local arch_version="${requested_version//-/}"
     arch_version="${arch_version//+/.}"
@@ -526,9 +615,7 @@ download_release_package() {
   local releases tag asset_url asset_name selector
   log 'Looking up the newest ArtLight release on GitHub'
   command -v curl >/dev/null 2>&1 || die 'curl is required to download the release'
-  if ! command -v jq >/dev/null 2>&1; then
-    pkg_install jq
-  fi
+  require_jq
   if [[ -n "$requested_version" ]]; then
     releases=$(curl -fsSL --max-time 60 -H 'Accept: application/vnd.github+json' \
       "${API_URL}/releases/tags/${requested_version}") ||

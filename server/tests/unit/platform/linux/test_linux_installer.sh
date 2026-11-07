@@ -123,6 +123,9 @@ prepare_driver_replacement
 
 # Repository installs use the same exact-path preflight, including --yes.
 configure_pacman_repo() { :; }
+# The suite must never reach GitHub: the release lookup belongs to the
+# repository-behind cases, and those stub it themselves.
+newest_release_version() { return 1; }
 parse_args --yes
 : > "$calls"
 install_from_repo
@@ -882,4 +885,52 @@ printf 'Package-manager selection prefers pacman, requires rpm beside dnf, and f
   out=$(print_summary)
   grep -Fq 'create the Web UI login' <<<"$out"
   printf 'The next-step summary only asks for setup and a reboot when the machine still needs them.\n'
+)
+
+# A repository can be reachable and still be behind: a release whose package is
+# too large to publish there never lands, and pacman then offers to "upgrade" a
+# newer install downwards. The newer published release must win, and a machine
+# already ahead of everything published must be left alone.
+(
+  calls_file="$workdir/newer-wins-calls"
+  : > "$calls_file"
+  requested_version=''
+  configure_pacman_repo() { :; }
+  newest_release_version() { printf '1.6.1\n'; }
+  download_release_package() { printf 'release\n' >> "$calls_file"; }
+  install_from_package() { printf 'install-release\n' >> "$calls_file"; }
+  pacman() {
+    printf '%s\n' "$*" >> "$calls_file"
+    case "$1" in
+      -Si) printf 'Name            : artlight\nVersion         : 1.5.7-1\n' ;;
+      -Q)  printf 'artlight 1.5.9-1\n' ;;
+      *) return 0 ;;
+    esac
+  }
+
+  install_from_repo
+  grep -Fxq 'install-release' "$calls_file" ||
+    { echo 'newer release: installer stayed on the older repository package' >&2; exit 1; }
+  printf 'A release newer than the repository wins over the signed repository.\n'
+)
+
+(
+  requested_version=''
+  configure_pacman_repo() { :; }
+  newest_release_version() { return 1; }
+  download_release_package() { echo 'downgrade guard: took the release path' >&2; exit 1; }
+  install_from_package() { echo 'downgrade guard: installed anyway' >&2; exit 1; }
+  pacman() {
+    case "$1" in
+      -Si) printf 'Name            : artlight\nVersion         : 1.5.7-1\n' ;;
+      -Q)  printf 'artlight 1.5.9-1\n' ;;
+      *) return 0 ;;
+    esac
+  }
+
+  if ( install_from_repo ); then
+    echo 'downgrade guard: installer accepted a downgrade' >&2
+    exit 1
+  fi
+  printf 'A machine ahead of everything published is never downgraded.\n'
 )

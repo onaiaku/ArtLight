@@ -46,8 +46,8 @@ layout, is [docs/linux/install.md](linux/install.md).
 ##### Install
 
 Download and run the installer script. It checks the requirements, installs the headers for the
-running kernel, installs the package from the signed repository (or the latest GitHub release when
-the repository is unavailable), opens firewalld or ufw, and tells you whether to reboot:
+running kernel, installs the package from the signed repository or the latest GitHub release,
+whichever is newer, opens firewalld or ufw, and tells you whether to reboot:
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/onaiaku/ArtLight/main/server/scripts/linux_install.sh
