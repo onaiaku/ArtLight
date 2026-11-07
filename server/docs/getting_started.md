@@ -3,8 +3,8 @@
 The recommended method for running ArtLight is to use the [binaries](#binaries) included in the
 [latest release][latest-release], unless otherwise specified.
 
-[Pre-releases](https://github.com/onaiaku/ArtLight/releases) are also available. These should be considered beta,
-and release artifacts may be missing when merging changes on a faster cadence.
+[Pre-releases](https://github.com/onaiaku/ArtLight/releases) are also available. These are early builds: release
+artifacts can be missing while changes land on a faster cadence.
 
 ## Binaries
 
@@ -20,11 +20,11 @@ Binaries can be found in the [latest release][latest-release].
 
 ### Linux
 
-Linux support is in **beta** and ships as a native package for **Arch Linux and CachyOS** (x86_64), and
+Linux support ships as a native package for **Arch Linux and CachyOS** (x86_64), and
 for **Fedora 43 and 44** (x86_64) from [COPR](https://copr.fedorainfracloud.org/coprs/onaiaku/artlight/).
 ArtLight is developed and tested on **CachyOS with KDE Plasma 6 on Wayland**; other Arch-based
 distributions are supported on a best-effort basis. AppImage, Flatpak, Debian/Ubuntu, openSUSE,
-Homebrew, and Docker builds are not produced for this beta.
+Homebrew, and Docker builds are not produced.
 
 The complete guide, including manual installation, verification, troubleshooting, and the file
 layout, is [docs/linux/install.md](linux/install.md).

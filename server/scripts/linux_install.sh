@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ArtLight installer for Arch Linux, CachyOS and Fedora.
 #
-# ArtLight's Linux beta is developed and tested on CachyOS with KDE Plasma 6
+# ArtLight's Linux host is developed and tested on CachyOS with KDE Plasma 6
 # on Wayland. Other Arch-based distributions are supported on a best-effort
 # basis. This script:
 #
@@ -125,7 +125,7 @@ require_package_manager() {
     # No signed Fedora repository exists; packages come from --package or a release RPM.
     use_repo=0
   else
-    die 'neither pacman nor dnf was found. The Linux beta supports Arch Linux, CachyOS and Fedora.'
+    die 'neither pacman nor dnf was found. ArtLight's Linux host supports Arch Linux, CachyOS and Fedora.'
   fi
 }
 

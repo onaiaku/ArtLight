@@ -1,10 +1,10 @@
-# Installing ArtLight on Linux (beta)
+# Installing ArtLight on Linux
 
-ArtLight's Linux host is in beta. It ships as a native package for **Arch Linux and CachyOS**, and for
+ArtLight's Linux host ships as a native package for **Arch Linux and CachyOS**, and for
 **Fedora 43 and 44** from [COPR](https://copr.fedorainfracloud.org/coprs/onaiaku/artlight/) (see
 [Fedora](#fedora)). It is developed and tested on **CachyOS with KDE Plasma 6 on Wayland**; other
 Arch-based distributions should work but get less testing. There is no AppImage, Flatpak, Debian, or
-Docker build in this beta.
+Docker build.
 
 ## Requirements
 

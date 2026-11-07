@@ -57,7 +57,7 @@ Both are designed to be set up once and forgotten: install, pair your client, pl
 - NVIDIA, AMD, or Intel GPU with hardware encoding
 - A Moonlight client on the device you stream to — we recommend our own [**ArtMoon**](https://github.com/onaiaku/ArtMoon), built to pair with ArtLight out of the box
 
-**Linux (beta)**
+**Linux**
 
 - Arch Linux or CachyOS, x86_64
 - Fedora 43 or 44, x86_64 (from [COPR](https://copr.fedorainfracloud.org/coprs/onaiaku/artlight/))
